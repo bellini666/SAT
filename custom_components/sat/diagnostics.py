@@ -37,7 +37,7 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: SatConf
             "flame": asdict(coordinator.flame),
             "data": dict(coordinator.data),
             "messages": [
-                {**message, "topic": message["topic"].replace(entry.data[CONF_DEVICE], REDACTED)}
+                {**message, "topic": "/".join(REDACTED if part == entry.data[CONF_DEVICE] else part for part in message["topic"].split("/"))}
                 for message in coordinator.messages
             ],
         },
