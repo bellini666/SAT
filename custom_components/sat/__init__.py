@@ -1,4 +1,3 @@
-import asyncio
 import logging
 
 from homeassistant.components import binary_sensor, climate, number, sensor
@@ -50,9 +49,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     # Register the services
     await async_register_services(hass)
 
-    # Add an update listener for this entry
-    entry.async_on_unload(entry.add_update_listener(async_reload_entry))
-
     return True
 
 
@@ -68,29 +64,13 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     await _coordinator.async_will_remove_from_hass()
 
-    unloaded = all(
-        # Forward entry unload for used platforms
-        await asyncio.gather(hass.config_entries.async_unload_platforms(entry, PLATFORMS))
-    )
+    unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
     # Remove the entry from the data dictionary if all components are unloaded successfully
     if unloaded:
         hass.data[DOMAIN].pop(entry.entry_id)
 
     return unloaded
-
-
-async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """
-    Reload config entry.
-
-    This function is called by Home Assistant when the integration configuration is updated.
-    """
-    # Unload the entry and its dependent components
-    await async_unload_entry(hass, entry)
-
-    # Set up the entry again
-    await async_setup_entry(hass, entry)
 
 
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

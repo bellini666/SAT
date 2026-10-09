@@ -6,7 +6,7 @@ from typing import Optional, Any
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.components import sensor, switch, valve, weather, binary_sensor, climate, input_boolean
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.config_entries import ConfigEntry, OptionsFlowWithReload
 from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.core import callback
 from homeassistant.helpers import selector, entity_registry
@@ -47,7 +47,7 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     @staticmethod
     @callback
     def async_get_options_flow(config_entry: ConfigEntry):
-        return SatOptionsFlowHandler(config_entry)
+        return SatOptionsFlowHandler()
 
     @callback
     def async_remove(self) -> None:
@@ -546,12 +546,8 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         self.data[CONF_MINIMUM_SETPOINT] = overshoot_protection_value
 
 
-class SatOptionsFlowHandler(config_entries.OptionsFlow):
+class SatOptionsFlowHandler(OptionsFlowWithReload):
     """Config flow options handler."""
-
-    def __init__(self, config_entry: ConfigEntry):
-        self._config_entry = config_entry
-        self._options = dict(config_entry.options)
 
     async def async_step_init(self, _user_input: dict[str, Any] | None = None):
         menu_options = ["general", "presets", "system_configuration"]
@@ -571,7 +567,7 @@ class SatOptionsFlowHandler(config_entries.OptionsFlow):
         schema = {}
         options = await self.get_options()
 
-        default_maximum_setpoint = calculate_default_maximum_setpoint(self._config_entry.data.get(CONF_HEATING_SYSTEM))
+        default_maximum_setpoint = calculate_default_maximum_setpoint(self.config_entry.data.get(CONF_HEATING_SYSTEM))
         maximum_setpoint = float(options.get(CONF_MAXIMUM_SETPOINT, default_maximum_setpoint))
 
         schema[vol.Required(CONF_PID_CONTROLLER_VERSION, default=str(options[CONF_PID_CONTROLLER_VERSION]))] = selector.SelectSelector(
@@ -590,7 +586,7 @@ class SatOptionsFlowHandler(config_entries.OptionsFlow):
                 ])
             )
 
-        if len(self._config_entry.data.get(CONF_ROOMS, [])) > 0:
+        if len(self.config_entry.data.get(CONF_ROOMS, [])) > 0:
             schema[vol.Required(CONF_HEATING_MODE, default=str(options[CONF_HEATING_MODE]))] = selector.SelectSelector(
                 selector.SelectSelectorConfig(mode=SelectSelectorMode.DROPDOWN, options=[
                     selector.SelectOptionDict(value=HEATING_MODE_COMFORT, label="Comfort"),
@@ -628,7 +624,7 @@ class SatOptionsFlowHandler(config_entries.OptionsFlow):
             schema[vol.Required(CONF_DUTY_CYCLE, default=options[CONF_DUTY_CYCLE])] = selector.TimeSelector()
 
         entities = entity_registry.async_get(self.hass)
-        device_name = self._config_entry.data.get(CONF_NAME)
+        device_name = self.config_entry.data.get(CONF_NAME)
         window_id = entities.async_get_entity_id(binary_sensor.DOMAIN, DOMAIN, f"{device_name.lower()}-window-sensor")
 
         schema[vol.Optional(CONF_WINDOW_SENSORS, default=options[CONF_WINDOW_SENSORS])] = selector.EntitySelector(
@@ -721,7 +717,7 @@ class SatOptionsFlowHandler(config_entries.OptionsFlow):
             vol.Required(CONF_DYNAMIC_MINIMUM_SETPOINT, default=options[CONF_DYNAMIC_MINIMUM_SETPOINT]): bool,
         }
 
-        if self._config_entry.data.get(CONF_MODE) in [MODE_MQTT_OPENTHERM, MODE_SERIAL, MODE_SIMULATOR]:
+        if self.config_entry.data.get(CONF_MODE) in [MODE_MQTT_OPENTHERM, MODE_SERIAL, MODE_SIMULATOR]:
             schema[vol.Required(CONF_FORCE_PULSE_WIDTH_MODULATION, default=options[CONF_FORCE_PULSE_WIDTH_MODULATION])] = bool
 
             schema[vol.Required(CONF_MINIMUM_CONSUMPTION, default=options[CONF_MINIMUM_CONSUMPTION])] = selector.NumberSelector(
@@ -752,11 +748,10 @@ class SatOptionsFlowHandler(config_entries.OptionsFlow):
         )
 
     async def update_options(self, _user_input):
-        self._options.update(_user_input)
-        return self.async_create_entry(title=self._config_entry.data[CONF_NAME], data=self._options)
+        return self.async_create_entry(data={**self.config_entry.options, **_user_input})
 
     async def get_options(self):
         options = OPTIONS_DEFAULTS.copy()
-        options.update(self._options)
+        options.update(self.config_entry.options)
 
         return options
