@@ -27,12 +27,13 @@ from homeassistant.components.climate import (
     DOMAIN as CLIMATE_DOMAIN,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import ATTR_TEMPERATURE, STATE_UNAVAILABLE, STATE_UNKNOWN, ATTR_ENTITY_ID, STATE_ON, STATE_OFF, EVENT_HOMEASSISTANT_STARTED
-from homeassistant.core import HomeAssistant, ServiceCall, Event, CoreState, EventStateChangedData, HassJob, callback
+from homeassistant.const import ATTR_TEMPERATURE, STATE_UNAVAILABLE, STATE_UNKNOWN, ATTR_ENTITY_ID, STATE_ON, STATE_OFF
+from homeassistant.core import HomeAssistant, ServiceCall, Event, EventStateChangedData, HassJob, callback
 from homeassistant.helpers import entity_registry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_track_state_change_event, async_track_time_interval, async_call_later
 from homeassistant.helpers.restore_state import RestoreEntity
+from homeassistant.helpers.start import async_at_started
 
 from .area import Areas, SENSOR_TEMPERATURE_ID
 from .const import *
@@ -203,12 +204,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             self.areas.heating_curves.update(self.current_outside_temperature)
             self.heating_curve.update(self.target_temperature, self.current_outside_temperature)
 
-        if self.hass.state is not CoreState.running:
-            self.hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, self._register_event_listeners)
-            self.hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, self.async_control_heating_loop)
-        else:
-            await self._register_event_listeners()
-            await self.async_control_heating_loop()
+        self.async_on_remove(async_at_started(self.hass, self._async_started))
 
         # Register services
         await self._register_services()
@@ -232,7 +228,20 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         for listener in list(self._state_listeners):
             listener()
 
-    async def _register_event_listeners(self, _time: Optional[datetime] = None):
+    async def async_will_remove_from_hass(self) -> None:
+        if self._control_heating_loop_unsub is not None:
+            self._control_heating_loop_unsub()
+            self._control_heating_loop_unsub = None
+
+        if self._window_sensor_handle is not None:
+            self._window_sensor_handle.cancel()
+            self._window_sensor_handle = None
+
+    async def _async_started(self, _hass: HomeAssistant) -> None:
+        await self._register_event_listeners()
+        await self.async_control_heating_loop()
+
+    async def _register_event_listeners(self):
         """Register event listeners."""
         self.async_on_remove(
             async_track_time_interval(

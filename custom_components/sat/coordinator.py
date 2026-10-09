@@ -423,7 +423,11 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
 
     async def async_will_remove_from_hass(self) -> None:
         """Run when an entity is removed from hass."""
-        pass
+        if self._listeners_unsub is not None:
+            self._listeners_unsub()
+            self._listeners_unsub = None
+
+        await self.async_shutdown()
 
     async def async_control_heating_loop(self, climate: Optional[SatClimate] = None, pwm_state: Optional[PWMState] = None, _time=None) -> None:
         """Control the heating loop for the device."""

@@ -7,10 +7,11 @@ import pytest
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_mqtt_message
+from pytest_homeassistant_custom_component.typing import MqttMockHAClient
 
 from custom_components import sat
-from custom_components.sat.const import DOMAIN
+from custom_components.sat.const import CONF_DEVICE, CONF_MODE, CONF_MQTT_TOPIC, DOMAIN, MODE_MQTT_OPENTHERM
 from tests.const import DEFAULT_USER_DATA
 
 
@@ -100,3 +101,27 @@ async def test_setup_does_not_depend_on_platform_order(hass: HomeAssistant, monk
     assert len(hass.states.async_entity_ids("climate")) == 1
     assert any(entity_id.endswith("heating_curve_test") for entity_id in hass.states.async_entity_ids("sensor"))
     assert any(entity_id.endswith("central_heating_synchro") for entity_id in hass.states.async_entity_ids("binary_sensor"))
+
+
+async def test_unload_stops_mqtt_updates(hass: HomeAssistant, mqtt_mock: MqttMockHAClient) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="otgw",
+        data={**DEFAULT_USER_DATA, CONF_MODE: MODE_MQTT_OPENTHERM, CONF_DEVICE: "otgw", CONF_MQTT_TOPIC: "OTGW"},
+    )
+    entry.add_to_hass(hass)
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    coordinator = entry.runtime_data.coordinator
+    async_fire_mqtt_message(hass, "OTGW/value/otgw/flame", "ON")
+    await hass.async_block_till_done()
+    assert coordinator.flame_active
+
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()
+
+    async_fire_mqtt_message(hass, "OTGW/value/otgw/flame", "OFF")
+    await hass.async_block_till_done()
+    assert coordinator.flame_active

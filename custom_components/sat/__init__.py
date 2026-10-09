@@ -66,9 +66,10 @@ async def async_unload_entry(hass: HomeAssistant, entry: SatConfigEntry) -> bool
 
     This function is called by Home Assistant when the integration is being removed.
     """
-    await entry.runtime_data.coordinator.async_will_remove_from_hass()
+    if unloaded := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
+        await entry.runtime_data.coordinator.async_will_remove_from_hass()
 
-    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    return unloaded
 
 
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

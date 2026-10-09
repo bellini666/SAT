@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from abc import abstractmethod
-from typing import Mapping, Any
+from typing import Any, Callable, Mapping
 
 from homeassistant.components import mqtt
 from homeassistant.core import HomeAssistant, callback
@@ -24,6 +24,7 @@ class SatMqttCoordinator(SatDataUpdateCoordinator):
 
         self._device_id: str = device_id
         self._topic: str = config_data.get(CONF_MQTT_TOPIC)
+        self._subscriptions: list[Callable[[], None]] = []
         self._store: Store = Store(hass, STORAGE_VERSION, snake_case(f"{self.__class__.__name__}_{device_id}"))
 
     @property
@@ -37,19 +38,24 @@ class SatMqttCoordinator(SatDataUpdateCoordinator):
         await mqtt.async_wait_for_mqtt_client(self.hass)
 
         for key in self.get_tracked_entities():
-            await mqtt.async_subscribe(
+            self._subscriptions.append(await mqtt.async_subscribe(
                 self.hass,
                 self._get_topic_for_subscription(key),
                 self._create_message_handler(key)
-            )
+            ))
 
         await self.boot()
 
         await super().async_added_to_hass()
 
     async def async_will_remove_from_hass(self) -> None:
+        while self._subscriptions:
+            self._subscriptions.pop()()
+
         # Save the updated data to persistent storage
         await self._save_data()
+
+        await super().async_will_remove_from_hass()
 
     async def _load_stored_data(self) -> None:
         """Load the data from persistent storage."""
