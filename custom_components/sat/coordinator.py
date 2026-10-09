@@ -130,6 +130,10 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
         pass
 
     @property
+    def messages(self) -> list[dict[str, str]]:
+        return []
+
+    @property
     def device_status(self) -> BoilerStatus:
         """Return the current status of the device."""
         if self.boiler_temperature is None:

@@ -38,7 +38,7 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: SatConf
             "data": dict(coordinator.data),
             "messages": [
                 {**message, "topic": message["topic"].replace(entry.data[CONF_DEVICE], REDACTED)}
-                for message in getattr(coordinator, "messages", [])
+                for message in coordinator.messages
             ],
         },
     }
