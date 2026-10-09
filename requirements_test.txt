@@ -2,7 +2,6 @@ pytest-homeassistant-custom-component==0.13.371
 aiohttp_cors
 aiodiscover
 aiodhcpwatcher
-sentry_sdk
 pyotgw
 scapy
 janus
