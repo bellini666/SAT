@@ -145,31 +145,6 @@
   },
   "options": {
     "step": {
-      "advanced": {
-        "data": {
-          "climate_valve_offset": "Offset van Klimaatklep",
-          "dynamic_minimum_setpoint": "Dynamisch Minimaal Setpoint (Experimenteel)",
-          "force_pulse_width_modulation": "Dwing Pulsbreedtemodulatie af",
-          "maximum_consumption": "Maximaal Verbruik",
-          "maximum_relative_modulation": "Maximale Relatieve Modulatie",
-          "minimum_consumption": "Minimaal Verbruik",
-          "sample_time": "Sampletijd",
-          "simulation": "Simulatie",
-          "target_temperature_step": "Stap van Doeltemperatuur",
-          "thermal_comfort": "Thermisch Comfort"
-        },
-        "data_description": {
-          "climate_valve_offset": "Offset om de openingsgraad van de klimaatklep aan te passen.",
-          "dynamic_minimum_setpoint": "Activeert de dynamische aanpassing van de minimale instelwaarde op basis van de retourtemperatuur van de ketel, wat ook helpt te identificeren of er kleppen gesloten zijn.",
-          "maximum_consumption": "Het maximale gasverbruik wanneer de ketel actief is.",
-          "maximum_relative_modulation": "Vertegenwoordigt het hoogste modulatieniveau voor een efficiënt verwarmingssysteem.",
-          "minimum_consumption": "Het minimale gasverbruik wanneer de ketel actief is.",
-          "sample_time": "Het minimale tijdsinterval tussen updates aan de PID-regelaar.",
-          "target_temperature_step": "De stap van de doeltemperatuur aanpassen voor fijnafstemming van comfortniveaus.",
-          "thermal_comfort": "Gebruik van de Simmer Index voor aanpassing van thermisch comfort inschakelen."
-        },
-        "title": "Geavanceerd"
-      },
       "general": {
         "data": {
           "automatic_gains_value": "Automatische Versterkingswaarde",
@@ -201,7 +176,6 @@
       },
       "init": {
         "menu_options": {
-          "advanced": "Geavanceerde Opties",
           "general": "Algemeen",
           "presets": "Voorinstellingen",
           "system_configuration": "Systeemconfiguratie"
@@ -235,7 +209,34 @@
           "window_minimum_open_time": "De minimale tijd dat een raam open moet zijn voordat het systeem reageert."
         },
         "description": "Voor fijnafstelling en aanpassing.",
-        "title": "Systeemconfiguratie"
+        "title": "Systeemconfiguratie",
+        "sections": {
+          "advanced": {
+            "name": "Geavanceerd",
+            "data": {
+              "climate_valve_offset": "Offset van Klimaatklep",
+              "dynamic_minimum_setpoint": "Dynamisch Minimaal Setpoint (Experimenteel)",
+              "force_pulse_width_modulation": "Dwing Pulsbreedtemodulatie af",
+              "maximum_consumption": "Maximaal Verbruik",
+              "maximum_relative_modulation": "Maximale Relatieve Modulatie",
+              "minimum_consumption": "Minimaal Verbruik",
+              "sample_time": "Sampletijd",
+              "simulation": "Simulatie",
+              "target_temperature_step": "Stap van Doeltemperatuur",
+              "thermal_comfort": "Thermisch Comfort"
+            },
+            "data_description": {
+              "climate_valve_offset": "Offset om de openingsgraad van de klimaatklep aan te passen.",
+              "dynamic_minimum_setpoint": "Activeert de dynamische aanpassing van de minimale instelwaarde op basis van de retourtemperatuur van de ketel, wat ook helpt te identificeren of er kleppen gesloten zijn.",
+              "maximum_consumption": "Het maximale gasverbruik wanneer de ketel actief is.",
+              "maximum_relative_modulation": "Vertegenwoordigt het hoogste modulatieniveau voor een efficiënt verwarmingssysteem.",
+              "minimum_consumption": "Het minimale gasverbruik wanneer de ketel actief is.",
+              "sample_time": "Het minimale tijdsinterval tussen updates aan de PID-regelaar.",
+              "target_temperature_step": "De stap van de doeltemperatuur aanpassen voor fijnafstemming van comfortniveaus.",
+              "thermal_comfort": "Gebruik van de Simmer Index voor aanpassing van thermisch comfort inschakelen."
+            }
+          }
+        }
       }
     }
   }

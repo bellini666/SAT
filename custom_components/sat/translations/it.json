@@ -145,31 +145,6 @@
   },
   "options": {
     "step": {
-      "advanced": {
-        "data": {
-          "climate_valve_offset": "Offset della Valvola Climatica",
-          "dynamic_minimum_setpoint": "Setpoint Minimo Dinamico (Sperimentale)",
-          "force_pulse_width_modulation": "Forzare la Modulazione di Larghezza di Impulso",
-          "maximum_consumption": "Consumo Massimo",
-          "maximum_relative_modulation": "Modulazione Relativa Massima",
-          "minimum_consumption": "Consumo Minimo",
-          "sample_time": "Tempo di Campionamento",
-          "simulation": "Simulazione",
-          "target_temperature_step": "Passo della Temperatura Target",
-          "thermal_comfort": "Comfort Termico"
-        },
-        "data_description": {
-          "climate_valve_offset": "Offset per regolare il grado di apertura della valvola climatica.",
-          "dynamic_minimum_setpoint": "Attiva la regolazione dinamica del punto di impostazione minimo in base alla temperatura di ritorno della caldaia, che aiuta anche a identificare se delle valvole sono chiuse.",
-          "maximum_consumption": "Il consumo massimo di gas quando la caldaia è attiva.",
-          "maximum_relative_modulation": "Rappresenta il livello di modulazione più alto per un sistema di riscaldamento efficiente.",
-          "minimum_consumption": "Il consumo minimo di gas quando la caldaia è attiva.",
-          "sample_time": "L'intervallo di tempo minimo tra gli aggiornamenti del controllore PID.",
-          "target_temperature_step": "Regolare il passo della temperatura target per un'accurata regolazione dei livelli di comfort.",
-          "thermal_comfort": "Abilitare l'uso dell'Indice di Simmer per l'aggiustamento del comfort termico."
-        },
-        "title": "Avanzate"
-      },
       "general": {
         "data": {
           "automatic_gains_value": "Valore dei Guadagni Automatici",
@@ -201,7 +176,6 @@
       },
       "init": {
         "menu_options": {
-          "advanced": "Opzioni Avanzate",
           "general": "Generale",
           "presets": "Preimpostazioni",
           "system_configuration": "Configurazione del Sistema"
@@ -235,7 +209,34 @@
           "window_minimum_open_time": "Il tempo minimo che una finestra deve essere aperta prima che il sistema reagisca."
         },
         "description": "Per una regolazione fine e una personalizzazione.",
-        "title": "Configurazione del Sistema"
+        "title": "Configurazione del Sistema",
+        "sections": {
+          "advanced": {
+            "name": "Avanzate",
+            "data": {
+              "climate_valve_offset": "Offset della Valvola Climatica",
+              "dynamic_minimum_setpoint": "Setpoint Minimo Dinamico (Sperimentale)",
+              "force_pulse_width_modulation": "Forzare la Modulazione di Larghezza di Impulso",
+              "maximum_consumption": "Consumo Massimo",
+              "maximum_relative_modulation": "Modulazione Relativa Massima",
+              "minimum_consumption": "Consumo Minimo",
+              "sample_time": "Tempo di Campionamento",
+              "simulation": "Simulazione",
+              "target_temperature_step": "Passo della Temperatura Target",
+              "thermal_comfort": "Comfort Termico"
+            },
+            "data_description": {
+              "climate_valve_offset": "Offset per regolare il grado di apertura della valvola climatica.",
+              "dynamic_minimum_setpoint": "Attiva la regolazione dinamica del punto di impostazione minimo in base alla temperatura di ritorno della caldaia, che aiuta anche a identificare se delle valvole sono chiuse.",
+              "maximum_consumption": "Il consumo massimo di gas quando la caldaia è attiva.",
+              "maximum_relative_modulation": "Rappresenta il livello di modulazione più alto per un sistema di riscaldamento efficiente.",
+              "minimum_consumption": "Il consumo minimo di gas quando la caldaia è attiva.",
+              "sample_time": "L'intervallo di tempo minimo tra gli aggiornamenti del controllore PID.",
+              "target_temperature_step": "Regolare il passo della temperatura target per un'accurata regolazione dei livelli di comfort.",
+              "thermal_comfort": "Abilitare l'uso dell'Indice di Simmer per l'aggiustamento del comfort termico."
+            }
+          }
+        }
       }
     }
   }

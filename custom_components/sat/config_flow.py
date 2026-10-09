@@ -9,6 +9,7 @@ from homeassistant.components import sensor, switch, valve, weather, binary_sens
 from homeassistant.config_entries import ConfigEntry, OptionsFlowWithReload
 from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.core import callback
+from homeassistant.data_entry_flow import section
 from homeassistant.helpers import selector, entity_registry
 from homeassistant.helpers.selector import SelectSelectorMode, SelectOptionDict
 from homeassistant.helpers.service_info.dhcp import DhcpServiceInfo
@@ -56,17 +57,7 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_user(self, _user_input: dict[str, Any] | None = None):
         """Handle user flow."""
-        menu_options = [
-            "mosquitto",
-            "esphome",
-            "serial",
-            "switch"
-        ]
-
-        if self.show_advanced_options:
-            menu_options.append("simulator")
-
-        return self.async_show_menu(step_id="user", menu_options=menu_options)
+        return self.async_show_menu(step_id="user", menu_options=["mosquitto", "esphome", "serial", "switch", "simulator"])
 
     async def async_step_dhcp(self, discovery_info: DhcpServiceInfo):
         """Handle dhcp discovery."""
@@ -552,14 +543,9 @@ class SatOptionsFlowHandler(OptionsFlowWithReload):
     """Config flow options handler."""
 
     async def async_step_init(self, _user_input: dict[str, Any] | None = None):
-        menu_options = ["general", "presets", "system_configuration"]
-
-        if self.show_advanced_options:
-            menu_options.append("advanced")
-
         return self.async_show_menu(
             step_id="init",
-            menu_options=menu_options
+            menu_options=["general", "presets", "system_configuration"]
         )
 
     async def async_step_general(self, _user_input: dict[str, Any] | None = None):
@@ -707,55 +693,47 @@ class SatOptionsFlowHandler(OptionsFlowWithReload):
         )
         schema[vol.Required(CONF_WINDOW_MINIMUM_OPEN_TIME, default=options[CONF_WINDOW_MINIMUM_OPEN_TIME])] = selector.TimeSelector()
 
-        return self.async_show_form(
-            step_id="system_configuration",
-            data_schema=vol.Schema(schema)
-        )
-
-    async def async_step_advanced(self, _user_input: dict[str, Any] | None = None):
-        if _user_input is not None:
-            return await self.update_options(_user_input)
-
-        options = await self.get_options()
-
-        schema: dict[Marker, Any] = {
+        advanced: dict[Marker, Any] = {
             vol.Required(CONF_SIMULATION, default=options[CONF_SIMULATION]): bool,
             vol.Required(CONF_THERMAL_COMFORT, default=options[CONF_THERMAL_COMFORT]): bool,
             vol.Required(CONF_DYNAMIC_MINIMUM_SETPOINT, default=options[CONF_DYNAMIC_MINIMUM_SETPOINT]): bool,
         }
 
         if self.config_entry.data.get(CONF_MODE) in [MODE_MQTT_OPENTHERM, MODE_SERIAL, MODE_SIMULATOR]:
-            schema[vol.Required(CONF_FORCE_PULSE_WIDTH_MODULATION, default=options[CONF_FORCE_PULSE_WIDTH_MODULATION])] = bool
+            advanced[vol.Required(CONF_FORCE_PULSE_WIDTH_MODULATION, default=options[CONF_FORCE_PULSE_WIDTH_MODULATION])] = bool
 
-            schema[vol.Required(CONF_MINIMUM_CONSUMPTION, default=options[CONF_MINIMUM_CONSUMPTION])] = selector.NumberSelector(
+            advanced[vol.Required(CONF_MINIMUM_CONSUMPTION, default=options[CONF_MINIMUM_CONSUMPTION])] = selector.NumberSelector(
                 selector.NumberSelectorConfig(min=0, max=8, step=0.1)
             )
 
-            schema[vol.Required(CONF_MAXIMUM_CONSUMPTION, default=options[CONF_MAXIMUM_CONSUMPTION])] = selector.NumberSelector(
+            advanced[vol.Required(CONF_MAXIMUM_CONSUMPTION, default=options[CONF_MAXIMUM_CONSUMPTION])] = selector.NumberSelector(
                 selector.NumberSelectorConfig(min=0, max=8, step=0.1)
             )
 
-        schema[vol.Required(CONF_CLIMATE_VALVE_OFFSET, default=options[CONF_CLIMATE_VALVE_OFFSET])] = selector.NumberSelector(
+        advanced[vol.Required(CONF_CLIMATE_VALVE_OFFSET, default=options[CONF_CLIMATE_VALVE_OFFSET])] = selector.NumberSelector(
             selector.NumberSelectorConfig(min=-1, max=1, step=0.1)
         )
 
-        schema[vol.Required(CONF_TARGET_TEMPERATURE_STEP, default=options[CONF_TARGET_TEMPERATURE_STEP])] = selector.NumberSelector(
+        advanced[vol.Required(CONF_TARGET_TEMPERATURE_STEP, default=options[CONF_TARGET_TEMPERATURE_STEP])] = selector.NumberSelector(
             selector.NumberSelectorConfig(min=0.1, max=1, step=0.05)
         )
 
-        schema[vol.Required(CONF_MAXIMUM_RELATIVE_MODULATION, default=options[CONF_MAXIMUM_RELATIVE_MODULATION])] = selector.NumberSelector(
+        advanced[vol.Required(CONF_MAXIMUM_RELATIVE_MODULATION, default=options[CONF_MAXIMUM_RELATIVE_MODULATION])] = selector.NumberSelector(
             selector.NumberSelectorConfig(min=0, max=100, step=1)
         )
 
-        schema[vol.Required(CONF_SAMPLE_TIME, default=options[CONF_SAMPLE_TIME])] = selector.TimeSelector()
+        advanced[vol.Required(CONF_SAMPLE_TIME, default=options[CONF_SAMPLE_TIME])] = selector.TimeSelector()
+
+        schema[vol.Required("advanced")] = section(vol.Schema(advanced), {"collapsed": True})
 
         return self.async_show_form(
-            step_id="advanced",
+            step_id="system_configuration",
             data_schema=vol.Schema(schema)
         )
 
     async def update_options(self, _user_input):
-        return self.async_create_entry(data={**self.config_entry.options, **_user_input})
+        advanced = _user_input.pop("advanced", {})
+        return self.async_create_entry(data={**self.config_entry.options, **_user_input, **advanced})
 
     async def get_options(self):
         options = OPTIONS_DEFAULTS.copy()

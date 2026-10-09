@@ -153,31 +153,6 @@
   },
   "options": {
     "step": {
-      "advanced": {
-        "data": {
-          "climate_valve_offset": "Climate valve offset",
-          "dynamic_minimum_setpoint": "Dynamic Minimum Setpoint (Experimental)",
-          "force_pulse_width_modulation": "Force Pulse Width Modulation",
-          "maximum_consumption": "Maximum Consumption",
-          "maximum_relative_modulation": "Maximum Relative Modulation",
-          "minimum_consumption": "Minimum Consumption",
-          "sample_time": "Sample Time",
-          "simulation": "Simulation",
-          "target_temperature_step": "Target Temperature Step",
-          "thermal_comfort": "Thermal Comfort"
-        },
-        "data_description": {
-          "climate_valve_offset": "Offset to adjust the opening degree of the climate valve.",
-          "dynamic_minimum_setpoint": "Activates the dynamic setpoint adjustment based on the boiler's return temperature, which also helps identify if any valves are closed.",
-          "maximum_consumption": "The maximum gas consumption when the boiler is active.",
-          "maximum_relative_modulation": "Representing the highest modulation level for an efficient heating system.",
-          "minimum_consumption": "The minimum gas consumption when the boiler is active.",
-          "sample_time": "The minimum time interval between updates to the PID controller.",
-          "target_temperature_step": "Adjust the target temperature step for fine-tuning comfort levels.",
-          "thermal_comfort": "Enable the use of the Simmer Index for thermal comfort adjustment."
-        },
-        "title": "Advanced"
-      },
       "general": {
         "data": {
           "automatic_gains_value": "Automatic Gains Value",
@@ -210,7 +185,6 @@
       },
       "init": {
         "menu_options": {
-          "advanced": "Advanced Options",
           "general": "General",
           "presets": "Presets",
           "system_configuration": "System Configuration"
@@ -248,7 +222,34 @@
           "default_hvac_mode": "HVAC mode used on the first start, or when no saved state is available."
         },
         "description": "For fine-tuning and customization.",
-        "title": "System Configuration"
+        "title": "System Configuration",
+        "sections": {
+          "advanced": {
+            "name": "Advanced",
+            "data": {
+              "climate_valve_offset": "Climate valve offset",
+              "dynamic_minimum_setpoint": "Dynamic Minimum Setpoint (Experimental)",
+              "force_pulse_width_modulation": "Force Pulse Width Modulation",
+              "maximum_consumption": "Maximum Consumption",
+              "maximum_relative_modulation": "Maximum Relative Modulation",
+              "minimum_consumption": "Minimum Consumption",
+              "sample_time": "Sample Time",
+              "simulation": "Simulation",
+              "target_temperature_step": "Target Temperature Step",
+              "thermal_comfort": "Thermal Comfort"
+            },
+            "data_description": {
+              "climate_valve_offset": "Offset to adjust the opening degree of the climate valve.",
+              "dynamic_minimum_setpoint": "Activates the dynamic setpoint adjustment based on the boiler's return temperature, which also helps identify if any valves are closed.",
+              "maximum_consumption": "The maximum gas consumption when the boiler is active.",
+              "maximum_relative_modulation": "Representing the highest modulation level for an efficient heating system.",
+              "minimum_consumption": "The minimum gas consumption when the boiler is active.",
+              "sample_time": "The minimum time interval between updates to the PID controller.",
+              "target_temperature_step": "Adjust the target temperature step for fine-tuning comfort levels.",
+              "thermal_comfort": "Enable the use of the Simmer Index for thermal comfort adjustment."
+            }
+          }
+        }
       }
     }
   },
