@@ -72,3 +72,15 @@ async def test_stop_hands_control_back(hass: HomeAssistant, mqtt_mock: MqttMockH
     assert {"CS=0", "MM=T"} <= set(commands(mqtt_mock))
     assert await hass.config_entries.async_unload(entry.entry_id)
 
+
+async def test_control_setpoint_is_refreshed_while_inputs_are_missing(hass: HomeAssistant, mqtt_mock: MqttMockHAClient) -> None:
+    entry = await setup_heating(hass, mqtt_mock)
+    climate = entry.runtime_data.climate
+    setpoint = climate.setpoint
+
+    hass.states.async_set("sensor.test_inside_sensor", "unavailable")
+    await climate.async_control_heating_loop()
+
+    assert setpoint is not None
+    assert f"CS={min(setpoint, entry.runtime_data.coordinator.maximum_setpoint)}" in commands(mqtt_mock)
+    assert await hass.config_entries.async_unload(entry.entry_id)

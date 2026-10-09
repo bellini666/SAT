@@ -970,12 +970,15 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             self._control_heating_loop_unsub()
             self._control_heating_loop_unsub = None
 
-        # If the current, target or outside temperature is not available, do nothing
-        if self.current_temperature is None or self.target_temperature is None or self.current_outside_temperature is None:
-            return
-
         # No need to do anything if we are not on
         if self.hvac_mode != HVACMode.HEAT:
+            return
+
+        if self.current_temperature is None or self.target_temperature is None or self.current_outside_temperature is None:
+            # The gateway hands the boiler back to the room thermostat when the override is not refreshed
+            if self._setpoint is not None:
+                await self._coordinator.async_set_control_setpoint(min(self._setpoint, self._coordinator.maximum_setpoint))
+
             return
 
         # Control the heating through the coordinator
