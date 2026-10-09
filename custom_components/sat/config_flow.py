@@ -40,6 +40,7 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     def __init__(self):
         """Initialize."""
         self.data = {}
+        self.options = {}
         self.errors = {}
         self.config_entry = None
 
@@ -486,6 +487,7 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         if self.config_entry is not None:
             return self.async_update_reload_and_abort(
                 data=self.data,
+                options={**self.config_entry.options, **self.options},
                 entry=self.config_entry,
                 title=self.data[CONF_NAME],
                 reason="reconfigure_successful",
@@ -522,6 +524,7 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         """Store the value and enable overshoot protection."""
         self.data[CONF_OVERSHOOT_PROTECTION] = True
         self.data[CONF_MINIMUM_SETPOINT] = overshoot_protection_value
+        self.options[CONF_MINIMUM_SETPOINT] = overshoot_protection_value
 
 
 class SatOptionsFlowHandler(OptionsFlowWithReload):

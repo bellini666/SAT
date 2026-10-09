@@ -181,3 +181,25 @@ async def test_overshoot_protection_value_in_options(hass: HomeAssistant) -> Non
     assert result["type"] == "create_entry"
     assert entry.runtime_data.coordinator.minimum_setpoint == 47
     assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_reconfigured_overshoot_protection_takes_effect(hass: HomeAssistant) -> None:
+    entry = MockConfigEntry(domain=DOMAIN, version=SatFlowHandler.VERSION, data={**DEFAULT_USER_DATA, "minimum_setpoint": 45, "heating_system": "radiators"}, options={"minimum_setpoint": 45})
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_RECONFIGURE, "entry_id": entry.entry_id})
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {
+        "inside_sensor_entity_id": "sensor.test_inside_sensor",
+        "outside_sensor_entity_id": ["sensor.test_outside_sensor"],
+    })
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"next_step_id": "overshoot_protection"})
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"minimum_setpoint": 52})
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"manufacturer": result["data_schema"].schema["manufacturer"].config["options"][0]["value"]})
+    await hass.async_block_till_done()
+
+    assert result["reason"] == "reconfigure_successful"
+    assert entry.runtime_data.coordinator.minimum_setpoint == 52
+    assert await hass.config_entries.async_unload(entry.entry_id)
