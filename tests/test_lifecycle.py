@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+from unittest.mock import patch
 
 import pytest
 from homeassistant.config_entries import ConfigEntryState
@@ -164,3 +165,17 @@ async def test_dhcp_discovery_keeps_mqtt_entry(hass: HomeAssistant, mqtt_mock: M
     assert entry.data[CONF_DEVICE] == "otgw"
     assert entry.state is ConfigEntryState.LOADED
     assert "update listener" not in caplog.text
+
+
+@pytest.mark.parametrize("entity_id", ["climate.living_room_smart_autotune_thermostat_test", ["climate.living_room_smart_autotune_thermostat_test"]])
+async def test_reset_integral_targets_reloaded_climate(hass: HomeAssistant, sat_entry: MockConfigEntry, entity_id: str | list[str]) -> None:
+    assert await hass.config_entries.async_reload(sat_entry.entry_id)
+    await hass.async_block_till_done()
+
+    climate = sat_entry.runtime_data.climate
+    assert climate.entity_id == "climate.living_room_smart_autotune_thermostat_test"
+
+    with patch.object(climate.pid, "reset") as reset:
+        await hass.services.async_call(DOMAIN, "reset_integral", {"entity_id": entity_id}, blocking=True)
+
+    reset.assert_called_once()

@@ -4,20 +4,18 @@ from dataclasses import dataclass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import device_registry
+from homeassistant.helpers import config_validation as cv, device_registry
+from homeassistant.helpers.typing import ConfigType
 from homeassistant.helpers.storage import Store
 
 from .const import (
     DOMAIN,
     CONF_MODE,
     CONF_DEVICE,
-    SERVICE_RESET_INTEGRAL,
-    SERVICE_PULSE_WIDTH_MODULATION,
 )
 from .climate import SatClimate
 from .coordinator import SatDataUpdateCoordinator, SatDataUpdateCoordinatorFactory
-from .services import async_register_services
-from .util import get_climate_entities
+from .services import async_setup_services
 
 _LOGGER: logging.Logger = logging.getLogger(__name__)
 PLATFORMS = [Platform.CLIMATE, Platform.SENSOR, Platform.NUMBER, Platform.BINARY_SENSOR]
@@ -30,6 +28,13 @@ class SatRuntimeData:
 
 
 type SatConfigEntry = ConfigEntry[SatRuntimeData]
+
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
+
+async def async_setup(hass: HomeAssistant, _config: ConfigType) -> bool:
+    async_setup_services(hass)
+    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: SatConfigEntry):
@@ -53,9 +58,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: SatConfigEntry):
 
     # Forward entry setup for used platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-
-    # Register the services
-    await async_register_services(hass)
 
     return True
 

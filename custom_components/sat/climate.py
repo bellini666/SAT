@@ -28,7 +28,7 @@ from homeassistant.components.climate import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_TEMPERATURE, STATE_UNAVAILABLE, STATE_UNKNOWN, ATTR_ENTITY_ID, STATE_ON, STATE_OFF
-from homeassistant.core import HomeAssistant, ServiceCall, Event, EventStateChangedData, HassJob, callback
+from homeassistant.core import HomeAssistant, Event, EventStateChangedData, HassJob, callback
 from homeassistant.helpers import entity_registry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_track_state_change_event, async_track_time_interval, async_call_later
@@ -206,9 +206,6 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
 
         self.async_on_remove(async_at_started(self.hass, self._async_started))
 
-        # Register services
-        await self._register_services()
-
         # Initialize the area system
         await self.areas.async_added_to_hass(self.hass)
 
@@ -362,13 +359,17 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
 
         self.async_write_ha_state()
 
-    async def _register_services(self):
-        async def reset_integral(_call: ServiceCall):
-            """Service to reset the integral part of the PID controller."""
-            self.pid.reset()
-            self.areas.pids.reset()
+    async def async_reset_integral(self) -> None:
+        """Reset the integral part of the PID controllers."""
+        self.pid.reset()
+        self.areas.pids.reset()
 
-        self.hass.services.async_register(DOMAIN, SERVICE_RESET_INTEGRAL, reset_integral)
+    async def async_set_pulse_width_modulation(self, enabled: bool) -> None:
+        """Enable or disable Pulse Width Modulation."""
+        if enabled:
+            self.pwm.enable()
+        else:
+            self.pwm.disable()
 
     @property
     def name(self):
