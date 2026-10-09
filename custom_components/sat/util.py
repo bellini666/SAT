@@ -40,10 +40,9 @@ def create_pid_controller(config_options) -> PID:
     )
 
 
-def create_minimum_setpoint_controller(config_data, config_options) -> MinimumSetpoint:
+def create_minimum_setpoint_controller(minimum_setpoint, config_options) -> MinimumSetpoint:
     """Create and return a Minimum Setpoint controller instance with the given configuration options."""
     # Extract the configuration options
-    minimum_setpoint = config_data.get(CONF_MINIMUM_SETPOINT)
     adjustment_factor = config_options.get(CONF_MINIMUM_SETPOINT_ADJUSTMENT_FACTOR)
 
     # Return a new Minimum Setpoint controller instance with the given configuration options

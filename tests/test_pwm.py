@@ -8,6 +8,7 @@ from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.sat.const import (
+    CONF_DYNAMIC_MINIMUM_SETPOINT,
     CONF_FORCE_PULSE_WIDTH_MODULATION,
     CONF_HEATING_CURVE_COEFFICIENT,
     CONF_HEATING_SYSTEM,
@@ -64,4 +65,12 @@ async def test_enabled_attribute_matches_the_effective_state(hass: HomeAssistant
 
     assert climate.pulse_width_modulation_enabled
     assert climate.extra_state_attributes["pulse_width_modulation_enabled"] is True
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_dynamic_minimum_setpoint_starts_from_the_options_value(hass: HomeAssistant) -> None:
+    entry, climate, coordinator = await setup_climate(hass, {CONF_DYNAMIC_MINIMUM_SETPOINT: True, CONF_MINIMUM_SETPOINT: 40})
+
+    assert coordinator.minimum_setpoint == 40
+    assert climate.minimum_setpoint.current == 40
     assert await hass.config_entries.async_unload(entry.entry_id)
