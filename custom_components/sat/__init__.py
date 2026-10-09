@@ -20,7 +20,7 @@ from .coordinator import SatDataUpdateCoordinator, SatDataUpdateCoordinatorFacto
 from .services import async_setup_services
 
 _LOGGER: logging.Logger = logging.getLogger(__name__)
-PLATFORMS = [Platform.CLIMATE, Platform.SENSOR, Platform.NUMBER, Platform.BINARY_SENSOR]
+PLATFORMS = [Platform.CLIMATE, Platform.SENSOR, Platform.NUMBER, Platform.BINARY_SENSOR, Platform.BUTTON]
 
 
 @dataclass

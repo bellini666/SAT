@@ -327,6 +327,11 @@
       "boiler_status": {
         "name": "Boiler status"
       }
+    },
+    "button": {
+      "calibrate_overshoot_protection": {
+        "name": "Calibrate overshoot protection"
+      }
     }
   },
   "issues": {

@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
+from collections.abc import AsyncIterator
 from dataclasses import asdict, dataclass
 from datetime import timedelta, datetime
 from time import monotonic, time
@@ -152,6 +154,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
 
         self._control_heating_loop_unsub: Optional[Callable[[], None]] = None
         self._last_control_at = dt_util.utcnow()
+        self.control_paused = False
         self._state_listeners: list[Callable[[], None]] = []
 
         # System Configuration
@@ -390,6 +393,15 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
                 self._hvac_mode = self._default_hvac_mode
 
         self.async_write_ha_state()
+
+    @contextlib.asynccontextmanager
+    async def async_pause_control(self) -> AsyncIterator[None]:
+        """Stop sending boiler commands while something else drives the boiler."""
+        self.control_paused = True
+        try:
+            yield
+        finally:
+            self.control_paused = False
 
     async def async_reset_integral(self) -> None:
         """Reset the integral part of the PID controllers."""
@@ -991,8 +1003,8 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             self._control_heating_loop_unsub()
             self._control_heating_loop_unsub = None
 
-        # No need to do anything if we are not on
-        if self.hvac_mode != HVACMode.HEAT:
+        # No need to do anything if we are not on, or while something else drives the boiler
+        if self.hvac_mode != HVACMode.HEAT or self.control_paused:
             return
 
         if self.current_temperature is None or self.target_temperature is None or self.current_outside_temperature is None:
