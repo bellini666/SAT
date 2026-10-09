@@ -1,6 +1,7 @@
 # Base component constants
 from __future__ import annotations
 
+from datetime import timedelta
 from enum import Enum
 
 NAME = "Smart Autotune Thermostat"
@@ -21,6 +22,9 @@ HEATER_STARTUP_TIMEFRAME = 180
 
 COLD_SETPOINT = 28.2
 MINIMUM_SETPOINT = 10
+
+# Four missed 30 second control intervals
+CONTROL_LOOP_STALL_TIME = timedelta(minutes=2)
 MAXIMUM_SETPOINT = 65
 MINIMUM_RELATIVE_MODULATION = 0
 MAXIMUM_RELATIVE_MODULATION = 100

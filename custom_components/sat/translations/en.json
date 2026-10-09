@@ -287,6 +287,14 @@
       },
       "window": {
         "name": "Window"
+      },
+      "heating_control": {
+        "name": "Heating control",
+        "state_attributes": {
+          "problems": {
+            "name": "Problems"
+          }
+        }
       }
     },
     "number": {

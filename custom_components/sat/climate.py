@@ -35,6 +35,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_track_state_change_event, async_track_time_interval, async_call_later
 from homeassistant.helpers.restore_state import ExtraStoredData, RestoreEntity
 from homeassistant.helpers.start import async_at_started
+from homeassistant.util import dt as dt_util
 
 from .area import Areas, SENSOR_TEMPERATURE_ID
 from .const import *
@@ -150,6 +151,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             self._attr_supported_features |= ClimateEntityFeature.TURN_OFF
 
         self._control_heating_loop_unsub: Optional[Callable[[], None]] = None
+        self._last_control_at = dt_util.utcnow()
         self._state_listeners: list[Callable[[], None]] = []
 
         # System Configuration
@@ -618,6 +620,24 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         return self.pwm.enabled
 
     @property
+    def control_problems(self) -> list[str]:
+        """Return why SAT is not controlling the boiler while it should be."""
+        if self.hvac_mode != HVACMode.HEAT:
+            return []
+
+        problems = []
+        if self.current_temperature is None or self.target_temperature is None or self.current_outside_temperature is None:
+            problems.append("inputs_missing")
+
+        if self._coordinator.boiler_temperature is None:
+            problems.append("boiler_data_missing")
+
+        if not problems and dt_util.utcnow() - self._last_control_at > CONTROL_LOOP_STALL_TIME:
+            problems.append("control_loop_stalled")
+
+        return problems
+
+    @property
     def relative_modulation_value(self) -> int:
         if not self.relative_modulation.enabled and self._coordinator.supports_relative_modulation_management:
             return MINIMUM_RELATIVE_MODULATION
@@ -1005,6 +1025,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
 
         # Set the control setpoint to make sure we always stay in control
         await self._async_control_setpoint(self.pwm.state)
+        self._last_control_at = dt_util.utcnow()
 
         # Set the relative modulation value, if supported
         await self._async_control_relative_modulation()
