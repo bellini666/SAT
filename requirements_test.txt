@@ -1,13 +1,8 @@
-pytest
-pytest-cov
-pytest-asyncio
-pytest-homeassistant-custom-component
-homeassistant
+pytest-homeassistant-custom-component==0.13.371
 aiohttp_cors
 aiodiscover
 aiodhcpwatcher
 sentry_sdk
-freezegun
 pyotgw
 scapy
 janus
