@@ -79,41 +79,24 @@ async def test_capped_at_the_maximum_setpoint(hass: HomeAssistant) -> None:
     assert protection.setpoint == 55
 
 
-async def test_measures_the_plateau_at_minimum_modulation(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+@pytest.mark.parametrize(("flow", "modulation", "method", "low", "high"), [
+    (45.0, 13, "minimum_modulation", 45.0, 45.3),
+    (47.0, 0, "zero_modulation", 47.0, 47.3),
+    (54.8, 40, "formula", 33.0, 33.0),
+])
+async def test_measures_the_plateau(hass: HomeAssistant, freezer: FrozenDateTimeFactory, flow: float, modulation: float, method: str, low: float, high: float) -> None:
     boiler = Boiler(hass)
     _protection, task = start(hass, boiler)
     await hass.async_block_till_done()
 
-    await heat_to_plateau(hass, freezer, boiler, flow=45.0, modulation=13)
+    await heat_to_plateau(hass, freezer, boiler, flow=flow, modulation=modulation)
 
     result = await task
-    assert result.method == "minimum_modulation"
-    assert 45.0 <= result.value <= 45.3
+    assert result.method == method
+    assert low <= result.value <= high
     assert ("CS", 55) in boiler.commands
     assert ("MM", 0) in boiler.commands
     assert released(boiler)
-
-
-async def test_measures_the_plateau_at_zero_modulation(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
-    boiler = Boiler(hass)
-    _protection, task = start(hass, boiler)
-
-    await heat_to_plateau(hass, freezer, boiler, flow=47.0, modulation=0)
-
-    result = await task
-    assert result.method == "zero_modulation"
-    assert 47.0 <= result.value <= 47.3
-
-
-async def test_uses_the_formula_while_modulating_at_the_setpoint(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
-    boiler = Boiler(hass)
-    _protection, task = start(hass, boiler)
-
-    await heat_to_plateau(hass, freezer, boiler, flow=54.8, modulation=40)
-
-    result = await task
-    assert result.method == "formula"
-    assert result.value == 33.0
 
 
 async def test_fails_when_the_floor_plateau_reaches_the_setpoint(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
