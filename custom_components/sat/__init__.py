@@ -71,10 +71,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: SatConfigEntry):
 
     ir.async_delete_issue(hass, DOMAIN, issue_id)
 
-    entry.runtime_data = SatRuntimeData(
-        coordinator=coordinator,
-        climate=SatClimate(coordinator, entry, hass.config.units.temperature_unit),
-    )
+    try:
+        climate = SatClimate(coordinator, entry, hass.config.units.temperature_unit)
+    except Exception:
+        await coordinator.async_will_remove_from_hass()
+        raise
+
+    entry.runtime_data = SatRuntimeData(coordinator=coordinator, climate=climate)
 
     async def async_stop(_event: Event) -> None:
         await async_release_control(entry)

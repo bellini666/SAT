@@ -17,6 +17,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry, async_
 from pytest_homeassistant_custom_component.typing import MqttMockHAClient
 
 from custom_components import sat
+from custom_components.sat.coordinator import SatDataUpdateCoordinatorFactory
 from custom_components.sat.const import CONF_DEVICE, CONF_MODE, CONF_MQTT_TOPIC, CONF_SIMULATION, DOMAIN, MODE_ESPHOME, MODE_MQTT_OPENTHERM
 from tests.const import DEFAULT_USER_DATA
 
@@ -137,6 +138,26 @@ async def test_unload_stops_mqtt_updates(hass: HomeAssistant, mqtt_mock: MqttMoc
     async_fire_mqtt_message(hass, "OTGW/value/otgw/flame", "OFF")
     await hass.async_block_till_done()
     assert coordinator.flame_active
+
+
+@pytest.mark.usefixtures("instant_mqtt_command_delay")
+async def test_failed_setup_stops_mqtt_updates(hass: HomeAssistant, mqtt_mock: MqttMockHAClient) -> None:
+    entry = mqtt_entry(hass)
+    resolve = SatDataUpdateCoordinatorFactory.resolve
+    coordinators = []
+
+    def capture(**kwargs):
+        coordinators.append(resolve(**kwargs))
+        return coordinators[-1]
+
+    with patch.object(SatDataUpdateCoordinatorFactory, "resolve", staticmethod(capture)), patch.object(sat, "SatClimate", side_effect=RuntimeError("climate")):
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.SETUP_ERROR
+    async_fire_mqtt_message(hass, "OTGW/value/otgw/flame", "ON")
+    await hass.async_block_till_done()
+    assert not coordinators[0].flame_active
 
 
 async def test_setup_retries_while_mqtt_is_unavailable(hass: HomeAssistant, caplog: pytest.LogCaptureFixture) -> None:
