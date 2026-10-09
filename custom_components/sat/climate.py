@@ -946,6 +946,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
 
         self._sensors.append(entity_id)
 
+    @callback
     def schedule_control_heating_loop(self, _time: Optional[datetime] = None, force: bool = False, ) -> None:
         """Schedule a debounced execution of the heating control loop."""
         # Force immediate execution

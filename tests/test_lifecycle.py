@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+from datetime import timedelta
 from unittest.mock import patch
 
 import pytest
@@ -10,7 +11,8 @@ from homeassistant.const import Platform
 from homeassistant.config_entries import SOURCE_DHCP
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.service_info.dhcp import DhcpServiceInfo
-from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_mqtt_message
+from homeassistant.util import dt as dt_util
+from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_mqtt_message, async_fire_time_changed
 from pytest_homeassistant_custom_component.typing import MqttMockHAClient
 
 from custom_components import sat
@@ -188,4 +190,14 @@ async def test_direct_control_loop_cancels_the_scheduled_run(hass: HomeAssistant
     climate.schedule_control_heating_loop()
     await climate.async_control_heating_loop()
 
+    assert await hass.config_entries.async_unload(sat_entry.entry_id)
+
+
+async def test_periodic_tick_schedules_the_control_loop(hass: HomeAssistant, sat_entry: MockConfigEntry) -> None:
+    climate = sat_entry.runtime_data.climate
+
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=31))
+    await hass.async_block_till_done()
+
+    assert climate._control_heating_loop_unsub is not None
     assert await hass.config_entries.async_unload(sat_entry.entry_id)
