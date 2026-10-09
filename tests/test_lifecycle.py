@@ -179,3 +179,12 @@ async def test_reset_integral_targets_reloaded_climate(hass: HomeAssistant, sat_
         await hass.services.async_call(DOMAIN, "reset_integral", {"entity_id": entity_id}, blocking=True)
 
     reset.assert_called_once()
+
+
+async def test_direct_control_loop_cancels_the_scheduled_run(hass: HomeAssistant, sat_entry: MockConfigEntry) -> None:
+    climate = sat_entry.runtime_data.climate
+
+    climate.schedule_control_heating_loop()
+    await climate.async_control_heating_loop()
+
+    assert await hass.config_entries.async_unload(sat_entry.entry_id)
