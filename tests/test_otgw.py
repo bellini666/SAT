@@ -1,5 +1,8 @@
 """Tests for the commands SAT sends to an OpenTherm Gateway over MQTT."""
 
+import asyncio
+from unittest.mock import patch
+
 import pytest
 from homeassistant.components.climate import HVACMode
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
@@ -84,3 +87,35 @@ async def test_control_setpoint_is_refreshed_while_inputs_are_missing(hass: Home
     assert setpoint is not None
     assert f"CS={min(setpoint, entry.runtime_data.coordinator.maximum_setpoint)}" in commands(mqtt_mock)
     assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+@pytest.mark.parametrize("turn_off", [True, False], ids=["off", "unload"])
+async def test_hands_control_back_after_a_running_control_loop(hass: HomeAssistant, mqtt_mock: MqttMockHAClient, turn_off: bool) -> None:
+    entry = await setup_heating(hass, mqtt_mock)
+    climate = entry.runtime_data.climate
+    coordinator = entry.runtime_data.coordinator
+    set_control_setpoint = coordinator.async_set_control_setpoint
+    gate = asyncio.Event()
+
+    async def gated_control_setpoint(value: float) -> None:
+        if value > 0:
+            await gate.wait()
+        await set_control_setpoint(value)
+
+    with patch.object(coordinator, "async_set_control_setpoint", gated_control_setpoint):
+        loop = hass.async_create_task(climate.async_control_heating_loop())
+        await asyncio.sleep(0)
+        if turn_off:
+            release = hass.async_create_task(climate.async_set_hvac_mode(HVACMode.OFF))
+        else:
+            release = hass.async_create_task(hass.config_entries.async_unload(entry.entry_id))
+        for _ in range(10):
+            await asyncio.sleep(0)
+
+        gate.set()
+        await loop
+        await release
+
+    assert commands(mqtt_mock)[-2:] == ["CS=0", "MM=T"]
+    if turn_off:
+        assert await hass.config_entries.async_unload(entry.entry_id)

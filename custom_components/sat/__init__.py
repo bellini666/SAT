@@ -73,10 +73,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: SatConfigEntry):
         climate=SatClimate(coordinator, entry, hass.config.units.temperature_unit),
     )
 
-    async def async_release_control(_event: Event) -> None:
-        await coordinator.async_release_control()
+    async def async_stop(_event: Event) -> None:
+        await async_release_control(entry)
 
-    entry.async_on_unload(hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, async_release_control))
+    entry.async_on_unload(hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, async_stop))
 
     # Forward entry setup for used platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
@@ -90,11 +90,18 @@ async def async_unload_entry(hass: HomeAssistant, entry: SatConfigEntry) -> bool
 
     This function is called by Home Assistant when the integration is being removed.
     """
+    await async_release_control(entry)
+
     if unloaded := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
-        await entry.runtime_data.coordinator.async_release_control()
         await entry.runtime_data.coordinator.async_will_remove_from_hass()
 
     return unloaded
+
+
+async def async_release_control(entry: SatConfigEntry) -> None:
+    """Hand the boiler back once the running control loop has finished."""
+    await entry.runtime_data.climate.async_stop_control()
+    await entry.runtime_data.coordinator.async_release_control()
 
 
 async def async_remove_entry(hass: HomeAssistant, entry: SatConfigEntry) -> None:

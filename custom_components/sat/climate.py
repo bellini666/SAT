@@ -155,6 +155,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         self._control_heating_loop_unsub: Optional[Callable[[], None]] = None
         self._last_control_at = dt_util.utcnow()
         self.control_paused = False
+        self._control_lock = asyncio.Lock()
         self._state_listeners: list[Callable[[], None]] = []
 
         # System Configuration
@@ -394,10 +395,15 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
 
         self.async_write_ha_state()
 
+    async def async_stop_control(self) -> None:
+        """Wait for a running control loop and stop sending boiler commands."""
+        async with self._control_lock:
+            self.control_paused = True
+
     @contextlib.asynccontextmanager
     async def async_pause_control(self) -> AsyncIterator[None]:
         """Stop sending boiler commands while something else drives the boiler."""
-        self.control_paused = True
+        await self.async_stop_control()
         try:
             yield
         finally:
@@ -1003,65 +1009,66 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             self._control_heating_loop_unsub()
             self._control_heating_loop_unsub = None
 
-        # No need to do anything if we are not on, or while something else drives the boiler
-        if self.hvac_mode != HVACMode.HEAT or self.control_paused:
-            return
+        async with self._control_lock:
+            # No need to do anything if we are not on, or while something else drives the boiler
+            if self.hvac_mode != HVACMode.HEAT or self.control_paused:
+                return
 
-        if self.current_temperature is None or self.target_temperature is None or self.current_outside_temperature is None:
-            # The gateway hands the boiler back to the room thermostat when the override is not refreshed
-            if self._setpoint is not None:
-                await self._coordinator.async_set_control_setpoint(min(self._setpoint, self._coordinator.maximum_setpoint))
+            if self.current_temperature is None or self.target_temperature is None or self.current_outside_temperature is None:
+                # The gateway hands the boiler back to the room thermostat when the override is not refreshed
+                if self._setpoint is not None:
+                    await self._coordinator.async_set_control_setpoint(min(self._setpoint, self._coordinator.maximum_setpoint))
 
-            return
+                return
 
-        # Control the heating through the coordinator
-        await self._coordinator.async_control_heating_loop(climate=self, pwm_state=self.pwm.state)
+            # Control the heating through the coordinator
+            await self._coordinator.async_control_heating_loop(climate=self, pwm_state=self.pwm.state)
 
-        if self._calculated_setpoint is None:
-            # Default to the calculated setpoint
-            self._calculated_setpoint = self._calculate_control_setpoint()
-        else:
-            # Apply low filter on the requested setpoint
-            self._calculated_setpoint = round(self._alpha * self._calculate_control_setpoint() + (1 - self._alpha) * self._calculated_setpoint, 1)
+            if self._calculated_setpoint is None:
+                # Default to the calculated setpoint
+                self._calculated_setpoint = self._calculate_control_setpoint()
+            else:
+                # Apply low filter on the requested setpoint
+                self._calculated_setpoint = round(self._alpha * self._calculate_control_setpoint() + (1 - self._alpha) * self._calculated_setpoint, 1)
 
-        # Check for overshoot
-        if self._coordinator.device_status == BoilerStatus.OVERSHOOT_HANDLING:
-            _LOGGER.info("Overshoot Handling detected, enabling Pulse Width Modulation.")
-            self.pwm.enable()
+            # Check for overshoot
+            if self._coordinator.device_status == BoilerStatus.OVERSHOOT_HANDLING:
+                _LOGGER.info("Overshoot Handling detected, enabling Pulse Width Modulation.")
+                self.pwm.enable()
 
-        # Pulse Width Modulation
-        if not self.pulse_width_modulation_enabled:
-            self.pwm.reset()
-        else:
-            await self.pwm.update(flame=self._coordinator.flame, boiler=self._coordinator.boiler, requested_setpoint=self._calculated_setpoint)
+            # Pulse Width Modulation
+            if not self.pulse_width_modulation_enabled:
+                self.pwm.reset()
+            else:
+                await self.pwm.update(flame=self._coordinator.flame, boiler=self._coordinator.boiler, requested_setpoint=self._calculated_setpoint)
 
-        # Set the control setpoint to make sure we always stay in control
-        await self._async_control_setpoint(self.pwm.state)
-        self._last_control_at = dt_util.utcnow()
+            # Set the control setpoint to make sure we always stay in control
+            await self._async_control_setpoint(self.pwm.state)
+            self._last_control_at = dt_util.utcnow()
 
-        # Set the relative modulation value, if supported
-        await self._async_control_relative_modulation()
+            # Set the relative modulation value, if supported
+            await self._async_control_relative_modulation()
 
-        # Control the integral (if exceeded the time limit)
-        if self.heating_curve.value is not None:
-            self.pid.update_integral(self.max_error, self.heating_curve.value)
+            # Control the integral (if exceeded the time limit)
+            if self.heating_curve.value is not None:
+                self.pid.update_integral(self.max_error, self.heating_curve.value)
 
-        # Control our areas
-        await self.areas.async_control_heating_loops()
+            # Control our areas
+            await self.areas.async_control_heating_loops()
 
-        # Control our dynamic minimum setpoint (version 1)
-        if not self._coordinator.hot_water_active and self._coordinator.flame_active:
-            # Calculate the base return temperature
-            if self._coordinator.device_status == BoilerStatus.HEATING_UP:
-                self.minimum_setpoint.warming_up(self._coordinator.boiler)
+            # Control our dynamic minimum setpoint (version 1)
+            if not self._coordinator.hot_water_active and self._coordinator.flame_active:
+                # Calculate the base return temperature
+                if self._coordinator.device_status == BoilerStatus.HEATING_UP:
+                    self.minimum_setpoint.warming_up(self._coordinator.boiler)
 
-            # Calculate the dynamic minimum setpoint
-            self.minimum_setpoint.calculate(self._coordinator.boiler, self.pwm.status)
+                # Calculate the dynamic minimum setpoint
+                self.minimum_setpoint.calculate(self._coordinator.boiler, self.pwm.status)
 
-        # If the setpoint is high, turn on the heater
-        await self.async_set_heater_state(DeviceState.ON if self._setpoint is not None and self._setpoint > COLD_SETPOINT else DeviceState.OFF)
+            # If the setpoint is high, turn on the heater
+            await self.async_set_heater_state(DeviceState.ON if self._setpoint is not None and self._setpoint > COLD_SETPOINT else DeviceState.OFF)
 
-        self.async_write_ha_state()
+            self.async_write_ha_state()
 
     async def async_set_heater_state(self, state: DeviceState):
         """Set the heater state, ensuring proper conditions are met."""
@@ -1106,9 +1113,10 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         if hvac_mode == HVACMode.HEAT:
             self._hvac_mode = HVACMode.HEAT
         elif hvac_mode == HVACMode.OFF:
-            self._hvac_mode = HVACMode.OFF
-            await self.async_set_heater_state(DeviceState.OFF)
-            await self._coordinator.async_release_control()
+            async with self._control_lock:
+                self._hvac_mode = HVACMode.OFF
+                await self.async_set_heater_state(DeviceState.OFF)
+                await self._coordinator.async_release_control()
         else:
             # If an unsupported mode is passed, log an error message
             _LOGGER.error("Unrecognized hvac mode: %s", hvac_mode)
