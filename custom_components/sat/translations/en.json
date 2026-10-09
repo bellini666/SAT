@@ -236,14 +236,16 @@
           "sync_climates_with_mode": "Synchronize climates with mode",
           "overshoot_protection": "Overshoot Protection (with PWM)",
           "sensor_max_value_age": "Temperature Sensor maximum value age",
-          "window_minimum_open_time": "Minimum time for window to be open"
+          "window_minimum_open_time": "Minimum time for window to be open",
+          "default_hvac_mode": "Mode when nothing can be restored"
         },
         "data_description": {
           "cycles_per_hour": "The maximum amount of duty cycles per hour.",
           "automatic_duty_cycle": "Enable or disable automatic duty cycle for Pulse Width Modulation (PWM).",
           "overshoot_protection": "Enable overshoot protection with Pulse Width Modulation (PWM) to prevent boiler temperature overshooting.",
           "sensor_max_value_age": "The maximum age of the temperature sensor value before considering it as a stall.",
-          "window_minimum_open_time": "The minimum time a window must be open before the system reacts."
+          "window_minimum_open_time": "The minimum time a window must be open before the system reacts.",
+          "default_hvac_mode": "HVAC mode used on the first start, or when no saved state is available."
         },
         "description": "For fine-tuning and customization.",
         "title": "System Configuration"

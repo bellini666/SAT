@@ -699,6 +699,12 @@ class SatOptionsFlowHandler(OptionsFlowWithReload):
             )
 
         schema[vol.Required(CONF_SENSOR_MAX_VALUE_AGE, default=options[CONF_SENSOR_MAX_VALUE_AGE])] = selector.TimeSelector()
+        schema[vol.Required(CONF_DEFAULT_HVAC_MODE, default=options[CONF_DEFAULT_HVAC_MODE])] = selector.SelectSelector(
+            selector.SelectSelectorConfig(mode=SelectSelectorMode.DROPDOWN, options=[
+                selector.SelectOptionDict(value=climate.HVACMode.HEAT, label="Heat"),
+                selector.SelectOptionDict(value=climate.HVACMode.OFF, label="Off"),
+            ])
+        )
         schema[vol.Required(CONF_WINDOW_MINIMUM_OPEN_TIME, default=options[CONF_WINDOW_MINIMUM_OPEN_TIME])] = selector.TimeSelector()
 
         return self.async_show_form(

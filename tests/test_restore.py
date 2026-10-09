@@ -60,3 +60,22 @@ async def test_reload_keeps_mode_and_target(hass: HomeAssistant) -> None:
     state = hass.states.get(ENTITY_ID)
     assert state.state == HVACMode.HEAT
     assert state.attributes["temperature"] == 21.5
+
+
+async def test_defaults_to_heat_at_the_home_temperature(hass: HomeAssistant, caplog: pytest.LogCaptureFixture) -> None:
+    await setup_entry(hass)
+
+    state = hass.states.get(ENTITY_ID)
+    assert state.state == HVACMode.HEAT
+    assert state.attributes["temperature"] == 18
+    assert "No previously saved temperature" not in caplog.text
+
+
+async def test_default_hvac_mode_option(hass: HomeAssistant) -> None:
+    entry = MockConfigEntry(domain=DOMAIN, data=DEFAULT_USER_DATA, options={"default_hvac_mode": HVACMode.OFF})
+    entry.add_to_hass(hass)
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert hass.states.get(ENTITY_ID).state == HVACMode.OFF

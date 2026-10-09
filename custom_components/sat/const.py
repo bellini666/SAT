@@ -59,6 +59,7 @@ CONF_AUTOMATIC_GAINS_VALUE = "automatic_gains_value"
 CONF_DERIVATIVE_TIME_WEIGHT = "derivative_time_weight"
 CONF_CLIMATE_VALVE_OFFSET = "climate_valve_offset"
 CONF_SENSOR_MAX_VALUE_AGE = "sensor_max_value_age"
+CONF_DEFAULT_HVAC_MODE = "default_hvac_mode"
 CONF_OVERSHOOT_PROTECTION = "overshoot_protection"
 CONF_SYNC_CLIMATES_WITH_MODE = "sync_climates_with_mode"
 CONF_SYNC_CLIMATES_WITH_PRESET = "sync_climates_with_preset"
@@ -135,6 +136,7 @@ OPTIONS_DEFAULTS = {
     CONF_CLIMATE_VALVE_OFFSET: 0,
     CONF_TARGET_TEMPERATURE_STEP: 0.5,
     CONF_SENSOR_MAX_VALUE_AGE: "06:00:00",
+    CONF_DEFAULT_HVAC_MODE: "heat",
     CONF_SIMULATED_WARMING_UP: "00:00:15",
     CONF_WINDOW_MINIMUM_OPEN_TIME: "00:00:15",
 

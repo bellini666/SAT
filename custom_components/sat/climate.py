@@ -176,6 +176,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         self._minimum_setpoint_version = int(config_options.get(CONF_DYNAMIC_MINIMUM_SETPOINT_VERSION))
         self._force_pulse_width_modulation = bool(config_options.get(CONF_FORCE_PULSE_WIDTH_MODULATION))
         self._sensor_max_value_age = convert_time_str_to_seconds(config_options.get(CONF_SENSOR_MAX_VALUE_AGE))
+        self._default_hvac_mode = HVACMode(config_options.get(CONF_DEFAULT_HVAC_MODE))
         self._window_minimum_open_time = convert_time_str_to_seconds(config_options.get(CONF_WINDOW_MINIMUM_OPEN_TIME))
 
         # Create a PID controller with given configuration options
@@ -345,9 +346,8 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
 
             if self._target_temperature is None:
                 if old_state.attributes.get(ATTR_TEMPERATURE) is None:
-                    self.pid.setpoint = self.min_temp
-                    self._target_temperature = self.min_temp
-                    _LOGGER.warning("Undefined target temperature, falling back to %s", self._target_temperature, )
+                    self._target_temperature = float(self._presets[PRESET_HOME])
+                    _LOGGER.warning("Undefined target temperature, falling back to %s", self._target_temperature)
                 else:
                     self._target_temperature = float(old_state.attributes[ATTR_TEMPERATURE])
 
@@ -381,12 +381,11 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
                 await self._async_update_rooms_from_climates()
 
             if self._target_temperature is None:
-                self.pid.setpoint = self.min_temp
-                self._target_temperature = self.min_temp
-                _LOGGER.warning("No previously saved temperature, setting to %s", self._target_temperature)
+                self._target_temperature = float(self._presets[PRESET_HOME])
+                _LOGGER.info("Nothing to restore, starting at the home temperature %s", self._target_temperature)
 
             if not self._hvac_mode:
-                self._hvac_mode = HVACMode.OFF
+                self._hvac_mode = self._default_hvac_mode
 
         self.async_write_ha_state()
 
