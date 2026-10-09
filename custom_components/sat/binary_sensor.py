@@ -12,7 +12,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .climate import SatClimate
-from .const import CONF_MODE, MODE_SERIAL, CONF_NAME, CONF_WINDOW_SENSORS, FlameStatus, BoilerStatus
+from .const import CONF_MODE, MODE_SERIAL, CONF_WINDOW_SENSORS, FlameStatus, BoilerStatus
 from .entity import SatClimateEntity, SatEntity
 from .helpers import seconds_since
 from .serial import binary_sensor as serial_binary_sensor
@@ -71,14 +71,12 @@ class SatSynchroSensor:
 
 
 class SatControlSetpointSynchroSensor(SatSynchroSensor, SatClimateEntity, BinarySensorEntity):
+    _attr_translation_key = "control_setpoint_synchro"
+
     def __init__(self, coordinator, _config_entry, climate):
         SatSynchroSensor.__init__(self)
         SatClimateEntity.__init__(self, coordinator, _config_entry, climate)
 
-    @property
-    def name(self):
-        """Return the friendly name of the sensor."""
-        return "Control Setpoint Synchro"
 
     @property
     def device_class(self):
@@ -102,14 +100,12 @@ class SatControlSetpointSynchroSensor(SatSynchroSensor, SatClimateEntity, Binary
 
 
 class SatRelativeModulationSynchroSensor(SatSynchroSensor, SatClimateEntity, BinarySensorEntity):
+    _attr_translation_key = "relative_modulation_synchro"
+
     def __init__(self, coordinator, _config_entry, climate):
         SatSynchroSensor.__init__(self)
         SatClimateEntity.__init__(self, coordinator, _config_entry, climate)
 
-    @property
-    def name(self):
-        """Return the friendly name of the sensor."""
-        return "Relative Modulation Synchro"
 
     @property
     def device_class(self):
@@ -133,14 +129,12 @@ class SatRelativeModulationSynchroSensor(SatSynchroSensor, SatClimateEntity, Bin
 
 
 class SatCentralHeatingSynchroSensor(SatSynchroSensor, SatClimateEntity, BinarySensorEntity):
+    _attr_translation_key = "central_heating_synchro"
+
     def __init__(self, coordinator, _config_entry, climate):
         SatSynchroSensor.__init__(self)
         SatClimateEntity.__init__(self, coordinator, _config_entry, climate)
 
-    @property
-    def name(self) -> str:
-        """Return the friendly name of the sensor."""
-        return "Central Heating Synchro"
 
     @property
     def device_class(self) -> str:
@@ -171,11 +165,8 @@ class SatCentralHeatingSynchroSensor(SatSynchroSensor, SatClimateEntity, BinaryS
 
 
 class SatBoilerHealthSensor(SatEntity, BinarySensorEntity):
+    _attr_translation_key = "boiler_health"
 
-    @property
-    def name(self) -> str:
-        """Return the friendly name of the sensor."""
-        return "Boiler Health"
 
     @property
     def device_class(self) -> str:
@@ -194,11 +185,8 @@ class SatBoilerHealthSensor(SatEntity, BinarySensorEntity):
 
 
 class SatFlameHealthSensor(SatEntity, BinarySensorEntity):
+    _attr_translation_key = "flame_health"
 
-    @property
-    def name(self) -> str:
-        """Return the friendly name of the sensor."""
-        return "Flame Health"
 
     @property
     def device_class(self) -> str:
@@ -222,6 +210,8 @@ class SatFlameHealthSensor(SatEntity, BinarySensorEntity):
 
 
 class SatWindowSensor(SatClimateEntity, BinarySensorGroup):
+    _attr_translation_key = "window"
+
     def __init__(self, coordinator, config_entry: ConfigEntry, climate: SatClimate):
         super().__init__(coordinator, config_entry, climate)
 
@@ -229,10 +219,6 @@ class SatWindowSensor(SatClimateEntity, BinarySensorGroup):
         self._entity_ids = self._config_entry.options.get(CONF_WINDOW_SENSORS)
         self._attr_extra_state_attributes = {ATTR_ENTITY_ID: self._entity_ids}
 
-    @property
-    def name(self) -> str:
-        """Return the friendly name of the sensor."""
-        return "Smart Autotune Thermostat Window Sensor"
 
     @property
     def device_class(self) -> str:

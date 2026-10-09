@@ -138,7 +138,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         self._state_listeners: list[Callable[[], None]] = []
 
         # System Configuration
-        self._attr_name = str(config_entry.data.get(CONF_NAME))
+        self._attr_name = None
         self._attr_id = config_entry.entry_id
 
         self._radiators = config_entry.data.get(CONF_RADIATORS) or []
@@ -370,10 +370,6 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         else:
             self.pwm.disable()
 
-    @property
-    def name(self):
-        """Return the friendly name of the sensor."""
-        return self._attr_name
 
     @property
     def unique_id(self):

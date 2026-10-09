@@ -9,7 +9,7 @@ from homeassistant.const import UnitOfPower, UnitOfTemperature, UnitOfVolume
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import CONF_MODE, MODE_SERIAL, CONF_NAME, MODE_SIMULATOR, CONF_MINIMUM_CONSUMPTION, CONF_MAXIMUM_CONSUMPTION
+from .const import CONF_MODE, MODE_SERIAL, MODE_SIMULATOR, CONF_MINIMUM_CONSUMPTION, CONF_MAXIMUM_CONSUMPTION
 from .coordinator import SatDataUpdateCoordinator
 from .entity import SatEntity, SatClimateEntity
 from .serial import sensor as serial_sensor
@@ -52,10 +52,8 @@ async def async_setup_entry(_hass: HomeAssistant, _config_entry: ConfigEntry, _a
 
 
 class SatCurrentPowerSensor(SatEntity, SensorEntity):
+    _attr_translation_key = "boiler_power"
 
-    @property
-    def name(self) -> str:
-        return f"Current Power {self._config_entry.data.get(CONF_NAME)} (Boiler)"
 
     @property
     def device_class(self):
@@ -87,6 +85,7 @@ class SatCurrentPowerSensor(SatEntity, SensorEntity):
 
 
 class SatCurrentConsumptionSensor(SatEntity, SensorEntity):
+    _attr_translation_key = "boiler_consumption"
 
     def __init__(self, coordinator: SatDataUpdateCoordinator, config_entry: ConfigEntry):
         super().__init__(coordinator, config_entry)
@@ -94,9 +93,6 @@ class SatCurrentConsumptionSensor(SatEntity, SensorEntity):
         self._minimum_consumption = self._config_entry.options.get(CONF_MINIMUM_CONSUMPTION)
         self._maximum_consumption = self._config_entry.options.get(CONF_MAXIMUM_CONSUMPTION)
 
-    @property
-    def name(self) -> str:
-        return f"Current Consumption {self._config_entry.data.get(CONF_NAME)} (Boiler)"
 
     @property
     def device_class(self):
@@ -138,10 +134,8 @@ class SatCurrentConsumptionSensor(SatEntity, SensorEntity):
 
 
 class SatHeatingCurveSensor(SatClimateEntity, SensorEntity):
+    _attr_translation_key = "heating_curve"
 
-    @property
-    def name(self) -> str:
-        return f"Heating Curve {self._config_entry.data.get(CONF_NAME)}"
 
     @property
     def device_class(self):
@@ -173,10 +167,8 @@ class SatHeatingCurveSensor(SatClimateEntity, SensorEntity):
 
 
 class SatErrorValueSensor(SatClimateEntity, SensorEntity):
+    _attr_translation_key = "error_value"
 
-    @property
-    def name(self) -> str:
-        return f"Error Value {self._config_entry.data.get(CONF_NAME)}"
 
     @property
     def device_class(self):
@@ -208,9 +200,7 @@ class SatErrorValueSensor(SatClimateEntity, SensorEntity):
 
 
 class SatManufacturerSensor(SatEntity, SensorEntity):
-    @property
-    def name(self) -> str:
-        return "Boiler Manufacturer"
+    _attr_translation_key = "boiler_manufacturer"
 
     @property
     def native_value(self) -> str:
@@ -227,9 +217,7 @@ class SatManufacturerSensor(SatEntity, SensorEntity):
 
 
 class SatFlameSensor(SatEntity, SensorEntity):
-    @property
-    def name(self) -> str:
-        return "Flame Status"
+    _attr_translation_key = "flame_status"
 
     @property
     def native_value(self) -> str:
@@ -245,9 +233,7 @@ class SatFlameSensor(SatEntity, SensorEntity):
 
 
 class SatBoilerSensor(SatEntity, SensorEntity):
-    @property
-    def name(self) -> str:
-        return "Boiler Status"
+    _attr_translation_key = "boiler_status"
 
     @property
     def native_value(self) -> str:

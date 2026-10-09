@@ -20,6 +20,8 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
 
 
 class SatSetpointSensor(SatEntity, sensor.SensorEntity):
+    _attr_has_entity_name = False
+
     def __init__(self, coordinator: SatSimulatorCoordinator, config_entry: ConfigEntry):
         super().__init__(coordinator, config_entry)
 
@@ -60,6 +62,8 @@ class SatSetpointSensor(SatEntity, sensor.SensorEntity):
 
 
 class SatBoilerTemperatureSensor(SatEntity, sensor.SensorEntity):
+    _attr_has_entity_name = False
+
     def __init__(self, coordinator: SatSimulatorCoordinator, config_entry: ConfigEntry):
         super().__init__(coordinator, config_entry)
 

@@ -102,8 +102,8 @@ async def test_setup_does_not_depend_on_platform_order(hass: HomeAssistant, monk
     assert entry.state is ConfigEntryState.LOADED
     assert errors(caplog) == []
     assert len(hass.states.async_entity_ids("climate")) == 1
-    assert any(entity_id.endswith("heating_curve_test") for entity_id in hass.states.async_entity_ids("sensor"))
-    assert any(entity_id.endswith("central_heating_synchro") for entity_id in hass.states.async_entity_ids("binary_sensor"))
+    assert hass.states.get("sensor.mock_title_heating_curve") is not None
+    assert hass.states.get("binary_sensor.mock_title_central_heating_synchro") is not None
 
 
 def mqtt_entry(hass: HomeAssistant) -> MockConfigEntry:
@@ -167,13 +167,13 @@ async def test_dhcp_discovery_keeps_mqtt_entry(hass: HomeAssistant, mqtt_mock: M
     assert "update listener" not in caplog.text
 
 
-@pytest.mark.parametrize("entity_id", ["climate.living_room_smart_autotune_thermostat_test", ["climate.living_room_smart_autotune_thermostat_test"]])
+@pytest.mark.parametrize("entity_id", ["climate.mock_title", ["climate.mock_title"]])
 async def test_reset_integral_targets_reloaded_climate(hass: HomeAssistant, sat_entry: MockConfigEntry, entity_id: str | list[str]) -> None:
     assert await hass.config_entries.async_reload(sat_entry.entry_id)
     await hass.async_block_till_done()
 
     climate = sat_entry.runtime_data.climate
-    assert climate.entity_id == "climate.living_room_smart_autotune_thermostat_test"
+    assert climate.entity_id == "climate.mock_title"
 
     with patch.object(climate.pid, "reset") as reset:
         await hass.services.async_call(DOMAIN, "reset_integral", {"entity_id": entity_id}, blocking=True)

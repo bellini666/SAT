@@ -87,6 +87,8 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
 
 
 class SatBinarySensor(SatEntity, BinarySensorEntity):
+    _attr_has_entity_name = False
+
     _attr_should_poll = False
 
     def __init__(self, coordinator: SatSerialCoordinator, config_entry: ConfigEntry, info: SatBinarySensorInfo, key: str, source: str):

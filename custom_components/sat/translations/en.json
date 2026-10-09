@@ -265,5 +265,55 @@
         }
       }
     }
+  },
+  "entity": {
+    "binary_sensor": {
+      "control_setpoint_synchro": {
+        "name": "Control setpoint synchro"
+      },
+      "relative_modulation_synchro": {
+        "name": "Relative modulation synchro"
+      },
+      "central_heating_synchro": {
+        "name": "Central heating synchro"
+      },
+      "boiler_health": {
+        "name": "Boiler health"
+      },
+      "flame_health": {
+        "name": "Flame health"
+      },
+      "window": {
+        "name": "Window"
+      }
+    },
+    "number": {
+      "hot_water_setpoint": {
+        "name": "Hot water setpoint"
+      }
+    },
+    "sensor": {
+      "boiler_power": {
+        "name": "Boiler power"
+      },
+      "boiler_consumption": {
+        "name": "Boiler gas consumption"
+      },
+      "heating_curve": {
+        "name": "Heating curve"
+      },
+      "error_value": {
+        "name": "Error value"
+      },
+      "boiler_manufacturer": {
+        "name": "Boiler manufacturer"
+      },
+      "flame_status": {
+        "name": "Flame status"
+      },
+      "boiler_status": {
+        "name": "Boiler status"
+      }
+    }
   }
 }

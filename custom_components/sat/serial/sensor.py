@@ -106,6 +106,8 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
 
 
 class SatSensor(SatEntity, sensor.SensorEntity):
+    _attr_has_entity_name = False
+
     def __init__(self, coordinator: SatSerialCoordinator, config_entry: ConfigEntry, info: SatSensorInfo, key: str, source: str):
         super().__init__(coordinator, config_entry)
 

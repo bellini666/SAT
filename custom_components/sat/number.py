@@ -15,13 +15,8 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
 
 
 class SatHotWaterSetpointEntity(SatEntity, NumberEntity):
-    def __init__(self, coordinator: SatDataUpdateCoordinator, config_entry: ConfigEntry):
-        super().__init__(coordinator, config_entry)
-        self._name = self._config_entry.data.get(CONF_NAME)
+    _attr_translation_key = "hot_water_setpoint"
 
-    @property
-    def name(self) -> str | None:
-        return f"Hot Water Setpoint {self._name} (Boiler)"
 
     @property
     def device_class(self):
