@@ -22,7 +22,7 @@ from .const import *
 from .coordinator import SatDataUpdateCoordinator
 from .helpers import calculate_default_maximum_setpoint, snake_case
 from .manufacturer import ManufacturerFactory, MANUFACTURERS
-from .overshoot_protection import OvershootProtection
+from .overshoot_protection import CalibrationError, OvershootProtection
 from .validators import valid_serial_device
 
 DEFAULT_NAME = "Living Room"
@@ -371,12 +371,16 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 await coordinator.async_setup()
                 await coordinator.async_added_to_hass()
 
-                overshoot_protection = OvershootProtection(coordinator, self.data.get(CONF_HEATING_SYSTEM))
-                self.overshoot_protection_value = await overshoot_protection.calculate()
+                heating_system = self.data.get(CONF_HEATING_SYSTEM)
+                options = self.config_entry.options if self.config_entry else {}
+                maximum_setpoint = float(options.get(CONF_MAXIMUM_SETPOINT, calculate_default_maximum_setpoint(heating_system)))
+
+                overshoot_protection = OvershootProtection(coordinator, heating_system, maximum_setpoint)
+                self.overshoot_protection_value = (await overshoot_protection.calculate()).value
 
                 await coordinator.async_will_remove_from_hass()
-            except asyncio.TimeoutError:
-                _LOGGER.warning("Timed out during overshoot protection calculation.")
+            except CalibrationError:
+                pass
             except asyncio.CancelledError:
                 _LOGGER.warning("Cancelled overshoot protection calculation.")
 

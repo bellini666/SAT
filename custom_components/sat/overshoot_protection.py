@@ -1,118 +1,198 @@
+from __future__ import annotations
+
 import asyncio
 import logging
-import time
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from statistics import fmean
 
-from .const import OVERSHOOT_PROTECTION_SETPOINT, MINIMUM_SETPOINT, DEADBAND, MAXIMUM_RELATIVE_MODULATION
+from homeassistant.helpers.event import async_track_time_interval
+from homeassistant.util import dt as dt_util
+
+from .const import MINIMUM_RELATIVE_MODULATION, MINIMUM_SETPOINT, OVERSHOOT_PROTECTION_SETPOINT
 from .coordinator import DeviceState, SatDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
-# Constants for timeouts and intervals
-OVERSHOOT_PROTECTION_INITIAL_WAIT = 300  # Five minutes in seconds
-OVERSHOOT_PROTECTION_STABLE_WAIT = 900  # Fifteen minutes in seconds
-OVERSHOOT_PROTECTION_RELATIVE_MODULATION_WAIT = 300  # Five minutes in seconds
-SLEEP_INTERVAL = 15  # Sleep interval in seconds
+# The gateway drops a control setpoint override after about 60 seconds without a refresh
+TICK = timedelta(seconds=30)
+
+FLAME_TIMEOUT = timedelta(minutes=10)
+PLATEAU_TIMEOUT = timedelta(minutes=40)
+PLATEAU_WINDOW = timedelta(minutes=5)
+PLATEAU_TOLERANCE = 0.5
+MODULATION_TOLERANCE = 3
+MODULATION_STABILITY = 5
+SETPOINT_MARGIN = 2
+MAXIMUM_FLAME_LOSSES = 3
+
+
+class CalibrationError(Exception):
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
+
+
+@dataclass(frozen=True, slots=True)
+class CalibrationResult:
+    value: float
+    method: str
 
 
 class OvershootProtection:
-    def __init__(self, coordinator: SatDataUpdateCoordinator, heating_system: str):
-        """Initialize OvershootProtection with a coordinator and heating system configuration."""
-        self._alpha: float = 0.5
-        self._stable_temperature: float | None = None
-        self._coordinator: SatDataUpdateCoordinator = coordinator
-        self._setpoint: int = min(OVERSHOOT_PROTECTION_SETPOINT.get(heating_system), coordinator.maximum_setpoint_value)
+    """Find the overshoot protection value by heating at a fixed setpoint until the flow temperature settles."""
 
-        if self._setpoint is None:
-            raise ValueError(f"Invalid heating system: {heating_system}")
+    def __init__(
+            self,
+            coordinator: SatDataUpdateCoordinator,
+            heating_system: str,
+            maximum_setpoint: float,
+            flame_timeout: timedelta = FLAME_TIMEOUT,
+            plateau_timeout: timedelta = PLATEAU_TIMEOUT,
+    ) -> None:
+        self._coordinator = coordinator
+        self._flame_timeout = flame_timeout
+        self._plateau_timeout = plateau_timeout
 
-    async def calculate(self) -> float | None:
-        """Calculate the overshoot protection value."""
+        system_setpoint = OVERSHOOT_PROTECTION_SETPOINT[heating_system]
+        self.setpoint = min(system_setpoint, maximum_setpoint)
+        if self.setpoint < system_setpoint:
+            _LOGGER.info("Calibrating at the maximum setpoint %.1f°C instead of %.1f°C for %s", self.setpoint, system_setpoint, heating_system)
+
+        self.phase = "waiting_for_flame"
+        self._samples: list[tuple[datetime, float, float]] = []
+        self._waited = timedelta()
+        self._heated = timedelta()
+        self._flame_losses = 0
+        self._last_tick = dt_util.utcnow()
+        self._result: asyncio.Future[CalibrationResult] = coordinator.hass.loop.create_future()
+
+    @property
+    def progress(self) -> float:
+        return min(self._heated / self._plateau_timeout, 1)
+
+    async def calculate(self) -> CalibrationResult:
+        """Run the calibration and always hand the boiler back afterwards."""
+        self._last_tick = dt_util.utcnow()
+
+        _LOGGER.info("Starting overshoot protection calibration at %.1f°C", self.setpoint)
+        unsubscribe = async_track_time_interval(self._coordinator.hass, self._async_tick, TICK)
+
         try:
-            _LOGGER.info("Starting overshoot protection calculation")
+            await self._async_tick(self._last_tick)
+            result = await self._result
+            _LOGGER.info("Overshoot protection value %.1f°C, determined by %s", result.value, result.method)
+            return result
+        except CalibrationError as error:
+            _LOGGER.warning("Overshoot protection calibration failed: %s", error.reason)
+            raise
+        finally:
+            unsubscribe()
+            await self._async_release()
 
-            # Sequentially ensure the system is ready
-            await asyncio.wait_for(self._wait_for_flame(), timeout=OVERSHOOT_PROTECTION_INITIAL_WAIT)
-
-            # Wait for a stable temperature
-            await asyncio.wait_for(self._wait_for_stable_temperature(), timeout=OVERSHOOT_PROTECTION_STABLE_WAIT)
-
-            # Wait a bit before calculating the overshoot value, if required
-            if self._coordinator.relative_modulation_value > 0:
-                await self._wait_a_moment(OVERSHOOT_PROTECTION_RELATIVE_MODULATION_WAIT)
-
-            return self._calculate_overshoot_value()
-        except asyncio.CancelledError as exception:
-            await self._coordinator.async_set_heater_state(DeviceState.OFF)
-            await self._coordinator.async_set_control_setpoint(MINIMUM_SETPOINT)
-
-            raise exception
-
-    async def _wait_for_flame(self) -> None:
-        """Wait until the heating system flame is active."""
-        while not self._coordinator.flame_active:
-            _LOGGER.warning("Waiting for heating system to start")
-            await self._trigger_heating_cycle(is_ready=False)
-
-        _LOGGER.info("Heating system has started")
-
-    async def _wait_a_moment(self, wait_time: int) -> None:
-        """Wait until the relative modulation stabilizes."""
-
-        start_time = time.time()
-        while time.time() - start_time < wait_time:
-            await self._trigger_heating_cycle(True)
-            await asyncio.sleep(SLEEP_INTERVAL)
-
-    async def _wait_for_stable_temperature(self) -> None:
-        """Wait until the boiler temperature stabilizes, influenced by relative modulation."""
-        while not self._coordinator.boiler_temperature:
-            _LOGGER.warning("Waiting for boiler temperature")
-
-        starting_temperature = self._coordinator.boiler_temperature
-        previous_average_temperature = self._coordinator.boiler_temperature
-
-        while True:
-            current_temperature = float(self._coordinator.boiler_temperature)
-            average_temperature, error_value = self._calculate_exponential_moving_average(previous_average_temperature, current_temperature)
-
-            if current_temperature > starting_temperature and error_value <= DEADBAND:
-                self._stable_temperature = current_temperature
-                _LOGGER.info("Stable temperature reached: %.2f°C", current_temperature)
-                return
-
-            await self._trigger_heating_cycle(is_ready=True)
-
-            previous_average_temperature = average_temperature
-            _LOGGER.warning("Waiting for a stable temperature")
-            _LOGGER.debug("Temperature: %s°C, Error: %s°C", current_temperature, error_value)
-
-    def _calculate_overshoot_value(self) -> float:
-        """Calculate and log the overshoot value."""
-        if self._coordinator.relative_modulation_value == 0:
-            return self._stable_temperature
-
-        return (100 - self._coordinator.relative_modulation_value) / 100 * self._setpoint
-
-    def _calculate_exponential_moving_average(self, previous_average: float, current_value: float) -> tuple[float, float]:
-        """Calculate the exponential moving average and error."""
-        average_value = self._alpha * current_value + (1 - self._alpha) * previous_average
-        error_value = abs(current_value - previous_average)
-        return average_value, error_value
-
-    async def _trigger_heating_cycle(self, is_ready: bool) -> None:
-        """Trigger a heating cycle with the coordinator."""
-        await self._coordinator.async_set_heater_state(DeviceState.ON)
-        await self._coordinator.async_set_control_setpoint(await self._get_setpoint(is_ready))
-        await self._coordinator.async_set_control_max_relative_modulation(MAXIMUM_RELATIVE_MODULATION)
-
-        await asyncio.sleep(SLEEP_INTERVAL)
-        await self._coordinator.async_control_heating_loop()
-
-    async def _get_setpoint(self, is_ready: bool) -> float:
-        """Get the setpoint for the heating cycle."""
-        return self._setpoint if not is_ready or self._coordinator.relative_modulation_value > 0 else self._coordinator.boiler_temperature
-
-    async def _reset_heater_state(self) -> None:
-        """Reset the heater state to default settings."""
+    async def _async_release(self) -> None:
+        _LOGGER.debug("Calibration: releasing the boiler overrides")
         await self._coordinator.async_set_heater_state(DeviceState.OFF)
         await self._coordinator.async_set_control_setpoint(MINIMUM_SETPOINT)
+        await self._coordinator.async_release_control()
+
+    async def _async_tick(self, now: datetime) -> None:
+        if self._result.done():
+            return
+
+        try:
+            if (result := await self._async_step(now)) is not None:
+                self._result.set_result(result)
+        except CalibrationError as error:
+            self._result.set_exception(error)
+
+    async def _async_step(self, now: datetime) -> CalibrationResult | None:
+        elapsed = now - self._last_tick
+        self._last_tick = now
+
+        coordinator = self._coordinator
+        await coordinator.async_set_heater_state(DeviceState.ON)
+        await coordinator.async_set_control_setpoint(self.setpoint)
+        await coordinator.async_set_control_max_relative_modulation(MINIMUM_RELATIVE_MODULATION)
+
+        _LOGGER.debug(
+            "Calibration %s: sent CH=on CS=%.1f MM=%d, flame=%s hot_water=%s flow=%s modulation=%s",
+            self.phase, self.setpoint, MINIMUM_RELATIVE_MODULATION, coordinator.flame_active, coordinator.hot_water_active,
+            coordinator.boiler_temperature, coordinator.relative_modulation_value,
+        )
+
+        if coordinator.hot_water_active:
+            if self.phase != "paused":
+                _LOGGER.info("Calibration paused for hot water")
+
+            self.phase = "paused"
+            self._samples.clear()
+            return None
+
+        if self.phase == "paused":
+            _LOGGER.info("Calibration resumed after hot water")
+            self.phase = "waiting_for_flame"
+
+        if not coordinator.flame_active:
+            if self.phase == "heating":
+                self._flame_losses += 1
+                self._samples.clear()
+                _LOGGER.info("Calibration lost the flame (%d of %d allowed)", self._flame_losses, MAXIMUM_FLAME_LOSSES)
+
+                if self._flame_losses > MAXIMUM_FLAME_LOSSES:
+                    raise CalibrationError("flame_lost")
+
+            self.phase = "waiting_for_flame"
+            self._waited += elapsed
+            if self._waited > self._flame_timeout:
+                raise CalibrationError("no_flame")
+
+            return None
+
+        if self.phase == "waiting_for_flame":
+            _LOGGER.info("Calibration flame on, heating at %.1f°C", self.setpoint)
+            self.phase = "heating"
+            self._waited = timedelta()
+
+        self._heated += elapsed
+        if coordinator.boiler_temperature is not None and coordinator.relative_modulation_value is not None:
+            self._samples.append((now, float(coordinator.boiler_temperature), float(coordinator.relative_modulation_value)))
+
+            if (result := self._plateau(now)) is not None:
+                return result
+
+        if self._heated > self._plateau_timeout:
+            raise CalibrationError("timeout")
+
+        return None
+
+    def _plateau(self, now: datetime) -> CalibrationResult | None:
+        if not self._samples or self._samples[0][0] > now - PLATEAU_WINDOW:
+            return None
+
+        window = [sample for sample in self._samples if sample[0] >= now - PLATEAU_WINDOW]
+        flows = [flow for _, flow, _ in window]
+        modulations = [modulation for _, _, modulation in window]
+        floor = self._coordinator.minimum_relative_modulation_value or 0
+
+        _LOGGER.debug(
+            "Calibration window: flow %.1f-%.1f°C, modulation %.0f-%.0f%%, modulation floor %.0f%%",
+            min(flows), max(flows), min(modulations), max(modulations), floor,
+        )
+
+        if max(flows) - min(flows) > PLATEAU_TOLERANCE:
+            return None
+
+        plateau = round(fmean(flows), 1)
+        modulation = fmean(modulations)
+
+        if modulation <= floor + MODULATION_TOLERANCE:
+            if plateau >= self.setpoint - SETPOINT_MARGIN:
+                raise CalibrationError("setpoint_reached")
+
+            return CalibrationResult(plateau, "zero_modulation" if max(modulations) == 0 else "minimum_modulation")
+
+        if max(modulations) - min(modulations) > MODULATION_STABILITY:
+            return None
+
+        return CalibrationResult(round((100 - modulation) / 100 * self.setpoint, 1), "formula")

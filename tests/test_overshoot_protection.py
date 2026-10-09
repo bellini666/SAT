@@ -1,0 +1,208 @@
+"""Tests for the overshoot protection value calibration."""
+
+import asyncio
+from datetime import timedelta
+
+import pytest
+from freezegun.api import FrozenDateTimeFactory
+from homeassistant.core import HomeAssistant
+from pytest_homeassistant_custom_component.common import async_fire_time_changed
+
+from custom_components.sat.const import HEATING_SYSTEM_RADIATORS, MINIMUM_SETPOINT
+from custom_components.sat.coordinator import DeviceState
+from custom_components.sat.overshoot_protection import CalibrationError, OvershootProtection
+
+
+class Boiler:
+    """The coordinator surface calibration talks to."""
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        self.hass = hass
+        self.flame_active = False
+        self.hot_water_active = False
+        self.boiler_temperature: float | None = 30.0
+        self.relative_modulation_value: float | None = 0.0
+        self.minimum_relative_modulation_value: float | None = 12.0
+        self.commands: list[tuple[str, object]] = []
+
+    async def async_set_heater_state(self, state: DeviceState) -> None:
+        self.commands.append(("CH", state))
+
+    async def async_set_control_setpoint(self, value: float) -> None:
+        self.commands.append(("CS", value))
+
+    async def async_set_control_max_relative_modulation(self, value: int) -> None:
+        self.commands.append(("MM", value))
+
+    async def async_release_control(self) -> None:
+        self.commands.append(("release", None))
+
+
+async def tick(hass: HomeAssistant, freezer: FrozenDateTimeFactory, count: int = 1) -> None:
+    for _ in range(count):
+        freezer.tick(timedelta(seconds=30))
+        async_fire_time_changed(hass)
+        await hass.async_block_till_done()
+
+
+def start(hass: HomeAssistant, boiler: Boiler, **kwargs) -> tuple[OvershootProtection, asyncio.Task]:
+    protection = OvershootProtection(boiler, HEATING_SYSTEM_RADIATORS, maximum_setpoint=55, **kwargs)
+    return protection, hass.async_create_background_task(protection.calculate(), "calibration")
+
+
+def released(boiler: Boiler) -> bool:
+    return boiler.commands[-3:] == [("CH", DeviceState.OFF), ("CS", MINIMUM_SETPOINT), ("release", None)]
+
+
+async def heat_to_plateau(hass: HomeAssistant, freezer: FrozenDateTimeFactory, boiler: Boiler, flow: float, modulation: float) -> None:
+    boiler.flame_active = True
+    boiler.relative_modulation_value = 60
+    for temperature in (35, 40, 44):
+        boiler.boiler_temperature = temperature
+        await tick(hass, freezer)
+
+    boiler.relative_modulation_value = modulation
+    for offset in (0.0, 0.2, 0.3, 0.1, 0.2, 0.3, 0.0, 0.2, 0.1, 0.3, 0.2, 0.1):
+        boiler.boiler_temperature = flow + offset
+        await tick(hass, freezer)
+
+
+async def test_capped_at_the_maximum_setpoint(hass: HomeAssistant) -> None:
+    protection = OvershootProtection(Boiler(hass), HEATING_SYSTEM_RADIATORS, maximum_setpoint=55)
+
+    assert protection.setpoint == 55
+
+
+async def test_measures_the_plateau_at_minimum_modulation(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+    boiler = Boiler(hass)
+    _protection, task = start(hass, boiler)
+    await hass.async_block_till_done()
+
+    await heat_to_plateau(hass, freezer, boiler, flow=45.0, modulation=13)
+
+    result = await task
+    assert result.method == "minimum_modulation"
+    assert 45.0 <= result.value <= 45.3
+    assert ("CS", 55) in boiler.commands
+    assert ("MM", 0) in boiler.commands
+    assert released(boiler)
+
+
+async def test_measures_the_plateau_at_zero_modulation(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+    boiler = Boiler(hass)
+    _protection, task = start(hass, boiler)
+
+    await heat_to_plateau(hass, freezer, boiler, flow=47.0, modulation=0)
+
+    result = await task
+    assert result.method == "zero_modulation"
+    assert 47.0 <= result.value <= 47.3
+
+
+async def test_uses_the_formula_while_modulating_at_the_setpoint(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+    boiler = Boiler(hass)
+    _protection, task = start(hass, boiler)
+
+    await heat_to_plateau(hass, freezer, boiler, flow=54.8, modulation=40)
+
+    result = await task
+    assert result.method == "formula"
+    assert result.value == 33.0
+
+
+async def test_fails_when_the_floor_plateau_reaches_the_setpoint(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+    boiler = Boiler(hass)
+    _protection, task = start(hass, boiler)
+
+    await heat_to_plateau(hass, freezer, boiler, flow=54.0, modulation=13)
+
+    with pytest.raises(CalibrationError, match="setpoint_reached"):
+        await task
+    assert released(boiler)
+
+
+async def test_hot_water_pauses_the_measurement(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+    boiler = Boiler(hass)
+    protection, task = start(hass, boiler, plateau_timeout=timedelta(minutes=10))
+
+    boiler.flame_active = True
+    boiler.relative_modulation_value = 13
+    boiler.boiler_temperature = 45.0
+    await tick(hass, freezer, 4)
+
+    boiler.hot_water_active = True
+    boiler.boiler_temperature = 60.0
+    await tick(hass, freezer, 40)
+    assert protection.phase == "paused"
+    assert not task.done()
+
+    boiler.hot_water_active = False
+    await heat_to_plateau(hass, freezer, boiler, flow=45.0, modulation=13)
+
+    result = await task
+    assert result.method == "minimum_modulation"
+
+
+async def test_times_out_without_a_plateau(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+    boiler = Boiler(hass)
+    _protection, task = start(hass, boiler, plateau_timeout=timedelta(minutes=10))
+
+    boiler.flame_active = True
+    boiler.relative_modulation_value = 13
+    for step in range(25):
+        boiler.boiler_temperature = 30.0 + step
+        await tick(hass, freezer)
+
+    with pytest.raises(CalibrationError, match="timeout"):
+        await task
+    assert released(boiler)
+
+
+async def test_fails_without_a_flame(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+    boiler = Boiler(hass)
+    _protection, task = start(hass, boiler, flame_timeout=timedelta(minutes=5))
+
+    await tick(hass, freezer, 12)
+
+    with pytest.raises(CalibrationError, match="no_flame"):
+        await task
+    assert released(boiler)
+
+
+async def test_fails_after_repeated_flame_losses(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+    boiler = Boiler(hass)
+    _protection, task = start(hass, boiler)
+
+    for _ in range(4):
+        boiler.flame_active = True
+        await tick(hass, freezer, 2)
+        boiler.flame_active = False
+        await tick(hass, freezer)
+
+    with pytest.raises(CalibrationError, match="flame_lost"):
+        await task
+    assert released(boiler)
+
+
+async def test_abort_releases_the_overrides(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+    boiler = Boiler(hass)
+    _protection, task = start(hass, boiler)
+    await tick(hass, freezer, 2)
+
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert released(boiler)
+
+
+async def test_refreshes_the_control_setpoint_every_tick(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+    boiler = Boiler(hass)
+    _protection, task = start(hass, boiler)
+    await hass.async_block_till_done()
+    await tick(hass, freezer, 4)
+
+    assert boiler.commands.count(("CS", 55)) == 5
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
