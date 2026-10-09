@@ -105,7 +105,7 @@ class PWM:
             self._last_update = monotonic()
             self._last_boiler_temperature = boiler.flow_temperature
 
-            _LOGGER.warning("PWM turned off due missing values.")
+            _LOGGER.debug("PWM idle until the heating curve, requested setpoint and boiler temperature are known.")
 
             return
 

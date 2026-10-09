@@ -458,7 +458,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             "relative_modulation_enabled": self.relative_modulation.enabled,
             "relative_modulation_state": self.relative_modulation_state.name,
 
-            "pulse_width_modulation_enabled": self.pwm.enabled,
+            "pulse_width_modulation_enabled": self.pulse_width_modulation_enabled,
             "pulse_width_modulation_state": self.pwm.status.name,
             "pulse_width_modulation_duty_cycle": self.pwm.duty_cycle,
         }
