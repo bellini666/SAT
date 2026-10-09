@@ -24,14 +24,20 @@ class Boiler:
         self.relative_modulation_value: float | None = 0.0
         self.minimum_relative_modulation_value: float | None = 12.0
         self.commands: list[tuple[str, object]] = []
+        self.gate: asyncio.Event | None = None
+        self.error: Exception | None = None
 
     async def async_set_heater_state(self, state: DeviceState) -> None:
         self.commands.append(("CH", state))
 
     async def async_set_control_setpoint(self, value: float) -> None:
+        if self.gate is not None:
+            await self.gate.wait()
         self.commands.append(("CS", value))
 
     async def async_set_control_max_relative_modulation(self, value: int) -> None:
+        if self.error is not None:
+            raise self.error
         self.commands.append(("MM", value))
 
     async def async_release_control(self) -> None:
@@ -206,3 +212,36 @@ async def test_refreshes_the_control_setpoint_every_tick(hass: HomeAssistant, fr
     task.cancel()
     with pytest.raises(asyncio.CancelledError):
         await task
+
+
+async def test_release_waits_for_a_running_tick(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+    boiler = Boiler(hass)
+    _protection, task = start(hass, boiler)
+    await tick(hass, freezer)
+
+    boiler.gate = asyncio.Event()
+    freezer.tick(timedelta(seconds=30))
+    async_fire_time_changed(hass)
+    await asyncio.sleep(0)
+
+    task.cancel()
+    await asyncio.sleep(0)
+    boiler.gate.set()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    await hass.async_block_till_done()
+
+    assert released(boiler)
+
+
+async def test_gateway_error_ends_the_calibration(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+    boiler = Boiler(hass)
+    _protection, task = start(hass, boiler)
+    await tick(hass, freezer)
+
+    boiler.error = RuntimeError("gateway")
+    await tick(hass, freezer)
+
+    with pytest.raises(RuntimeError, match="gateway"):
+        await task
+    assert released(boiler)

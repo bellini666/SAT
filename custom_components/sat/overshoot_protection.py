@@ -79,10 +79,7 @@ class OvershootProtection:
         self._flame_losses = 0
         self._last_tick = dt_util.utcnow()
         self._result: asyncio.Future[CalibrationResult] = coordinator.hass.loop.create_future()
-
-    @property
-    def progress(self) -> float:
-        return min(self._heated / self._plateau_timeout, 1)
+        self._lock = asyncio.Lock()
 
     async def calculate(self) -> CalibrationResult:
         """Run the calibration and always hand the boiler back afterwards."""
@@ -101,23 +98,25 @@ class OvershootProtection:
             raise
         finally:
             unsubscribe()
-            await self._async_release()
+            if not self._result.done():
+                self._result.cancel()
 
-    async def _async_release(self) -> None:
-        _LOGGER.debug("Calibration: releasing the boiler overrides")
-        await self._coordinator.async_set_heater_state(DeviceState.OFF)
-        await self._coordinator.async_set_control_setpoint(MINIMUM_SETPOINT)
-        await self._coordinator.async_release_control()
+            async with self._lock:
+                _LOGGER.debug("Calibration: releasing the boiler overrides")
+                await self._coordinator.async_set_heater_state(DeviceState.OFF)
+                await self._coordinator.async_set_control_setpoint(MINIMUM_SETPOINT)
+                await self._coordinator.async_release_control()
 
     async def _async_tick(self, now: datetime) -> None:
-        if self._result.done():
-            return
+        async with self._lock:
+            if self._result.done():
+                return
 
-        try:
-            if (result := await self._async_step(now)) is not None:
-                self._result.set_result(result)
-        except CalibrationError as error:
-            self._result.set_exception(error)
+            try:
+                if (result := await self._async_step(now)) is not None:
+                    self._result.set_result(result)
+            except Exception as error:
+                self._result.set_exception(error)
 
     async def _async_step(self, now: datetime) -> CalibrationResult | None:
         elapsed = now - self._last_tick
