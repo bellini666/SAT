@@ -255,6 +255,8 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_reconfigure(self, _user_input: dict[str, Any] | None = None):
         self.config_entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
         self.data = self.config_entry.data.copy()
+        if CONF_MINIMUM_SETPOINT in self.config_entry.options:
+            self.data[CONF_MINIMUM_SETPOINT] = self.config_entry.options[CONF_MINIMUM_SETPOINT]
 
         return await self.async_step_sensors()
 

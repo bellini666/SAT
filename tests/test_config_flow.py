@@ -257,3 +257,13 @@ async def test_calibration_refuses_while_another_runs(hass: HomeAssistant) -> No
     assert result["type"] == "abort"
     assert result["reason"] == "already_in_progress"
     assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_reconfigure_offers_the_overshoot_protection_value_in_use(hass: HomeAssistant) -> None:
+    entry = MockConfigEntry(domain=DOMAIN, version=SatFlowHandler.VERSION, data={**DEFAULT_USER_DATA, "minimum_setpoint": 40, "heating_system": "radiators"}, options={"minimum_setpoint": 42})
+    entry.add_to_hass(hass)
+
+    result = await reconfigure_to_menu(hass, entry, "overshoot_protection")
+
+    field = next(key for key in result["data_schema"].schema if key == "minimum_setpoint")
+    assert field.default() == 42
