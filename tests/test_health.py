@@ -6,7 +6,7 @@ from freezegun.api import FrozenDateTimeFactory
 from homeassistant.components.climate import HVACMode
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import STATE_OFF, STATE_ON
-from homeassistant.core import HomeAssistant
+from homeassistant.core import CoreState, HomeAssistant
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed
@@ -82,6 +82,23 @@ async def test_healthy_right_after_turning_on(hass: HomeAssistant, freezer: Froz
     await hass.async_block_till_done()
 
     await climate.async_set_hvac_mode(HVACMode.HEAT)
+
+    assert hass.states.get(ENTITY_ID).attributes["problems"] == []
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_healthy_while_home_assistant_starts(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+    hass.set_state(CoreState.starting)
+    hass.states.async_set("sensor.test_inside_sensor", "19.5")
+    hass.states.async_set("sensor.test_outside_sensor", "5.0")
+    entry = MockConfigEntry(domain=DOMAIN, data={**DEFAULT_USER_DATA, "minimum_setpoint": 45})
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await entry.runtime_data.coordinator.async_set_boiler_temperature(40)
+
+    freezer.tick(timedelta(minutes=3))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
 
     assert hass.states.get(ENTITY_ID).attributes["problems"] == []
     assert await hass.config_entries.async_unload(entry.entry_id)

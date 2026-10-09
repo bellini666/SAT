@@ -31,7 +31,7 @@ from homeassistant.components.climate import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_TEMPERATURE, STATE_UNAVAILABLE, STATE_UNKNOWN, ATTR_ENTITY_ID, STATE_ON, STATE_OFF
-from homeassistant.core import HomeAssistant, Event, EventStateChangedData, HassJob, callback
+from homeassistant.core import CoreState, HomeAssistant, Event, EventStateChangedData, HassJob, callback
 from homeassistant.helpers import entity_registry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_track_state_change_event, async_track_time_interval, async_call_later
@@ -651,7 +651,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
     @property
     def control_problems(self) -> list[str]:
         """Return why SAT is not controlling the boiler while it should be."""
-        if self.hvac_mode != HVACMode.HEAT or self.control_paused:
+        if self.hvac_mode != HVACMode.HEAT or self.control_paused or self.hass.state is not CoreState.running:
             return []
 
         problems = []
