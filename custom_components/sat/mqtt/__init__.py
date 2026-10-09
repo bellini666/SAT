@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from collections import deque
 from abc import abstractmethod
 from typing import Any, Callable, Mapping
 
@@ -7,6 +8,7 @@ from homeassistant.components import mqtt
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers.storage import Store
+from homeassistant.util import dt as dt_util
 
 from ..const import CONF_MQTT_TOPIC
 from ..coordinator import SatDataUpdateCoordinator
@@ -26,6 +28,7 @@ class SatMqttCoordinator(SatDataUpdateCoordinator):
         self._device_id: str = device_id
         self._topic: str = config_data.get(CONF_MQTT_TOPIC)
         self._subscriptions: list[Callable[[], None]] = []
+        self.messages: deque[dict[str, str]] = deque(maxlen=50)
         self._store: Store = Store(hass, STORAGE_VERSION, snake_case(f"{self.__class__.__name__}_{device_id}"))
 
     @property
@@ -94,6 +97,7 @@ class SatMqttCoordinator(SatDataUpdateCoordinator):
         @callback
         def message_handler(message):
             """Handle an incoming MQTT message and schedule an update."""
+            self.messages.append({"received": dt_util.utcnow().isoformat(), "topic": message.topic, "payload": message.payload})
 
             try:
                 # Process the payload and update the data property
