@@ -236,3 +236,12 @@ async def test_calibration_without_mqtt_offers_manual_entry(hass: HomeAssistant)
     assert hass.config_entries.flow.async_get(result["flow_id"])["step_id"] == "overshoot_protection"
     hass.config_entries.flow.async_abort(result["flow_id"])
 
+
+async def test_manufacturer_step_without_mqtt(hass: HomeAssistant) -> None:
+    entry = unloaded_mqtt_entry(hass)
+
+    result = await reconfigure_to_menu(hass, entry, "overshoot_protection")
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"minimum_setpoint": 52})
+
+    assert result["step_id"] == "manufacturer"
+    hass.config_entries.flow.async_abort(result["flow_id"])

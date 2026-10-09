@@ -1,5 +1,6 @@
 """Adds config flow for SAT."""
 import asyncio
+import contextlib
 import logging
 from typing import Optional, Any
 
@@ -9,6 +10,7 @@ from homeassistant.components import sensor, switch, valve, weather, binary_sens
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState, OptionsFlowWithReload
 from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.core import callback
+from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.data_entry_flow import section
 from homeassistant.helpers import selector, entity_registry
 from homeassistant.helpers.selector import SelectSelectorMode, SelectOptionDict
@@ -475,9 +477,12 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             return await self.async_step_finish()
 
         coordinator = await self.async_create_coordinator()
-        await coordinator.async_setup()
 
         try:
+            # The stored member id is enough to suggest a manufacturer while the gateway is unreachable
+            with contextlib.suppress(ConfigEntryNotReady):
+                await coordinator.async_setup()
+
             manufacturers = ManufacturerFactory.resolve_by_member_id(coordinator.member_id)
             default_manufacturer = manufacturers[0].friendly_name if len(manufacturers) > 0 else -1
         finally:
