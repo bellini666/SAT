@@ -5,6 +5,7 @@ from typing import Any, Callable, Mapping
 
 from homeassistant.components import mqtt
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers.storage import Store
 
 from ..const import CONF_MQTT_TOPIC
@@ -34,8 +35,8 @@ class SatMqttCoordinator(SatDataUpdateCoordinator):
     async def async_setup(self):
         await self._load_stored_data()
 
-    async def async_added_to_hass(self) -> None:
-        await mqtt.async_wait_for_mqtt_client(self.hass)
+        if not await mqtt.async_wait_for_mqtt_client(self.hass):
+            raise ConfigEntryNotReady("MQTT is not available")
 
         for key in self.get_tracked_entities():
             self._subscriptions.append(await mqtt.async_subscribe(
@@ -44,6 +45,7 @@ class SatMqttCoordinator(SatDataUpdateCoordinator):
                 self._create_message_handler(key)
             ))
 
+    async def async_added_to_hass(self) -> None:
         await self.boot()
 
         await super().async_added_to_hass()

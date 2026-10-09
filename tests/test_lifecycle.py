@@ -103,13 +103,19 @@ async def test_setup_does_not_depend_on_platform_order(hass: HomeAssistant, monk
     assert any(entity_id.endswith("central_heating_synchro") for entity_id in hass.states.async_entity_ids("binary_sensor"))
 
 
-async def test_unload_stops_mqtt_updates(hass: HomeAssistant, mqtt_mock: MqttMockHAClient) -> None:
+def mqtt_entry(hass: HomeAssistant) -> MockConfigEntry:
     entry = MockConfigEntry(
         domain=DOMAIN,
         unique_id="otgw",
         data={**DEFAULT_USER_DATA, CONF_MODE: MODE_MQTT_OPENTHERM, CONF_DEVICE: "otgw", CONF_MQTT_TOPIC: "OTGW"},
     )
     entry.add_to_hass(hass)
+
+    return entry
+
+
+async def test_unload_stops_mqtt_updates(hass: HomeAssistant, mqtt_mock: MqttMockHAClient) -> None:
+    entry = mqtt_entry(hass)
 
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
@@ -125,3 +131,14 @@ async def test_unload_stops_mqtt_updates(hass: HomeAssistant, mqtt_mock: MqttMoc
     async_fire_mqtt_message(hass, "OTGW/value/otgw/flame", "OFF")
     await hass.async_block_till_done()
     assert coordinator.flame_active
+
+
+async def test_setup_retries_while_mqtt_is_unavailable(hass: HomeAssistant, caplog: pytest.LogCaptureFixture) -> None:
+    entry = mqtt_entry(hass)
+
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.SETUP_RETRY
+    assert hass.states.async_entity_ids("climate") == []
+    assert errors(caplog) == []
