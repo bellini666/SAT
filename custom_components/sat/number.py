@@ -31,7 +31,7 @@ class SatHotWaterSetpointEntity(SatEntity, NumberEntity):
     @property
     def unique_id(self) -> str:
         """Return a unique ID to use for this entity."""
-        return f"{self._name.lower()}-boiler-dhw-setpoint"
+        return f"{self._config_entry.entry_id}-boiler-dhw-setpoint"
 
     @property
     def icon(self) -> str | None:

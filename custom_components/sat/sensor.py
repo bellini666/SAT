@@ -83,7 +83,7 @@ class SatCurrentPowerSensor(SatEntity, SensorEntity):
     @property
     def unique_id(self) -> str:
         """Return a unique ID to use for this entity."""
-        return f"{self._config_entry.data.get(CONF_NAME).lower()}-boiler-current-power"
+        return f"{self._config_entry.entry_id}-boiler-current-power"
 
 
 class SatCurrentConsumptionSensor(SatEntity, SensorEntity):
@@ -134,7 +134,7 @@ class SatCurrentConsumptionSensor(SatEntity, SensorEntity):
     @property
     def unique_id(self) -> str:
         """Return a unique ID to use for this entity."""
-        return f"{self._config_entry.data.get(CONF_NAME).lower()}-boiler-current-consumption"
+        return f"{self._config_entry.entry_id}-boiler-current-consumption"
 
 
 class SatHeatingCurveSensor(SatClimateEntity, SensorEntity):
@@ -169,7 +169,7 @@ class SatHeatingCurveSensor(SatClimateEntity, SensorEntity):
     @property
     def unique_id(self) -> str:
         """Return a unique ID to use for this entity."""
-        return f"{self._config_entry.data.get(CONF_NAME).lower()}-heating-curve"
+        return f"{self._config_entry.entry_id}-heating-curve"
 
 
 class SatErrorValueSensor(SatClimateEntity, SensorEntity):
@@ -204,7 +204,7 @@ class SatErrorValueSensor(SatClimateEntity, SensorEntity):
     @property
     def unique_id(self) -> str:
         """Return a unique ID to use for this entity."""
-        return f"{self._config_entry.data.get(CONF_NAME).lower()}-error-value"
+        return f"{self._config_entry.entry_id}-error-value"
 
 
 class SatManufacturerSensor(SatEntity, SensorEntity):
@@ -223,7 +223,7 @@ class SatManufacturerSensor(SatEntity, SensorEntity):
 
     @property
     def unique_id(self) -> str:
-        return f"{self._config_entry.data.get(CONF_NAME).lower()}-manufacturer"
+        return f"{self._config_entry.entry_id}-manufacturer"
 
 
 class SatFlameSensor(SatEntity, SensorEntity):
@@ -241,7 +241,7 @@ class SatFlameSensor(SatEntity, SensorEntity):
 
     @property
     def unique_id(self) -> str:
-        return f"{self._config_entry.data.get(CONF_NAME).lower()}-flame-status"
+        return f"{self._config_entry.entry_id}-flame-status"
 
 
 class SatBoilerSensor(SatEntity, SensorEntity):
@@ -259,4 +259,4 @@ class SatBoilerSensor(SatEntity, SensorEntity):
 
     @property
     def unique_id(self) -> str:
-        return f"{self._config_entry.data.get(CONF_NAME).lower()}-boiler-status"
+        return f"{self._config_entry.entry_id}-boiler-status"

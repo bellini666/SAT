@@ -3,14 +3,15 @@ from dataclasses import dataclass
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers import config_validation as cv, device_registry
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import config_validation as cv, device_registry, entity_registry as er
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.helpers.storage import Store
 
 from .const import (
     DOMAIN,
     CONF_MODE,
+    CONF_NAME,
     CONF_DEVICE,
 )
 from .climate import SatClimate
@@ -159,6 +160,27 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if entry.version < 11:
             if entry.data.get("sync_with_thermostat") is not None:
                 new_data["push_setpoint_to_thermostat"] = entry.data.get("sync_with_thermostat")
+
+        if entry.version < 12:
+            name = entry.data.get(CONF_NAME)
+            prefixes = (f"{name.lower()}-", f"{name}-")
+
+            @callback
+            def migrate_unique_id(entity_entry: er.RegistryEntry) -> dict[str, str] | None:
+                if entity_entry.unique_id == name.lower():
+                    return {"new_unique_id": entry.entry_id}
+
+                for prefix in prefixes:
+                    if entity_entry.unique_id.startswith(prefix):
+                        return {"new_unique_id": f"{entry.entry_id}-{entity_entry.unique_id.removeprefix(prefix)}"}
+
+                return None
+
+            await er.async_migrate_entries(hass, entry.entry_id, migrate_unique_id)
+
+            devices = device_registry.async_get(hass)
+            if device := devices.async_get_device_by_identifier((DOMAIN, name), entry.entry_id):
+                devices.async_update_device(device.id, new_identifiers={(DOMAIN, entry.entry_id)})
 
         hass.config_entries.async_update_entry(entry, version=SatFlowHandler.VERSION, data=new_data, options=new_options)
 

@@ -139,7 +139,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
 
         # System Configuration
         self._attr_name = str(config_entry.data.get(CONF_NAME))
-        self._attr_id = str(config_entry.data.get(CONF_NAME)).lower()
+        self._attr_id = config_entry.entry_id
 
         self._radiators = config_entry.data.get(CONF_RADIATORS) or []
         self._window_sensors = config_entry.options.get(CONF_WINDOW_SENSORS) or []
@@ -290,8 +290,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
 
         if len(self._window_sensors) > 0:
             entities = entity_registry.async_get(self.hass)
-            device_name = self._config_entry.data.get(CONF_NAME)
-            window_id = entities.async_get_entity_id(BINARY_SENSOR_DOMAIN, DOMAIN, f"{device_name.lower()}-window-sensor")
+            window_id = entities.async_get_entity_id(BINARY_SENSOR_DOMAIN, DOMAIN, f"{self._config_entry.entry_id}-window-sensor")
 
             self.async_on_remove(
                 async_track_state_change_event(

@@ -130,4 +130,4 @@ class SatBinarySensor(SatEntity, BinarySensorEntity):
     @property
     def unique_id(self):
         """Return a unique ID to use for this entity."""
-        return f"{self._config_entry.data.get(CONF_NAME.lower())}-{self._source}-{self._key}"
+        return f"{self._config_entry.entry_id}-{self._source}-{self._key}"

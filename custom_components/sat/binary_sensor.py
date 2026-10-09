@@ -98,7 +98,7 @@ class SatControlSetpointSynchroSensor(SatSynchroSensor, SatClimateEntity, Binary
     @property
     def unique_id(self):
         """Return a unique ID to use for this entity."""
-        return f"{self._config_entry.data.get(CONF_NAME).lower()}-control-setpoint-synchro"
+        return f"{self._config_entry.entry_id}-control-setpoint-synchro"
 
 
 class SatRelativeModulationSynchroSensor(SatSynchroSensor, SatClimateEntity, BinarySensorEntity):
@@ -129,7 +129,7 @@ class SatRelativeModulationSynchroSensor(SatSynchroSensor, SatClimateEntity, Bin
     @property
     def unique_id(self):
         """Return a unique ID to use for this entity."""
-        return f"{self._config_entry.data.get(CONF_NAME).lower()}-relative-modulation-synchro"
+        return f"{self._config_entry.entry_id}-relative-modulation-synchro"
 
 
 class SatCentralHeatingSynchroSensor(SatSynchroSensor, SatClimateEntity, BinarySensorEntity):
@@ -167,7 +167,7 @@ class SatCentralHeatingSynchroSensor(SatSynchroSensor, SatClimateEntity, BinaryS
     @property
     def unique_id(self) -> str:
         """Return a unique ID to use for this entity."""
-        return f"{self._config_entry.data.get(CONF_NAME).lower()}-central-heating-synchro"
+        return f"{self._config_entry.entry_id}-central-heating-synchro"
 
 
 class SatBoilerHealthSensor(SatEntity, BinarySensorEntity):
@@ -190,7 +190,7 @@ class SatBoilerHealthSensor(SatEntity, BinarySensorEntity):
     @property
     def unique_id(self) -> str:
         """Return a unique ID to use for this entity."""
-        return f"{self._config_entry.data.get(CONF_NAME).lower()}-boiler-health"
+        return f"{self._config_entry.entry_id}-boiler-health"
 
 
 class SatFlameHealthSensor(SatEntity, BinarySensorEntity):
@@ -218,7 +218,7 @@ class SatFlameHealthSensor(SatEntity, BinarySensorEntity):
     @property
     def unique_id(self) -> str:
         """Return a unique ID to use for this entity."""
-        return f"{self._config_entry.data.get(CONF_NAME).lower()}-flame-health"
+        return f"{self._config_entry.entry_id}-flame-health"
 
 
 class SatWindowSensor(SatClimateEntity, BinarySensorGroup):
@@ -242,4 +242,4 @@ class SatWindowSensor(SatClimateEntity, BinarySensorGroup):
     @property
     def unique_id(self) -> str:
         """Return a unique ID to use for this entity."""
-        return f"{self._config_entry.data.get(CONF_NAME).lower()}-window-sensor"
+        return f"{self._config_entry.entry_id}-window-sensor"
