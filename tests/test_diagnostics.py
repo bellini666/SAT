@@ -45,7 +45,7 @@ async def test_config_entry_diagnostics(hass: HomeAssistant, hass_client: Client
     assert diagnostics["climate"]["errors"] == [{"entity_id": "climate.mock_title", "value": -1.5}]
     assert diagnostics["coordinator"]["data"]["flame"] == "ON"
     assert diagnostics["coordinator"]["boiler"]["flow_temperature"] == 40.0
-    assert diagnostics["coordinator"]["messages"][-1]["topic"] == "OTGW/value/otgw/Tboiler"
+    assert diagnostics["coordinator"]["messages"][-1]["topic"] == f"OTGW/value/{REDACTED}/Tboiler"
     assert diagnostics["coordinator"]["messages"][-1]["payload"] == "40.0"
 
     assert await hass.config_entries.async_unload(entry.entry_id)

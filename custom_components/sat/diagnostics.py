@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict
 from typing import Any
 
-from homeassistant.components.diagnostics import async_redact_data
+from homeassistant.components.diagnostics import REDACTED, async_redact_data
 from homeassistant.core import HomeAssistant
 
 from . import SatConfigEntry
@@ -36,6 +36,9 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: SatConf
             "boiler": asdict(coordinator.boiler),
             "flame": asdict(coordinator.flame),
             "data": dict(coordinator.data),
-            "messages": list(getattr(coordinator, "messages", [])),
+            "messages": [
+                {**message, "topic": message["topic"].replace(entry.data[CONF_DEVICE], REDACTED)}
+                for message in getattr(coordinator, "messages", [])
+            ],
         },
     }
