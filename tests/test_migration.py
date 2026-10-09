@@ -17,7 +17,7 @@ async def test_v10_copies_sync_with_thermostat(hass: HomeAssistant) -> None:
     await hass.async_block_till_done()
 
     assert entry.version == SatFlowHandler.VERSION
-    assert entry.data["push_setpoint_to_thermostat"] is True
+    assert entry.options["push_setpoint_to_thermostat"] is True
 
 
 async def test_v11_moves_unique_ids_to_entry_id(hass: HomeAssistant) -> None:
@@ -55,3 +55,13 @@ async def test_entries_with_the_same_name_do_not_collide(hass: HomeAssistant) ->
         await hass.async_block_till_done()
 
     assert len(hass.states.async_entity_ids("climate")) == 2
+
+
+async def test_v11_moves_push_setpoint_to_options(hass: HomeAssistant) -> None:
+    entry = MockConfigEntry(domain=DOMAIN, version=11, data={**DEFAULT_USER_DATA, "minimum_setpoint": 45, "push_setpoint_to_thermostat": True})
+    entry.add_to_hass(hass)
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entry.options["push_setpoint_to_thermostat"] is True

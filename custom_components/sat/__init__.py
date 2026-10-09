@@ -162,6 +162,9 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 new_data["push_setpoint_to_thermostat"] = entry.data.get("sync_with_thermostat")
 
         if entry.version < 12:
+            if "push_setpoint_to_thermostat" in new_data:
+                new_options["push_setpoint_to_thermostat"] = new_data.pop("push_setpoint_to_thermostat")
+
             name = entry.data.get(CONF_NAME)
             prefixes = (f"{name.lower()}-", f"{name}-")
 

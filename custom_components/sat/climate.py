@@ -162,11 +162,11 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         self._simulation = bool(config_entry.data.get(CONF_SIMULATION))
         self._heating_system = str(config_entry.data.get(CONF_HEATING_SYSTEM))
         self._overshoot_protection = bool(config_entry.data.get(CONF_OVERSHOOT_PROTECTION))
-        self._push_setpoint_to_thermostat = bool(config_entry.data.get(CONF_PUSH_SETPOINT_TO_THERMOSTAT))
 
         # User Configuration
         self._heating_mode = str(config_entry.options.get(CONF_HEATING_MODE))
         self._thermal_comfort = bool(config_options.get(CONF_THERMAL_COMFORT))
+        self._push_setpoint_to_thermostat = bool(config_options.get(CONF_PUSH_SETPOINT_TO_THERMOSTAT))
         self._climate_valve_offset = float(config_options.get(CONF_CLIMATE_VALVE_OFFSET))
         self._target_temperature_step = float(config_options.get(CONF_TARGET_TEMPERATURE_STEP))
         self._dynamic_minimum_setpoint = bool(config_options.get(CONF_DYNAMIC_MINIMUM_SETPOINT))
