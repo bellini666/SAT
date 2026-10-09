@@ -853,14 +853,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
     async def _async_control_setpoint(self, pwm_state: PWMState) -> None:
         """Control the setpoint of the heating system based on the current mode and PWM state."""
 
-        # Check if the system is in HEAT mode
-        if self.hvac_mode != HVACMode.HEAT:
-            # If not in HEAT mode, set to the minimum setpoint
-            self._calculated_setpoint = None
-            self._setpoint = MINIMUM_SETPOINT
-            _LOGGER.info("HVAC mode is not HEAT. Setting setpoint to minimum: %.1f°C", MINIMUM_SETPOINT)
-
-        elif not self.pulse_width_modulation_enabled or pwm_state.status == PWMStatus.IDLE:
+        if not self.pulse_width_modulation_enabled or pwm_state.status == PWMStatus.IDLE:
             # Normal cycle without PWM
             self._setpoint = self._calculated_setpoint
             _LOGGER.info("Pulse Width Modulation is disabled or in IDLE state. Running normal heating cycle.")
@@ -1078,6 +1071,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         elif hvac_mode == HVACMode.OFF:
             self._hvac_mode = HVACMode.OFF
             await self.async_set_heater_state(DeviceState.OFF)
+            await self._coordinator.async_release_control()
         else:
             # If an unsupported mode is passed, log an error message
             _LOGGER.error("Unrecognized hvac mode: %s", hvac_mode)

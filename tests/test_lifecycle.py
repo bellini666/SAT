@@ -165,6 +165,7 @@ async def test_dhcp_discovery_keeps_mqtt_entry(hass: HomeAssistant, mqtt_mock: M
     assert entry.data[CONF_DEVICE] == "otgw"
     assert entry.state is ConfigEntryState.LOADED
     assert "update listener" not in caplog.text
+    assert await hass.config_entries.async_unload(entry.entry_id)
 
 
 @pytest.mark.parametrize("entity_id", ["climate.mock_title", ["climate.mock_title"]])

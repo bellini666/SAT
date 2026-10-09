@@ -2,8 +2,8 @@ import logging
 from dataclasses import dataclass
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import Platform
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.const import EVENT_HOMEASSISTANT_STOP, Platform
+from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers import config_validation as cv, device_registry, entity_registry as er
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.helpers.storage import Store
@@ -57,6 +57,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: SatConfigEntry):
         climate=SatClimate(coordinator, entry, hass.config.units.temperature_unit),
     )
 
+    async def async_release_control(_event: Event) -> None:
+        await coordinator.async_release_control()
+
+    entry.async_on_unload(hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, async_release_control))
+
     # Forward entry setup for used platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
@@ -70,6 +75,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: SatConfigEntry) -> bool
     This function is called by Home Assistant when the integration is being removed.
     """
     if unloaded := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
+        await entry.runtime_data.coordinator.async_release_control()
         await entry.runtime_data.coordinator.async_will_remove_from_hass()
 
     return unloaded

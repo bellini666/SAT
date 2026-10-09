@@ -1,4 +1,7 @@
 """Fixtures for testing."""
+import asyncio
+from types import SimpleNamespace
+
 import pytest
 from _pytest.logging import LogCaptureFixture
 from homeassistant.core import HomeAssistant
@@ -14,6 +17,18 @@ from tests.const import DEFAULT_USER_DATA
 @pytest.fixture(autouse=True)
 def auto_enable_custom_integrations(enable_custom_integrations):
     yield
+
+
+@pytest.fixture
+async def instant_mqtt_command_delay(hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch):
+    async def sleep(_delay: float) -> None:
+        pass
+
+    monkeypatch.setattr("custom_components.sat.mqtt.asyncio", SimpleNamespace(sleep=sleep))
+    yield
+
+    # The MQTT client misc timer stops on its first run against the paho mock, one second after it starts
+    await asyncio.sleep(1.1)
 
 
 @pytest.fixture

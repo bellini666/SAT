@@ -505,6 +505,10 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
         """Control the setpoint temperature for the thermostat."""
         pass
 
+    async def async_release_control(self) -> None:
+        """Hand boiler control back to the room thermostat."""
+        pass
+
     async def async_notify_listeners(self, _time=None) -> None:
         """Notify listeners of an update asynchronously."""
         # Make sure we do not spam
