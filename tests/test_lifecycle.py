@@ -6,7 +6,9 @@ import logging
 import pytest
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import Platform
+from homeassistant.config_entries import SOURCE_DHCP
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.service_info.dhcp import DhcpServiceInfo
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_mqtt_message
 from pytest_homeassistant_custom_component.typing import MqttMockHAClient
 
@@ -142,3 +144,23 @@ async def test_setup_retries_while_mqtt_is_unavailable(hass: HomeAssistant, capl
     assert entry.state is ConfigEntryState.SETUP_RETRY
     assert hass.states.async_entity_ids("climate") == []
     assert errors(caplog) == []
+
+
+async def test_dhcp_discovery_keeps_mqtt_entry(hass: HomeAssistant, mqtt_mock: MqttMockHAClient, caplog: pytest.LogCaptureFixture) -> None:
+    entry = mqtt_entry(hass)
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    caplog.clear()
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": SOURCE_DHCP},
+        data=DhcpServiceInfo(ip="192.168.1.10", hostname="otgw", macaddress="aabbccddeeff"),
+    )
+    await hass.async_block_till_done()
+
+    assert result["type"] == "abort"
+    assert entry.data[CONF_DEVICE] == "otgw"
+    assert entry.state is ConfigEntryState.LOADED
+    assert "update listener" not in caplog.text

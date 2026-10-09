@@ -76,7 +76,10 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         # abort if we already have exactly this gateway id/host
         # reload the integration if the host got updated
         await self.async_set_unique_id(discovery_info.hostname)
-        self._abort_if_unique_id_configured(updates=self.data)
+
+        # The OTGW hostname doubles as the MQTT device id, so only serial entries take DHCP updates
+        entry = self.hass.config_entries.async_entry_for_domain_unique_id(DOMAIN, discovery_info.hostname)
+        self._abort_if_unique_id_configured(updates=self.data if entry is None or entry.data.get(CONF_MODE) == MODE_SERIAL else None)
 
         return await self.async_step_serial()
 
