@@ -361,14 +361,27 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
     async def async_step_calibrate(self, _user_input: dict[str, Any] | None = None):
-        if self.calibration is None:
-            self.calibration = self.hass.async_create_background_task(self._async_calibrate(), "sat_overshoot_protection_calibration")
+        if started := self.calibration is None:
+            if self.config_entry is not None and self.config_entry.state is ConfigEntryState.LOADED:
+                self.calibration = self.config_entry.async_create_background_task(self.hass, self._async_calibrate(), "sat_overshoot_protection_calibration")
+                if not self.calibration.done():
+                    self.config_entry.runtime_data.calibration = self.calibration
+            else:
+                self.calibration = self.hass.async_create_background_task(self._async_calibrate(), "sat_overshoot_protection_calibration")
 
-        if not self.calibration.done():
+        if started or not self.calibration.done():
             return self.async_show_progress(step_id="calibrate", progress_task=self.calibration, progress_action="calibration")
 
         calibration, self.calibration = self.calibration, None
-        if (overshoot_protection_value := calibration.result()) is None:
+        if calibration.cancelled():
+            overshoot_protection_value = None
+        elif (error := calibration.exception()) is not None:
+            _LOGGER.error("Overshoot protection calibration failed", exc_info=error)
+            overshoot_protection_value = None
+        else:
+            overshoot_protection_value = calibration.result()
+
+        if overshoot_protection_value is None:
             return self.async_show_progress_done(next_step_id="overshoot_protection")
 
         self._enable_overshoot_protection(overshoot_protection_value)
@@ -402,6 +415,7 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             return None
         finally:
             if climate_entity is not None:
+                self.config_entry.runtime_data.calibration = None
                 await climate_entity.async_set_hvac_mode(previous_hvac_mode)
             else:
                 await coordinator.async_will_remove_from_hass()

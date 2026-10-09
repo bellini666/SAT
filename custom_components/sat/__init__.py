@@ -1,3 +1,5 @@
+import asyncio
+import contextlib
 import logging
 from dataclasses import dataclass
 
@@ -27,6 +29,7 @@ PLATFORMS = [Platform.CLIMATE, Platform.SENSOR, Platform.NUMBER, Platform.BINARY
 class SatRuntimeData:
     coordinator: SatDataUpdateCoordinator
     climate: SatClimate
+    calibration: asyncio.Task | None = None
 
 
 type SatConfigEntry = ConfigEntry[SatRuntimeData]
@@ -99,7 +102,12 @@ async def async_unload_entry(hass: HomeAssistant, entry: SatConfigEntry) -> bool
 
 
 async def async_release_control(entry: SatConfigEntry) -> None:
-    """Hand the boiler back once the running control loop has finished."""
+    """Hand the boiler back once the running calibration and control loop have finished."""
+    if (calibration := entry.runtime_data.calibration) is not None:
+        calibration.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await calibration
+
     await entry.runtime_data.climate.async_stop_control()
     await entry.runtime_data.coordinator.async_release_control()
 

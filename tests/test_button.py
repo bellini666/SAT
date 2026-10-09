@@ -1,6 +1,7 @@
 """Tests for the overshoot protection calibration button."""
 
 from datetime import timedelta
+from unittest.mock import patch
 
 from freezegun.api import FrozenDateTimeFactory
 from homeassistant.components import persistent_notification
@@ -59,12 +60,25 @@ async def test_button_calibrates_and_stores_the_value(hass: HomeAssistant, freez
 async def test_unload_cancels_a_running_calibration(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
     entry = await setup_heating_entry(hass)
 
+    coordinator = entry.runtime_data.coordinator
+    will_remove_from_hass = coordinator.async_will_remove_from_hass
+    calls = []
+
+    async def release_control() -> None:
+        calls.append("release")
+
+    async def remove_from_hass() -> None:
+        calls.append("removed")
+        await will_remove_from_hass()
+
     await hass.services.async_call("button", "press", {"entity_id": BUTTON}, blocking=True)
     await tick(hass, freezer, 2)
 
-    assert await hass.config_entries.async_unload(entry.entry_id)
-    await hass.async_block_till_done()
+    with patch.object(coordinator, "async_release_control", release_control), patch.object(coordinator, "async_will_remove_from_hass", remove_from_hass):
+        assert await hass.config_entries.async_unload(entry.entry_id)
+        await hass.async_block_till_done()
 
+    assert calls[-1] == "removed"
     assert entry.options.get("minimum_setpoint") is None
 
 
@@ -80,4 +94,19 @@ async def test_calibration_timeouts_come_from_the_options(hass: HomeAssistant, f
 
     notification = persistent_notification._async_get_or_create_notifications(hass)[f"sat_calibration_{entry.entry_id}"]
     assert "timeout" in notification["message"]
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_gateway_error_ends_the_calibration(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+    entry = await setup_heating_entry(hass)
+    coordinator = entry.runtime_data.coordinator
+
+    with patch.object(coordinator, "async_set_control_max_relative_modulation", side_effect=RuntimeError("gateway")):
+        await hass.services.async_call("button", "press", {"entity_id": BUTTON}, blocking=True)
+        await hass.async_block_till_done()
+
+    assert hass.states.get(BUTTON).state != STATE_UNAVAILABLE
+    assert not entry.runtime_data.climate.control_paused
+    notification = persistent_notification._async_get_or_create_notifications(hass)[f"sat_calibration_{entry.entry_id}"]
+    assert "gateway" in notification["message"]
     assert await hass.config_entries.async_unload(entry.entry_id)
