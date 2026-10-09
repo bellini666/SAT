@@ -5,8 +5,6 @@ from enum import Enum
 
 NAME = "Smart Autotune Thermostat"
 DOMAIN = "sat"
-CLIMATE = "climate"
-COORDINATOR = "coordinator"
 CONFIG_STORE = "config_store"
 
 MODE_FAKE = "fake"

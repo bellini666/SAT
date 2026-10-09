@@ -28,7 +28,7 @@ from homeassistant.components.climate import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_TEMPERATURE, STATE_UNAVAILABLE, STATE_UNKNOWN, ATTR_ENTITY_ID, STATE_ON, STATE_OFF, EVENT_HOMEASSISTANT_STARTED
-from homeassistant.core import HomeAssistant, ServiceCall, Event, CoreState, EventStateChangedData, HassJob
+from homeassistant.core import HomeAssistant, ServiceCall, Event, CoreState, EventStateChangedData, HassJob, callback
 from homeassistant.helpers import entity_registry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_track_state_change_event, async_track_time_interval, async_call_later
@@ -59,11 +59,7 @@ _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(_hass: HomeAssistant, _config_entry: ConfigEntry, _async_add_devices: AddEntitiesCallback):
     """Set up the SatClimate device."""
-    coordinator = _hass.data[DOMAIN][_config_entry.entry_id][COORDINATOR]
-    climate = SatClimate(coordinator, _config_entry, _hass.config.units.temperature_unit)
-
-    _async_add_devices([climate])
-    _hass.data[DOMAIN][_config_entry.entry_id][CLIMATE] = climate
+    _async_add_devices([_config_entry.runtime_data.climate])
 
 
 class SatWarmingUp:
@@ -138,6 +134,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             self._attr_supported_features |= ClimateEntityFeature.TURN_OFF
 
         self._control_heating_loop_unsub: Optional[Callable[[], None]] = None
+        self._state_listeners: list[Callable[[], None]] = []
 
         # System Configuration
         self._attr_name = str(config_entry.data.get(CONF_NAME))
@@ -221,6 +218,19 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
 
         # Let the coordinator know we are ready
         await self._coordinator.async_added_to_hass()
+
+    @callback
+    def async_add_state_listener(self, listener: Callable[[], None]) -> Callable[[], None]:
+        """Call the listener every time this entity writes its state."""
+        self._state_listeners.append(listener)
+        return lambda: self._state_listeners.remove(listener)
+
+    @callback
+    def async_write_ha_state(self) -> None:
+        super().async_write_ha_state()
+
+        for listener in list(self._state_listeners):
+            listener()
 
     async def _register_event_listeners(self, _time: Optional[datetime] = None):
         """Register event listeners."""

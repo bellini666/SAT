@@ -5,9 +5,11 @@ import logging
 
 import pytest
 from homeassistant.config_entries import ConfigEntryState
+from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components import sat
 from custom_components.sat.const import DOMAIN
 from tests.const import DEFAULT_USER_DATA
 
@@ -82,3 +84,19 @@ async def test_unload(hass: HomeAssistant, sat_entry: MockConfigEntry) -> None:
 
     assert sat_entry.state is ConfigEntryState.NOT_LOADED
     assert all(state.state == "unavailable" for state in hass.states.async_all("climate"))
+
+
+async def test_setup_does_not_depend_on_platform_order(hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
+    monkeypatch.setattr(sat, "PLATFORMS", [Platform.BINARY_SENSOR, Platform.SENSOR, Platform.NUMBER, Platform.CLIMATE])
+
+    entry = MockConfigEntry(domain=DOMAIN, data=DEFAULT_USER_DATA, unique_id="fake")
+    entry.add_to_hass(hass)
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.LOADED
+    assert errors(caplog) == []
+    assert len(hass.states.async_entity_ids("climate")) == 1
+    assert any(entity_id.endswith("heating_curve_test") for entity_id in hass.states.async_entity_ids("sensor"))
+    assert any(entity_id.endswith("central_heating_synchro") for entity_id in hass.states.async_entity_ids("binary_sensor"))

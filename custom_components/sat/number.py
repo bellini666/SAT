@@ -8,7 +8,7 @@ from .entity import SatEntity
 
 
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, async_add_entities):
-    coordinator = hass.data[DOMAIN][config_entry.entry_id][COORDINATOR]
+    coordinator = config_entry.runtime_data.coordinator
 
     if coordinator.supports_hot_water_setpoint_management:
         async_add_entities([SatHotWaterSetpointEntity(coordinator, config_entry)])

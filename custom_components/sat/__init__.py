@@ -1,47 +1,55 @@
 import logging
+from dataclasses import dataclass
 
-from homeassistant.components import binary_sensor, climate, number, sensor
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry
 from homeassistant.helpers.storage import Store
 
 from .const import (
     DOMAIN,
-    CLIMATE,
-    COORDINATOR,
     CONF_MODE,
     CONF_DEVICE,
     SERVICE_RESET_INTEGRAL,
     SERVICE_PULSE_WIDTH_MODULATION,
 )
-from .coordinator import SatDataUpdateCoordinatorFactory
+from .climate import SatClimate
+from .coordinator import SatDataUpdateCoordinator, SatDataUpdateCoordinatorFactory
 from .services import async_register_services
 from .util import get_climate_entities
 
 _LOGGER: logging.Logger = logging.getLogger(__name__)
-PLATFORMS = [climate.DOMAIN, sensor.DOMAIN, number.DOMAIN, binary_sensor.DOMAIN]
+PLATFORMS = [Platform.CLIMATE, Platform.SENSOR, Platform.NUMBER, Platform.BINARY_SENSOR]
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
+@dataclass
+class SatRuntimeData:
+    coordinator: SatDataUpdateCoordinator
+    climate: SatClimate
+
+
+type SatConfigEntry = ConfigEntry[SatRuntimeData]
+
+
+async def async_setup_entry(hass: HomeAssistant, entry: SatConfigEntry):
     """
     Set up this integration using the UI.
 
     This function is called by Home Assistant when the integration is set up with the UI.
     """
-    # Make sure we have our default domain property
-    hass.data.setdefault(DOMAIN, {})
-
-    # Create a new dictionary for this entry
-    hass.data[DOMAIN][entry.entry_id] = {}
-
     # Resolve the coordinator by using the factory according to the mode
-    hass.data[DOMAIN][entry.entry_id][COORDINATOR] = SatDataUpdateCoordinatorFactory().resolve(
+    coordinator = SatDataUpdateCoordinatorFactory().resolve(
         hass=hass, data=entry.data, options=entry.options, mode=entry.data.get(CONF_MODE), device=entry.data.get(CONF_DEVICE)
     )
 
     # Making sure everything is loaded
-    await hass.data[DOMAIN][entry.entry_id][COORDINATOR].async_setup()
+    await coordinator.async_setup()
+
+    entry.runtime_data = SatRuntimeData(
+        coordinator=coordinator,
+        climate=SatClimate(coordinator, entry, hass.config.units.temperature_unit),
+    )
 
     # Forward entry setup for used platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
@@ -52,25 +60,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     return True
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_unload_entry(hass: HomeAssistant, entry: SatConfigEntry) -> bool:
     """
     Handle removal of an entry.
 
     This function is called by Home Assistant when the integration is being removed.
     """
+    await entry.runtime_data.coordinator.async_will_remove_from_hass()
 
-    _climate = hass.data[DOMAIN][entry.entry_id][CLIMATE]
-    _coordinator = hass.data[DOMAIN][entry.entry_id][COORDINATOR]
-
-    await _coordinator.async_will_remove_from_hass()
-
-    unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-
-    # Remove the entry from the data dictionary if all components are unloaded successfully
-    if unloaded:
-        hass.data[DOMAIN].pop(entry.entry_id)
-
-    return unloaded
+    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
 
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

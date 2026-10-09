@@ -12,7 +12,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .climate import SatClimate
-from .const import CONF_MODE, MODE_SERIAL, CONF_NAME, DOMAIN, COORDINATOR, CLIMATE, CONF_WINDOW_SENSORS, FlameStatus, BoilerStatus
+from .const import CONF_MODE, MODE_SERIAL, CONF_NAME, CONF_WINDOW_SENSORS, FlameStatus, BoilerStatus
 from .entity import SatClimateEntity, SatEntity
 from .helpers import seconds_since
 from .serial import binary_sensor as serial_binary_sensor
@@ -24,8 +24,8 @@ async def async_setup_entry(_hass: HomeAssistant, _config_entry: ConfigEntry, _a
     """
     Add binary sensors for the serial protocol if the integration is set to use it.
     """
-    climate = _hass.data[DOMAIN][_config_entry.entry_id][CLIMATE]
-    coordinator = _hass.data[DOMAIN][_config_entry.entry_id][COORDINATOR]
+    climate = _config_entry.runtime_data.climate
+    coordinator = _config_entry.runtime_data.coordinator
 
     # Check if integration is set to use the serial protocol
     if _config_entry.data.get(CONF_MODE) == MODE_SERIAL:
@@ -150,13 +150,13 @@ class SatCentralHeatingSynchroSensor(SatSynchroSensor, SatClimateEntity, BinaryS
     @property
     def available(self) -> bool:
         """Return availability of the sensor."""
-        return self._climate is not None
+        return self.climate_added
 
     @property
     def is_on(self) -> bool:
         """Return the state of the sensor."""
         device_active = self._coordinator.device_active
-        climate_hvac_action = self._climate.state_attributes.get("hvac_action")
+        climate_hvac_action = self._climate.hvac_action
 
         return self.state_delayed(not (
                 (climate_hvac_action == HVACAction.OFF and not device_active) or

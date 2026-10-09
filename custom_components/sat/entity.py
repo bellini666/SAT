@@ -43,3 +43,11 @@ class SatClimateEntity(SatEntity):
         super().__init__(coordinator, config_entry)
 
         self._climate = climate
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        self.async_on_remove(self._climate.async_add_state_listener(self.async_write_ha_state))
+
+    @property
+    def climate_added(self) -> bool:
+        return self._climate.hass is not None

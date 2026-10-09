@@ -4,6 +4,7 @@ from types import MappingProxyType
 from typing import Any
 from typing import TYPE_CHECKING
 
+from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry
 
@@ -91,12 +92,12 @@ def get_climate_entities(hass: "HomeAssistant", entity_ids: list[str]) -> list["
         if not (entry := registry.async_get(entity_id)):
             continue
 
-        if not (config_entry := hass.data[DOMAIN].get(entry.config_entry_id)):
+        if not (config_entry := hass.config_entries.async_get_entry(entry.config_entry_id)):
             continue
 
-        if not (climate := config_entry.get(CLIMATE)):
+        if config_entry.domain != DOMAIN or config_entry.state is not ConfigEntryState.LOADED:
             continue
 
-        entities.append(climate)
+        entities.append(config_entry.runtime_data.climate)
 
     return entities

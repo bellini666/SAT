@@ -6,11 +6,10 @@ import typing
 from homeassistant.components.sensor import SensorEntity, SensorDeviceClass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfPower, UnitOfTemperature, UnitOfVolume
-from homeassistant.core import HomeAssistant, Event, EventStateChangedData
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.event import async_track_state_change_event
 
-from .const import CONF_MODE, MODE_SERIAL, CONF_NAME, DOMAIN, COORDINATOR, CLIMATE, MODE_SIMULATOR, CONF_MINIMUM_CONSUMPTION, CONF_MAXIMUM_CONSUMPTION
+from .const import CONF_MODE, MODE_SERIAL, CONF_NAME, MODE_SIMULATOR, CONF_MINIMUM_CONSUMPTION, CONF_MAXIMUM_CONSUMPTION
 from .coordinator import SatDataUpdateCoordinator
 from .entity import SatEntity, SatClimateEntity
 from .serial import sensor as serial_sensor
@@ -26,12 +25,8 @@ async def async_setup_entry(_hass: HomeAssistant, _config_entry: ConfigEntry, _a
     """
     Add sensors for the serial protocol if the integration is set to use it.
     """
-    # Some sanity checks before we continue
-    if any(key not in _hass.data[DOMAIN][_config_entry.entry_id] for key in (CLIMATE, COORDINATOR)):
-        return
-
-    climate = _hass.data[DOMAIN][_config_entry.entry_id][CLIMATE]
-    coordinator = _hass.data[DOMAIN][_config_entry.entry_id][COORDINATOR]
+    climate = _config_entry.runtime_data.climate
+    coordinator = _config_entry.runtime_data.coordinator
 
     # Check if integration is set to use the serial protocol
     if _config_entry.data.get(CONF_MODE) == MODE_SERIAL:
@@ -144,16 +139,6 @@ class SatCurrentConsumptionSensor(SatEntity, SensorEntity):
 
 class SatHeatingCurveSensor(SatClimateEntity, SensorEntity):
 
-    async def async_added_to_hass(self) -> None:
-        async def on_state_change(_event: Event[EventStateChangedData]):
-            self.async_write_ha_state()
-
-        self.async_on_remove(
-            async_track_state_change_event(
-                self.hass, [self._climate.entity_id], on_state_change
-            )
-        )
-
     @property
     def name(self) -> str:
         return f"Heating Curve {self._config_entry.data.get(CONF_NAME)}"
@@ -171,7 +156,7 @@ class SatHeatingCurveSensor(SatClimateEntity, SensorEntity):
     @property
     def available(self):
         """Return availability of the sensor."""
-        return self._climate.extra_state_attributes.get("heating_curve") is not None
+        return self.climate_added and self._climate.heating_curve.value is not None
 
     @property
     def native_value(self) -> float:
@@ -179,7 +164,7 @@ class SatHeatingCurveSensor(SatClimateEntity, SensorEntity):
 
         In this case, the state represents the current heating curve value.
         """
-        return self._climate.extra_state_attributes.get("heating_curve")
+        return self._climate.heating_curve.value
 
     @property
     def unique_id(self) -> str:
@@ -188,16 +173,6 @@ class SatHeatingCurveSensor(SatClimateEntity, SensorEntity):
 
 
 class SatErrorValueSensor(SatClimateEntity, SensorEntity):
-
-    async def async_added_to_hass(self) -> None:
-        async def on_state_change(_event: Event[EventStateChangedData]):
-            self.async_write_ha_state()
-
-        self.async_on_remove(
-            async_track_state_change_event(
-                self.hass, [self._climate.entity_id], on_state_change
-            )
-        )
 
     @property
     def name(self) -> str:
@@ -216,7 +191,7 @@ class SatErrorValueSensor(SatClimateEntity, SensorEntity):
     @property
     def available(self):
         """Return availability of the sensor."""
-        return self._climate.extra_state_attributes.get("error") is not None
+        return self.climate_added
 
     @property
     def native_value(self) -> float:
@@ -224,7 +199,7 @@ class SatErrorValueSensor(SatClimateEntity, SensorEntity):
 
         In this case, the state represents the current error value.
         """
-        return self._climate.extra_state_attributes.get("error")
+        return self._climate.max_error.value
 
     @property
     def unique_id(self) -> str:

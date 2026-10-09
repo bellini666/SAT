@@ -20,7 +20,7 @@ async def test_setup_update_unload_entry(hass):
 
     # Wait till there are no tasks and see if we have been configured
     await hass.async_block_till_done()
-    assert DOMAIN in hass.data and sat_entry.entry_id in hass.data[DOMAIN]
+    assert sat_entry.state is ConfigEntryState.LOADED
 
     # Reload the entry without errors
     assert await hass.config_entries.async_reload(sat_entry.entry_id)
