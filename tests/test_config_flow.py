@@ -64,3 +64,17 @@ async def test_options_advanced_section(hass: HomeAssistant, caplog: pytest.LogC
     assert "advanced" not in entry.options
     assert "show_advanced_options" not in caplog.text
     assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_cycles_per_hour_follow_the_heating_system(hass: HomeAssistant) -> None:
+    entry = MockConfigEntry(domain=DOMAIN, version=SatFlowHandler.VERSION, data={**DEFAULT_USER_DATA, "minimum_setpoint": 45, "heating_system": "heat_pump"})
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(result["flow_id"], {"next_step_id": "system_configuration"})
+
+    cycles = next(value for key, value in result["data_schema"].schema.items() if key == "cycles_per_hour")
+    assert [option["value"] for option in cycles.config["options"]] == ["2", "3"]
+    assert await hass.config_entries.async_unload(entry.entry_id)
