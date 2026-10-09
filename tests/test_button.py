@@ -98,7 +98,7 @@ async def test_calibration_timeouts_come_from_the_options(hass: HomeAssistant, f
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
-async def test_gateway_error_ends_the_calibration(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+async def test_gateway_error_frees_the_button(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
     entry = await setup_heating_entry(hass)
     coordinator = entry.runtime_data.coordinator
 

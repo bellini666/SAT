@@ -97,10 +97,6 @@ async def reconfigure_to_menu(hass: HomeAssistant, entry: MockConfigEntry, next_
     return await hass.config_entries.flow.async_configure(result["flow_id"], {"next_step_id": next_step_id})
 
 
-async def reconfigure_to_calibration(hass: HomeAssistant, entry: MockConfigEntry) -> dict:
-    return await reconfigure_to_menu(hass, entry, "calibrate")
-
-
 async def setup_heating_entry(hass: HomeAssistant) -> MockConfigEntry:
     hass.states.async_set("sensor.test_inside_sensor", "19.5")
     hass.states.async_set("sensor.test_outside_sensor", "5.0")
@@ -126,7 +122,7 @@ async def test_calibration_uses_the_running_coordinator(hass: HomeAssistant, fre
     coordinator = entry.runtime_data.coordinator
     await coordinator.async_set_boiler_temperature(40)
 
-    result = await reconfigure_to_calibration(hass, entry)
+    result = await reconfigure_to_menu(hass, entry, "calibrate")
     assert result["type"] == "progress"
     assert entry.runtime_data.climate.hvac_mode == HVACMode.HEAT
     assert entry.runtime_data.climate.control_paused
@@ -147,7 +143,7 @@ async def test_failed_calibration_offers_manual_entry(hass: HomeAssistant, freez
     entry = await setup_heating_entry(hass)
     coordinator = entry.runtime_data.coordinator
 
-    result = await reconfigure_to_calibration(hass, entry)
+    result = await reconfigure_to_menu(hass, entry, "calibrate")
     for step in range(90):
         await coordinator.async_set_boiler_temperature(30 + step)
         await tick(hass, freezer, 1)
@@ -208,7 +204,7 @@ async def test_reconfigured_overshoot_protection_takes_effect(hass: HomeAssistan
 async def test_unload_cancels_a_flow_calibration(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
     entry = await setup_heating_entry(hass)
 
-    result = await reconfigure_to_calibration(hass, entry)
+    result = await reconfigure_to_menu(hass, entry, "calibrate")
     await tick(hass, freezer, 2)
     assert await hass.config_entries.async_unload(entry.entry_id)
     await hass.async_block_till_done()
@@ -231,7 +227,7 @@ def unloaded_mqtt_entry(hass: HomeAssistant) -> MockConfigEntry:
 async def test_calibration_without_mqtt_offers_manual_entry(hass: HomeAssistant) -> None:
     entry = unloaded_mqtt_entry(hass)
 
-    result = await reconfigure_to_calibration(hass, entry)
+    result = await reconfigure_to_menu(hass, entry, "calibrate")
     await hass.async_block_till_done()
 
     assert hass.config_entries.flow.async_get(result["flow_id"])["step_id"] == "overshoot_protection"
@@ -252,7 +248,7 @@ async def test_calibration_refuses_while_another_runs(hass: HomeAssistant) -> No
     entry = await setup_heating_entry(hass)
     await hass.services.async_call("button", "press", {"entity_id": "button.mock_title_calibrate_overshoot_protection"}, blocking=True)
 
-    result = await reconfigure_to_calibration(hass, entry)
+    result = await reconfigure_to_menu(hass, entry, "calibrate")
 
     assert result["type"] == "abort"
     assert result["reason"] == "already_in_progress"
