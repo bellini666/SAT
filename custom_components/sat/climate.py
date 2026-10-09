@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from dataclasses import asdict, dataclass
 from datetime import timedelta, datetime
 from time import monotonic, time
 from typing import Optional, Callable
@@ -32,7 +33,7 @@ from homeassistant.core import HomeAssistant, Event, EventStateChangedData, Hass
 from homeassistant.helpers import entity_registry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_track_state_change_event, async_track_time_interval, async_call_later
-from homeassistant.helpers.restore_state import RestoreEntity
+from homeassistant.helpers.restore_state import ExtraStoredData, RestoreEntity
 from homeassistant.helpers.start import async_at_started
 
 from .area import Areas, SENSOR_TEMPERATURE_ID
@@ -61,6 +62,20 @@ _LOGGER = logging.getLogger(__name__)
 async def async_setup_entry(_hass: HomeAssistant, _config_entry: ConfigEntry, _async_add_devices: AddEntitiesCallback):
     """Set up the SatClimate device."""
     _async_add_devices([_config_entry.runtime_data.climate])
+
+
+@dataclass
+class SatClimateExtraStoredData(ExtraStoredData):
+    hvac_mode: str | None
+    target_temperature: float | None
+    preset_mode: str | None
+
+    def as_dict(self) -> dict:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict) -> SatClimateExtraStoredData:
+        return cls(data.get("hvac_mode"), data.get("target_temperature"), data.get("preset_mode"))
 
 
 class SatWarmingUp:
@@ -306,6 +321,23 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
     async def _restore_previous_state_or_set_defaults(self):
         """Restore the previous state if available or set default values."""
         old_state = await self.async_get_last_state()
+        extra_data = await self.async_get_last_extra_data()
+
+        if extra_data is not None:
+            restored = SatClimateExtraStoredData.from_dict(extra_data.as_dict())
+
+            if restored.hvac_mode in self.hvac_modes:
+                self._hvac_mode = restored.hvac_mode
+
+            if restored.target_temperature is not None:
+                self._target_temperature = float(restored.target_temperature)
+
+            if restored.preset_mode in self.preset_modes:
+                self._attr_preset_mode = restored.preset_mode
+
+        # Unavailable or unknown placeholder states carry no attributes worth restoring
+        if old_state is not None and old_state.state not in self.hvac_modes:
+            old_state = None
 
         if old_state is not None:
             self.pwm.restore(old_state)
@@ -319,13 +351,13 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
                 else:
                     self._target_temperature = float(old_state.attributes[ATTR_TEMPERATURE])
 
-            if old_state.state:
+            if self._hvac_mode is None:
                 self._hvac_mode = old_state.state
 
             if old_state.attributes.get(ATTR_SETPOINT):
                 self._setpoint = old_state.attributes.get(ATTR_SETPOINT)
 
-            if old_state.attributes.get(ATTR_PRESET_MODE):
+            if extra_data is None and old_state.attributes.get(ATTR_PRESET_MODE):
                 self._attr_preset_mode = old_state.attributes.get(ATTR_PRESET_MODE)
 
             if old_state.attributes.get(ATTR_PRE_ACTIVITY_TEMPERATURE):
@@ -375,6 +407,10 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
     def unique_id(self):
         """Return a unique ID to use for this entity."""
         return self._attr_id
+
+    @property
+    def extra_restore_state_data(self) -> SatClimateExtraStoredData:
+        return SatClimateExtraStoredData(self._hvac_mode, self._target_temperature, self._attr_preset_mode)
 
     @property
     def extra_state_attributes(self):
