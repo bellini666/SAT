@@ -6,6 +6,7 @@ from datetime import timedelta
 from unittest.mock import patch
 
 import pytest
+from homeassistant.components.climate import HVACMode
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import Platform
 from homeassistant.config_entries import SOURCE_DHCP
@@ -206,22 +207,40 @@ async def test_reset_integral_targets_reloaded_climate(hass: HomeAssistant, sat_
     reset.assert_called_once()
 
 
-async def test_direct_control_loop_cancels_the_scheduled_run(hass: HomeAssistant, sat_entry: MockConfigEntry) -> None:
-    climate = sat_entry.runtime_data.climate
+async def start_heating(hass: HomeAssistant, entry: MockConfigEntry):
+    hass.states.async_set("sensor.test_inside_sensor", "19.5")
+    hass.states.async_set("sensor.test_outside_sensor", "5.0")
 
-    climate.schedule_control_heating_loop()
+    climate = entry.runtime_data.climate
+    await climate.async_set_target_temperature(21.0)
+    await climate.async_set_hvac_mode(HVACMode.HEAT)
     await climate.async_control_heating_loop()
+    return climate
 
+
+async def test_direct_control_loop_cancels_the_scheduled_run(hass: HomeAssistant, sat_entry: MockConfigEntry) -> None:
+    climate = await start_heating(hass, sat_entry)
+
+    with patch.object(sat_entry.runtime_data.coordinator, "async_control_heating_loop") as control:
+        climate.schedule_control_heating_loop()
+        await climate.async_control_heating_loop()
+        async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=11))
+        await hass.async_block_till_done()
+
+    assert control.await_count == 1
     assert await hass.config_entries.async_unload(sat_entry.entry_id)
 
 
-async def test_periodic_tick_schedules_the_control_loop(hass: HomeAssistant, sat_entry: MockConfigEntry) -> None:
-    climate = sat_entry.runtime_data.climate
+async def test_periodic_tick_runs_the_control_loop(hass: HomeAssistant, sat_entry: MockConfigEntry) -> None:
+    await start_heating(hass, sat_entry)
 
-    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=31))
-    await hass.async_block_till_done()
+    with patch.object(sat_entry.runtime_data.coordinator, "async_control_heating_loop") as control:
+        async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=31))
+        await hass.async_block_till_done()
+        async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=42))
+        await hass.async_block_till_done()
 
-    assert climate._control_heating_loop_unsub is not None
+    assert control.await_count == 1
     assert await hass.config_entries.async_unload(sat_entry.entry_id)
 
 
