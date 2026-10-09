@@ -155,6 +155,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         self._control_heating_loop_unsub: Optional[Callable[[], None]] = None
         self._last_control_at = dt_util.utcnow()
         self.control_paused = False
+        self.calibration: Optional[asyncio.Task] = None
         self._control_lock = asyncio.Lock()
         self._state_listeners: list[Callable[[], None]] = []
 
@@ -401,14 +402,23 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             self.control_paused = True
 
     @contextlib.asynccontextmanager
-    async def async_pause_control(self) -> AsyncIterator[None]:
-        """Stop sending boiler commands while something else drives the boiler."""
+    async def async_calibrating(self) -> AsyncIterator[None]:
+        """Pause control while the current task calibrates, so off, unload and stop can cancel it."""
+        self.calibration = asyncio.current_task()
         await self.async_stop_control()
+        self.async_write_ha_state()
         try:
             yield
         finally:
+            self.calibration = None
             self.control_paused = False
             self._last_control_at = dt_util.utcnow()
+            self.async_write_ha_state()
+
+    async def async_cancel_calibration(self) -> None:
+        if (calibration := self.calibration) is not None:
+            calibration.cancel()
+            await asyncio.wait([calibration])
 
     async def async_reset_integral(self) -> None:
         """Reset the integral part of the PID controllers."""
@@ -1117,6 +1127,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
 
             self._hvac_mode = HVACMode.HEAT
         elif hvac_mode == HVACMode.OFF:
+            await self.async_cancel_calibration()
             async with self._control_lock:
                 self._hvac_mode = HVACMode.OFF
                 await self.async_set_heater_state(DeviceState.OFF)

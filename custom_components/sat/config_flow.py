@@ -363,11 +363,13 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
     async def async_step_calibrate(self, _user_input: dict[str, Any] | None = None):
-        if started := self.calibration is None:
+        started = self.calibration is None
+        if started:
             if self.config_entry is not None and self.config_entry.state is ConfigEntryState.LOADED:
+                if self.config_entry.runtime_data.climate.calibration is not None:
+                    return self.async_abort(reason="already_in_progress")
+
                 self.calibration = self.config_entry.async_create_background_task(self.hass, self._async_calibrate(), "sat_overshoot_protection_calibration")
-                if not self.calibration.done():
-                    self.config_entry.runtime_data.calibration = self.calibration
             else:
                 self.calibration = self.hass.async_create_background_task(self._async_calibrate(), "sat_overshoot_protection_calibration")
 
@@ -394,32 +396,27 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         loaded = self.config_entry is not None and self.config_entry.state is ConfigEntryState.LOADED
         climate_entity = self.config_entry.runtime_data.climate if loaded else None
         coordinator = self.config_entry.runtime_data.coordinator if loaded else await self.async_create_coordinator()
-        previous_hvac_mode = climate_entity.hvac_mode if climate_entity else None
 
         heating_system = self.data.get(CONF_HEATING_SYSTEM)
         options = self.config_entry.options if self.config_entry else {}
         maximum_setpoint = float(options.get(CONF_MAXIMUM_SETPOINT, calculate_default_maximum_setpoint(heating_system)))
 
         try:
-            if climate_entity is not None:
-                await climate_entity.async_set_hvac_mode(climate.HVACMode.OFF)
-            else:
+            if climate_entity is None:
                 await coordinator.async_setup()
                 await coordinator.async_added_to_hass()
 
-            # Make sure all climate valves are open
-            for entity_id in self.data.get(CONF_RADIATORS, []) + self.data.get(CONF_ROOMS, []):
-                data = {ATTR_ENTITY_ID: entity_id, climate.ATTR_HVAC_MODE: climate.HVACMode.HEAT}
-                await self.hass.services.async_call(climate.DOMAIN, climate.SERVICE_SET_HVAC_MODE, data, blocking=True)
+            async with climate_entity.async_calibrating() if climate_entity is not None else contextlib.nullcontext():
+                # Make sure all climate valves are open
+                for entity_id in self.data.get(CONF_RADIATORS, []) + self.data.get(CONF_ROOMS, []):
+                    data = {ATTR_ENTITY_ID: entity_id, climate.ATTR_HVAC_MODE: climate.HVACMode.HEAT}
+                    await self.hass.services.async_call(climate.DOMAIN, climate.SERVICE_SET_HVAC_MODE, data, blocking=True)
 
-            return (await create_overshoot_protection(coordinator, heating_system, maximum_setpoint, options).calculate()).value
+                return (await create_overshoot_protection(coordinator, heating_system, maximum_setpoint, options).calculate()).value
         except CalibrationError:
             return None
         finally:
-            if climate_entity is not None:
-                self.config_entry.runtime_data.calibration = None
-                await climate_entity.async_set_hvac_mode(previous_hvac_mode)
-            else:
+            if climate_entity is None:
                 await coordinator.async_will_remove_from_hass()
 
     async def async_step_calibrated(self, _user_input: dict[str, Any] | None = None):

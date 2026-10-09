@@ -1,5 +1,3 @@
-import asyncio
-import contextlib
 import logging
 from dataclasses import dataclass
 
@@ -29,7 +27,6 @@ PLATFORMS = [Platform.CLIMATE, Platform.SENSOR, Platform.NUMBER, Platform.BINARY
 class SatRuntimeData:
     coordinator: SatDataUpdateCoordinator
     climate: SatClimate
-    calibration: asyncio.Task | None = None
 
 
 type SatConfigEntry = ConfigEntry[SatRuntimeData]
@@ -80,7 +77,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: SatConfigEntry):
     entry.runtime_data = SatRuntimeData(coordinator=coordinator, climate=climate)
 
     async def async_stop(_event: Event) -> None:
-        await async_release_control(entry)
+        await async_hand_back_control(entry)
 
     entry.async_on_unload(hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, async_stop))
 
@@ -96,7 +93,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: SatConfigEntry) -> bool
 
     This function is called by Home Assistant when the integration is being removed.
     """
-    await async_release_control(entry)
+    await async_hand_back_control(entry)
 
     if unloaded := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
         await entry.runtime_data.coordinator.async_will_remove_from_hass()
@@ -104,13 +101,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: SatConfigEntry) -> bool
     return unloaded
 
 
-async def async_release_control(entry: SatConfigEntry) -> None:
+async def async_hand_back_control(entry: SatConfigEntry) -> None:
     """Hand the boiler back once the running calibration and control loop have finished."""
-    if (calibration := entry.runtime_data.calibration) is not None:
-        calibration.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await calibration
-
+    await entry.runtime_data.climate.async_cancel_calibration()
     await entry.runtime_data.climate.async_stop_control()
     await entry.runtime_data.coordinator.async_release_control()
 

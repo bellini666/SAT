@@ -2,7 +2,8 @@
   "config": {
     "abort": {
       "already_configured": "Gateway is already configured.",
-      "reconfigure_successful": "Gateway has been re-configured."
+      "reconfigure_successful": "Gateway has been re-configured.",
+      "already_in_progress": "A calibration is already running."
     },
     "error": {
       "invalid_device": "This is an invalid device.",

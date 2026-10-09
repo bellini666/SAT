@@ -61,7 +61,7 @@ async def test_flags_a_stalled_control_loop(hass: HomeAssistant, freezer: Frozen
 async def test_healthy_while_paused(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
     entry = await setup_heating(hass)
 
-    async with entry.runtime_data.climate.async_pause_control():
+    async with entry.runtime_data.climate.async_calibrating():
         freezer.tick(timedelta(minutes=3))
         async_fire_time_changed(hass)
         await hass.async_block_till_done()

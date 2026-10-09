@@ -34,19 +34,16 @@ class SatCalibrateButton(SatClimateEntity, ButtonEntity):
 
     @property
     def available(self) -> bool:
-        return self._config_entry.runtime_data.calibration is None
+        return self._climate.calibration is None
 
     async def async_press(self) -> None:
-        if self._config_entry.runtime_data.calibration is not None:
+        if self._climate.calibration is not None:
             return
 
         if not self._climate.valves_open:
             _LOGGER.warning("Calibrating while no valves report open, the measured value may come out too high")
 
-        calibration = self._config_entry.async_create_background_task(self.hass, self._async_calibrate(), "sat_overshoot_protection_calibration")
-        if not calibration.done():
-            self._config_entry.runtime_data.calibration = calibration
-        self.async_write_ha_state()
+        self._config_entry.async_create_background_task(self.hass, self._async_calibrate(), "sat_overshoot_protection_calibration")
 
     async def _async_calibrate(self) -> None:
         entry = self._config_entry
@@ -54,7 +51,7 @@ class SatCalibrateButton(SatClimateEntity, ButtonEntity):
         maximum_setpoint = float(entry.options.get(CONF_MAXIMUM_SETPOINT, calculate_default_maximum_setpoint(heating_system)))
 
         try:
-            async with self._climate.async_pause_control():
+            async with self._climate.async_calibrating():
                 result = await create_overshoot_protection(self._coordinator, heating_system, maximum_setpoint, entry.options).calculate()
         except CalibrationError as error:
             message = f"Calibrating the overshoot protection value failed ({error.reason}). The current value stays in use."
@@ -69,8 +66,5 @@ class SatCalibrateButton(SatClimateEntity, ButtonEntity):
                 options={**entry.options, CONF_MINIMUM_SETPOINT: result.value},
             )
             self.hass.config_entries.async_schedule_reload(entry.entry_id)
-        finally:
-            entry.runtime_data.calibration = None
-            self.async_write_ha_state()
 
         persistent_notification.async_create(self.hass, message, title=entry.title, notification_id=f"sat_calibration_{entry.entry_id}")

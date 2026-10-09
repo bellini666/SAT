@@ -12,6 +12,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry, async_
 
 from custom_components.sat.config_flow import SatFlowHandler
 from custom_components.sat.const import DOMAIN
+from custom_components.sat.coordinator import DeviceState
 from tests.const import DEFAULT_USER_DATA
 
 BUTTON = "button.mock_title_calibrate_overshoot_protection"
@@ -109,4 +110,20 @@ async def test_gateway_error_ends_the_calibration(hass: HomeAssistant, freezer: 
     assert not entry.runtime_data.climate.control_paused
     notification = persistent_notification._async_get_or_create_notifications(hass)[f"sat_calibration_{entry.entry_id}"]
     assert "gateway" in notification["message"]
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_turning_off_stops_the_calibration(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+    entry = await setup_heating_entry(hass)
+    climate = entry.runtime_data.climate
+
+    await hass.services.async_call("button", "press", {"entity_id": BUTTON}, blocking=True)
+    await tick(hass, freezer, 2)
+    await climate.async_set_hvac_mode(HVACMode.OFF)
+
+    with patch.object(entry.runtime_data.coordinator, "async_set_heater_state") as heater:
+        await tick(hass, freezer, 2)
+
+    assert DeviceState.ON not in [call.args[0] for call in heater.call_args_list]
+    assert hass.states.get(BUTTON).state != STATE_UNAVAILABLE
     assert await hass.config_entries.async_unload(entry.entry_id)

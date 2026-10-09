@@ -128,7 +128,8 @@ async def test_calibration_uses_the_running_coordinator(hass: HomeAssistant, fre
 
     result = await reconfigure_to_calibration(hass, entry)
     assert result["type"] == "progress"
-    assert entry.runtime_data.climate.hvac_mode == HVACMode.OFF
+    assert entry.runtime_data.climate.hvac_mode == HVACMode.HEAT
+    assert entry.runtime_data.climate.control_paused
 
     await tick(hass, freezer, 14)
     result = await hass.config_entries.flow.async_configure(result["flow_id"])
@@ -136,7 +137,7 @@ async def test_calibration_uses_the_running_coordinator(hass: HomeAssistant, fre
     assert result["type"] == "menu"
     assert result["step_id"] == "calibrated"
     assert result["description_placeholders"]["minimum_setpoint"] == 40.0
-    assert entry.runtime_data.climate.hvac_mode == HVACMode.HEAT
+    assert not entry.runtime_data.climate.control_paused
 
     hass.config_entries.flow.async_abort(result["flow_id"])
     assert await hass.config_entries.async_unload(entry.entry_id)
@@ -245,3 +246,14 @@ async def test_manufacturer_step_without_mqtt(hass: HomeAssistant) -> None:
 
     assert result["step_id"] == "manufacturer"
     hass.config_entries.flow.async_abort(result["flow_id"])
+
+
+async def test_calibration_refuses_while_another_runs(hass: HomeAssistant) -> None:
+    entry = await setup_heating_entry(hass)
+    await hass.services.async_call("button", "press", {"entity_id": "button.mock_title_calibrate_overshoot_protection"}, blocking=True)
+
+    result = await reconfigure_to_calibration(hass, entry)
+
+    assert result["type"] == "abort"
+    assert result["reason"] == "already_in_progress"
+    assert await hass.config_entries.async_unload(entry.entry_id)
