@@ -66,3 +66,18 @@ async def test_unload_cancels_a_running_calibration(hass: HomeAssistant, freezer
     await hass.async_block_till_done()
 
     assert entry.options.get("minimum_setpoint") is None
+
+
+async def test_calibration_timeouts_come_from_the_options(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+    entry = await setup_heating_entry(hass)
+    hass.config_entries.async_update_entry(entry, options={**entry.options, "calibration_plateau_timeout": "00:05:00"})
+    coordinator = entry.runtime_data.coordinator
+
+    await hass.services.async_call("button", "press", {"entity_id": BUTTON}, blocking=True)
+    for step in range(12):
+        await coordinator.async_set_boiler_temperature(30 + step)
+        await tick(hass, freezer, 1)
+
+    notification = persistent_notification._async_get_or_create_notifications(hass)[f"sat_calibration_{entry.entry_id}"]
+    assert "timeout" in notification["message"]
+    assert await hass.config_entries.async_unload(entry.entry_id)

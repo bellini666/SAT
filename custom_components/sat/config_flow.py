@@ -22,7 +22,7 @@ from .const import *
 from .coordinator import SatDataUpdateCoordinator
 from .helpers import calculate_default_maximum_setpoint, snake_case
 from .manufacturer import ManufacturerFactory, MANUFACTURERS
-from .overshoot_protection import CalibrationError, OvershootProtection
+from .overshoot_protection import CalibrationError, create_overshoot_protection
 from .validators import valid_serial_device
 
 DEFAULT_NAME = "Living Room"
@@ -395,7 +395,7 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 data = {ATTR_ENTITY_ID: entity_id, climate.ATTR_HVAC_MODE: climate.HVACMode.HEAT}
                 await self.hass.services.async_call(climate.DOMAIN, climate.SERVICE_SET_HVAC_MODE, data, blocking=True)
 
-            return (await OvershootProtection(coordinator, heating_system, maximum_setpoint).calculate()).value
+            return (await create_overshoot_protection(coordinator, heating_system, maximum_setpoint, options).calculate()).value
         except CalibrationError:
             return None
         finally:
@@ -716,6 +716,8 @@ class SatOptionsFlowHandler(OptionsFlowWithReload):
         )
 
         advanced[vol.Required(CONF_SAMPLE_TIME, default=options[CONF_SAMPLE_TIME])] = selector.TimeSelector()
+        advanced[vol.Required(CONF_CALIBRATION_FLAME_TIMEOUT, default=options[CONF_CALIBRATION_FLAME_TIMEOUT])] = selector.TimeSelector()
+        advanced[vol.Required(CONF_CALIBRATION_PLATEAU_TIMEOUT, default=options[CONF_CALIBRATION_PLATEAU_TIMEOUT])] = selector.TimeSelector()
 
         schema[vol.Required("advanced")] = section(vol.Schema(advanced), {"collapsed": True})
 

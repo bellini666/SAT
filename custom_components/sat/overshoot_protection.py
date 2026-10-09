@@ -5,20 +5,20 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from statistics import fmean
+from typing import Any, Mapping
 
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.util import dt as dt_util
 
-from .const import MINIMUM_RELATIVE_MODULATION, MINIMUM_SETPOINT, OVERSHOOT_PROTECTION_SETPOINT
+from .const import CONF_CALIBRATION_FLAME_TIMEOUT, CONF_CALIBRATION_PLATEAU_TIMEOUT, MINIMUM_RELATIVE_MODULATION, MINIMUM_SETPOINT, OPTIONS_DEFAULTS, OVERSHOOT_PROTECTION_SETPOINT
 from .coordinator import DeviceState, SatDataUpdateCoordinator
+from .helpers import convert_time_str_to_seconds
 
 _LOGGER = logging.getLogger(__name__)
 
 # The gateway drops a control setpoint override after about 60 seconds without a refresh
 TICK = timedelta(seconds=30)
 
-FLAME_TIMEOUT = timedelta(minutes=10)
-PLATEAU_TIMEOUT = timedelta(minutes=40)
 PLATEAU_WINDOW = timedelta(minutes=5)
 PLATEAU_TOLERANCE = 0.5
 MODULATION_TOLERANCE = 3
@@ -39,6 +39,19 @@ class CalibrationResult:
     method: str
 
 
+def create_overshoot_protection(coordinator: SatDataUpdateCoordinator, heating_system: str, maximum_setpoint: float, options: Mapping[str, Any]) -> OvershootProtection:
+    """Create the calibration with the timeouts from the options."""
+    options = {**OPTIONS_DEFAULTS, **options}
+
+    return OvershootProtection(
+        coordinator,
+        heating_system,
+        maximum_setpoint,
+        flame_timeout=timedelta(seconds=convert_time_str_to_seconds(options[CONF_CALIBRATION_FLAME_TIMEOUT])),
+        plateau_timeout=timedelta(seconds=convert_time_str_to_seconds(options[CONF_CALIBRATION_PLATEAU_TIMEOUT])),
+    )
+
+
 class OvershootProtection:
     """Find the overshoot protection value by heating at a fixed setpoint until the flow temperature settles."""
 
@@ -47,8 +60,8 @@ class OvershootProtection:
             coordinator: SatDataUpdateCoordinator,
             heating_system: str,
             maximum_setpoint: float,
-            flame_timeout: timedelta = FLAME_TIMEOUT,
-            plateau_timeout: timedelta = PLATEAU_TIMEOUT,
+            flame_timeout: timedelta = timedelta(seconds=convert_time_str_to_seconds(OPTIONS_DEFAULTS[CONF_CALIBRATION_FLAME_TIMEOUT])),
+            plateau_timeout: timedelta = timedelta(seconds=convert_time_str_to_seconds(OPTIONS_DEFAULTS[CONF_CALIBRATION_PLATEAU_TIMEOUT])),
     ) -> None:
         self._coordinator = coordinator
         self._flame_timeout = flame_timeout

@@ -13,7 +13,7 @@ from . import SatConfigEntry
 from .const import CONF_HEATING_SYSTEM, CONF_MAXIMUM_SETPOINT, CONF_MINIMUM_SETPOINT, CONF_OVERSHOOT_PROTECTION
 from .entity import SatClimateEntity
 from .helpers import calculate_default_maximum_setpoint
-from .overshoot_protection import CalibrationError, OvershootProtection
+from .overshoot_protection import CalibrationError, create_overshoot_protection
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -58,7 +58,7 @@ class SatCalibrateButton(SatClimateEntity, ButtonEntity):
 
         try:
             async with self._climate.async_pause_control():
-                result = await OvershootProtection(self._coordinator, heating_system, maximum_setpoint).calculate()
+                result = await create_overshoot_protection(self._coordinator, heating_system, maximum_setpoint, entry.options).calculate()
         except CalibrationError as error:
             persistent_notification.async_create(
                 self.hass,
