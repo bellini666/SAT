@@ -4,7 +4,8 @@ from dataclasses import dataclass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP, Platform
 from homeassistant.core import Event, HomeAssistant, callback
-from homeassistant.helpers import config_validation as cv, device_registry, entity_registry as er
+from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.helpers import config_validation as cv, device_registry, entity_registry as er, issue_registry as ir
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.helpers.storage import Store
 
@@ -50,7 +51,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: SatConfigEntry):
     )
 
     # Making sure everything is loaded
-    await coordinator.async_setup()
+    issue_id = f"setup_failed_{entry.entry_id}"
+    try:
+        await coordinator.async_setup()
+    except ConfigEntryNotReady as exception:
+        ir.async_create_issue(
+            hass,
+            DOMAIN,
+            issue_id,
+            is_fixable=False,
+            severity=ir.IssueSeverity.ERROR,
+            translation_key="setup_failed",
+            translation_placeholders={"title": entry.title, "error": str(exception)},
+        )
+        raise
+
+    ir.async_delete_issue(hass, DOMAIN, issue_id)
 
     entry.runtime_data = SatRuntimeData(
         coordinator=coordinator,
@@ -79,6 +95,10 @@ async def async_unload_entry(hass: HomeAssistant, entry: SatConfigEntry) -> bool
         await entry.runtime_data.coordinator.async_will_remove_from_hass()
 
     return unloaded
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: SatConfigEntry) -> None:
+    ir.async_delete_issue(hass, DOMAIN, f"setup_failed_{entry.entry_id}")
 
 
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

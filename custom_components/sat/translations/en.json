@@ -325,5 +325,11 @@
         "name": "Boiler status"
       }
     }
+  },
+  "issues": {
+    "setup_failed": {
+      "title": "SAT {title} is not controlling the boiler",
+      "description": "Setting up {title} failed and Home Assistant keeps retrying: {error}\n\nWhile it retries, the room thermostat attached to the boiler is in control."
+    }
   }
 }

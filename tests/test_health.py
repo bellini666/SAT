@@ -4,12 +4,14 @@ from datetime import timedelta
 
 from freezegun.api import FrozenDateTimeFactory
 from homeassistant.components.climate import HVACMode
+from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import STATE_OFF, STATE_ON
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed
 
-from custom_components.sat.const import DOMAIN
+from custom_components.sat.const import CONF_DEVICE, CONF_MODE, CONF_MQTT_TOPIC, DOMAIN, MODE_MQTT_OPENTHERM
 from tests.const import DEFAULT_USER_DATA
 
 ENTITY_ID = "binary_sensor.mock_title_heating_control"
@@ -81,3 +83,31 @@ async def test_flags_missing_boiler_data(hass: HomeAssistant) -> None:
     assert hass.states.get(ENTITY_ID).attributes["problems"] == ["boiler_data_missing"]
     assert await hass.config_entries.async_unload(entry.entry_id)
 
+
+async def test_failed_setup_raises_a_repair_issue(hass: HomeAssistant) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="otgw",
+        data={**DEFAULT_USER_DATA, CONF_MODE: MODE_MQTT_OPENTHERM, CONF_DEVICE: "otgw", CONF_MQTT_TOPIC: "OTGW"},
+    )
+    entry.add_to_hass(hass)
+
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.SETUP_RETRY
+    issue = ir.async_get(hass).async_get_issue(DOMAIN, f"setup_failed_{entry.entry_id}")
+    assert issue is not None
+    assert issue.severity is ir.IssueSeverity.ERROR
+
+
+async def test_successful_setup_clears_the_repair_issue(hass: HomeAssistant) -> None:
+    entry = MockConfigEntry(domain=DOMAIN, data=DEFAULT_USER_DATA)
+    entry.add_to_hass(hass)
+    ir.async_create_issue(hass, DOMAIN, f"setup_failed_{entry.entry_id}", is_fixable=False, severity=ir.IssueSeverity.ERROR, translation_key="setup_failed")
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert ir.async_get(hass).async_get_issue(DOMAIN, f"setup_failed_{entry.entry_id}") is None
+    assert await hass.config_entries.async_unload(entry.entry_id)
