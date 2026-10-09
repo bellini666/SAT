@@ -138,8 +138,10 @@ async def test_hot_water_pauses_the_measurement(hass: HomeAssistant, freezer: Fr
 
     boiler.hot_water_active = True
     boiler.boiler_temperature = 60.0
+    sent = len(boiler.commands)
     await tick(hass, freezer, 40)
     assert protection.phase == "paused"
+    assert boiler.commands[sent:] == [("release", None)]
     assert not task.done()
 
     boiler.hot_water_active = False
