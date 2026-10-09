@@ -194,6 +194,7 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             step_id="serial",
             last_step=False,
             errors=self.errors,
+            description_placeholders={"example_device": "socket://otgw.local:25238"},
             data_schema=vol.Schema({
                 vol.Required(CONF_NAME, default=DEFAULT_NAME): str,
                 vol.Required(CONF_DEVICE, default=self.data.get(CONF_DEVICE, "socket://otgw.local:25238")): str,

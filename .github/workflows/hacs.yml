@@ -17,3 +17,5 @@ jobs:
       - uses: hacs/action@main
         with:
           category: integration
+          # The fork has issues disabled and no topics, both checked from the repository settings
+          ignore: issues topics
