@@ -58,6 +58,35 @@ async def test_flags_a_stalled_control_loop(hass: HomeAssistant, freezer: Frozen
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
+async def test_healthy_while_paused(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+    entry = await setup_heating(hass)
+
+    async with entry.runtime_data.climate.async_pause_control():
+        freezer.tick(timedelta(minutes=3))
+        async_fire_time_changed(hass)
+        await hass.async_block_till_done()
+
+        assert hass.states.get(ENTITY_ID).attributes["problems"] == []
+
+    assert entry.runtime_data.climate.control_problems == []
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_healthy_right_after_turning_on(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+    entry = await setup_heating(hass)
+    climate = entry.runtime_data.climate
+
+    await climate.async_set_hvac_mode(HVACMode.OFF)
+    freezer.tick(timedelta(minutes=3))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+
+    await climate.async_set_hvac_mode(HVACMode.HEAT)
+
+    assert hass.states.get(ENTITY_ID).attributes["problems"] == []
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
 async def test_flags_missing_inputs_and_recovers(hass: HomeAssistant) -> None:
     entry = await setup_heating(hass)
 

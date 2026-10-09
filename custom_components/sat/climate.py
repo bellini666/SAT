@@ -408,6 +408,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             yield
         finally:
             self.control_paused = False
+            self._last_control_at = dt_util.utcnow()
 
     async def async_reset_integral(self) -> None:
         """Reset the integral part of the PID controllers."""
@@ -640,7 +641,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
     @property
     def control_problems(self) -> list[str]:
         """Return why SAT is not controlling the boiler while it should be."""
-        if self.hvac_mode != HVACMode.HEAT:
+        if self.hvac_mode != HVACMode.HEAT or self.control_paused:
             return []
 
         problems = []
@@ -1111,6 +1112,9 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         """Set the heating/cooling mode for the devices and update the state."""
         # Only allow the hvac mode to be set to heat or off
         if hvac_mode == HVACMode.HEAT:
+            if self._hvac_mode != HVACMode.HEAT:
+                self._last_control_at = dt_util.utcnow()
+
             self._hvac_mode = HVACMode.HEAT
         elif hvac_mode == HVACMode.OFF:
             async with self._control_lock:
