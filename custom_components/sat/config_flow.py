@@ -6,7 +6,7 @@ from typing import Optional, Any
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.components import sensor, switch, valve, weather, binary_sensor, climate, input_boolean
-from homeassistant.config_entries import ConfigEntry, OptionsFlowWithReload
+from homeassistant.config_entries import ConfigEntry, ConfigEntryState, OptionsFlowWithReload
 from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import section
@@ -35,9 +35,7 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 12
     MINOR_VERSION = 0
 
-    calibration = None
-    previous_hvac_mode = None
-    overshoot_protection_value = None
+    calibration: asyncio.Task[float | None] | None = None
 
     def __init__(self):
         """Initialize."""
@@ -361,67 +359,50 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
     async def async_step_calibrate(self, _user_input: dict[str, Any] | None = None):
-        # Let's see if we have already been configured before
-        entities = entity_registry.async_get(self.hass)
-        climate_id = entities.async_get_entity_id(climate.DOMAIN, DOMAIN, self.config_entry.entry_id) if self.config_entry else None
+        if self.calibration is None:
+            self.calibration = self.hass.async_create_background_task(self._async_calibrate(), "sat_overshoot_protection_calibration")
 
-        async def start_calibration():
-            try:
-                coordinator = await self.async_create_coordinator()
+        if not self.calibration.done():
+            return self.async_show_progress(step_id="calibrate", progress_task=self.calibration, progress_action="calibration")
+
+        calibration, self.calibration = self.calibration, None
+        if (overshoot_protection_value := calibration.result()) is None:
+            return self.async_show_progress_done(next_step_id="overshoot_protection")
+
+        self._enable_overshoot_protection(overshoot_protection_value)
+        return self.async_show_progress_done(next_step_id="calibrated")
+
+    async def _async_calibrate(self) -> float | None:
+        """Calibrate with the running coordinator when the entry is loaded, or with a temporary one during setup."""
+        loaded = self.config_entry is not None and self.config_entry.state is ConfigEntryState.LOADED
+        climate_entity = self.config_entry.runtime_data.climate if loaded else None
+        coordinator = self.config_entry.runtime_data.coordinator if loaded else await self.async_create_coordinator()
+        previous_hvac_mode = climate_entity.hvac_mode if climate_entity else None
+
+        heating_system = self.data.get(CONF_HEATING_SYSTEM)
+        options = self.config_entry.options if self.config_entry else {}
+        maximum_setpoint = float(options.get(CONF_MAXIMUM_SETPOINT, calculate_default_maximum_setpoint(heating_system)))
+
+        try:
+            if climate_entity is not None:
+                await climate_entity.async_set_hvac_mode(climate.HVACMode.OFF)
+            else:
                 await coordinator.async_setup()
                 await coordinator.async_added_to_hass()
-
-                heating_system = self.data.get(CONF_HEATING_SYSTEM)
-                options = self.config_entry.options if self.config_entry else {}
-                maximum_setpoint = float(options.get(CONF_MAXIMUM_SETPOINT, calculate_default_maximum_setpoint(heating_system)))
-
-                overshoot_protection = OvershootProtection(coordinator, heating_system, maximum_setpoint)
-                self.overshoot_protection_value = (await overshoot_protection.calculate()).value
-
-                await coordinator.async_will_remove_from_hass()
-            except CalibrationError:
-                pass
-            except asyncio.CancelledError:
-                _LOGGER.warning("Cancelled overshoot protection calculation.")
-
-        if not self.calibration:
-            self.calibration = self.hass.async_create_task(
-                start_calibration()
-            )
-
-            # Make sure to turn off the existing climate if we found one
-            if climate_id is not None:
-                self.previous_hvac_mode = self.hass.states.get(climate_id).state
-                data = {ATTR_ENTITY_ID: climate_id, climate.ATTR_HVAC_MODE: climate.HVACMode.OFF}
-                await self.hass.services.async_call(climate.DOMAIN, climate.SERVICE_SET_HVAC_MODE, data, blocking=True)
 
             # Make sure all climate valves are open
             for entity_id in self.data.get(CONF_RADIATORS, []) + self.data.get(CONF_ROOMS, []):
                 data = {ATTR_ENTITY_ID: entity_id, climate.ATTR_HVAC_MODE: climate.HVACMode.HEAT}
                 await self.hass.services.async_call(climate.DOMAIN, climate.SERVICE_SET_HVAC_MODE, data, blocking=True)
 
-            return self.async_show_progress(
-                step_id="calibrate",
-                progress_task=self.calibration,
-                progress_action="calibration",
-            )
-
-        if self.overshoot_protection_value is None:
-            return self.async_abort(reason="unable_to_calibrate")
-
-        self._enable_overshoot_protection(
-            self.overshoot_protection_value
-        )
-
-        self.calibration = None
-        self.overshoot_protection_value = None
-
-        # Make sure to restore the mode after we are done
-        if climate_id is not None:
-            data = {ATTR_ENTITY_ID: climate_id, climate.ATTR_HVAC_MODE: self.previous_hvac_mode}
-            await self.hass.services.async_call(climate.DOMAIN, climate.SERVICE_SET_HVAC_MODE, data, blocking=True)
-
-        return self.async_show_progress_done(next_step_id="calibrated")
+            return (await OvershootProtection(coordinator, heating_system, maximum_setpoint).calculate()).value
+        except CalibrationError:
+            return None
+        finally:
+            if climate_entity is not None:
+                await climate_entity.async_set_hvac_mode(previous_hvac_mode)
+            else:
+                await coordinator.async_will_remove_from_hass()
 
     async def async_step_calibrated(self, _user_input: dict[str, Any] | None = None):
         return self.async_show_menu(

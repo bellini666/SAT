@@ -58,6 +58,10 @@ class SatFakeCoordinator(SatDataUpdateCoordinator):
         return self._boiler_temperature
 
     @property
+    def relative_modulation_value(self) -> float | None:
+        return self._relative_modulation_value
+
+    @property
     def device_active(self) -> bool:
         return self._device_state == DeviceState.ON
 
