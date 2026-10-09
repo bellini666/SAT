@@ -10,13 +10,14 @@ from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import Platform
 from homeassistant.config_entries import SOURCE_DHCP
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.helpers.service_info.dhcp import DhcpServiceInfo
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_mqtt_message, async_fire_time_changed
 from pytest_homeassistant_custom_component.typing import MqttMockHAClient
 
 from custom_components import sat
-from custom_components.sat.const import CONF_DEVICE, CONF_MODE, CONF_MQTT_TOPIC, DOMAIN, MODE_MQTT_OPENTHERM
+from custom_components.sat.const import CONF_DEVICE, CONF_MODE, CONF_MQTT_TOPIC, CONF_SIMULATION, DOMAIN, MODE_ESPHOME, MODE_MQTT_OPENTHERM
 from tests.const import DEFAULT_USER_DATA
 
 
@@ -201,3 +202,25 @@ async def test_periodic_tick_schedules_the_control_loop(hass: HomeAssistant, sat
 
     assert climate._control_heating_loop_unsub is not None
     assert await hass.config_entries.async_unload(sat_entry.entry_id)
+
+
+async def test_unload_stops_esphome_updates(hass: HomeAssistant) -> None:
+    esphome_entry = MockConfigEntry(domain="esphome")
+    esphome_entry.add_to_hass(hass)
+    device = dr.async_get(hass).async_get_or_create(config_entry_id=esphome_entry.entry_id, connections={(dr.CONNECTION_NETWORK_MAC, "aa:bb:cc:dd:ee:ff")})
+    boiler = er.async_get(hass).async_get_or_create("sensor", "esphome", "AA:BB:CC:DD:EE:FF-sensor-t_boiler", config_entry=esphome_entry, device_id=device.id)
+
+    entry = MockConfigEntry(domain=DOMAIN, data={**DEFAULT_USER_DATA, CONF_MODE: MODE_ESPHOME, CONF_DEVICE: device.id}, options={CONF_SIMULATION: True})
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    with patch.object(entry.runtime_data.coordinator, "async_notify_listeners") as notify:
+        hass.states.async_set(boiler.entity_id, "40.0")
+        await hass.async_block_till_done()
+        assert notify.call_count == 1
+
+        assert await hass.config_entries.async_unload(entry.entry_id)
+        hass.states.async_set(boiler.entity_id, "41.0")
+        await hass.async_block_till_done()
+        assert notify.call_count == 1
