@@ -357,7 +357,7 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
     @property
     def minimum_setpoint(self) -> float:
         """Return the minimum setpoint temperature before the device starts to overshoot."""
-        return float(self._config_data.get(CONF_MINIMUM_SETPOINT))
+        return float(self._options.get(CONF_MINIMUM_SETPOINT, self._config_data.get(CONF_MINIMUM_SETPOINT)))
 
     @property
     def maximum_setpoint(self) -> float:

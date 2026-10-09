@@ -571,6 +571,12 @@ class SatOptionsFlowHandler(OptionsFlowWithReload):
             selector.NumberSelectorConfig(min=10, max=100, step=1, unit_of_measurement="°C")
         )
 
+        if self.config_entry.data.get(CONF_MINIMUM_SETPOINT) is not None:
+            minimum_setpoint = float(self.config_entry.options.get(CONF_MINIMUM_SETPOINT, self.config_entry.data[CONF_MINIMUM_SETPOINT]))
+            schema[vol.Required(CONF_MINIMUM_SETPOINT, default=minimum_setpoint)] = selector.NumberSelector(
+                selector.NumberSelectorConfig(min=MINIMUM_SETPOINT, max=MAXIMUM_SETPOINT, step=0.5, unit_of_measurement="°C")
+            )
+
         schema[vol.Required(CONF_HEATING_CURVE_COEFFICIENT, default=options[CONF_HEATING_CURVE_COEFFICIENT])] = selector.NumberSelector(
             selector.NumberSelectorConfig(min=0.1, max=12, step=0.1)
         )

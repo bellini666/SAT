@@ -167,7 +167,8 @@
           "pid_controller_version": "PID Controller Version",
           "proportional": "Proportional (kP)",
           "window_sensors": "Contact Sensors",
-          "heating_mode": "Heating Mode"
+          "heating_mode": "Heating Mode",
+          "minimum_setpoint": "Overshoot protection value"
         },
         "data_description": {
           "automatic_gains_value": "The value used for automatic gains in the PID controller.",
@@ -178,7 +179,8 @@
           "integral": "The integral term (kI) in the PID controller, responsible for reducing steady-state error.",
           "maximum_setpoint": "The optimal temperature for efficient boiler operation.",
           "proportional": "The proportional term (kP) in the PID controller, responsible for the immediate response to errors.",
-          "window_sensors": "Contact Sensors that trigger the system to react when a window or door is open for a period of time."
+          "window_sensors": "Contact Sensors that trigger the system to react when a window or door is open for a period of time.",
+          "minimum_setpoint": "Lowest flow temperature the boiler holds at minimum modulation."
         },
         "description": "General settings and configurations.",
         "title": "General"

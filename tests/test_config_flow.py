@@ -168,3 +168,16 @@ async def test_flow_coordinator_receives_gateway_updates(hass: HomeAssistant, mq
 
     assert coordinator.flame_active
     await coordinator.async_will_remove_from_hass()
+
+
+async def test_overshoot_protection_value_in_options(hass: HomeAssistant) -> None:
+    entry = await setup_heating_entry(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(result["flow_id"], {"next_step_id": "general"})
+    result = await hass.config_entries.options.async_configure(result["flow_id"], {"minimum_setpoint": 47})
+    await hass.async_block_till_done()
+
+    assert result["type"] == "create_entry"
+    assert entry.runtime_data.coordinator.minimum_setpoint == 47
+    assert await hass.config_entries.async_unload(entry.entry_id)
