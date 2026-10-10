@@ -307,3 +307,29 @@ async def test_offline_gateway_pauses_control(hass: HomeAssistant, mqtt_mock: Mq
     assert hass.states.get("binary_sensor.mock_title_boiler_health").state == STATE_ON
     assert commands(mqtt_mock) == []
     assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+@pytest.mark.parametrize("retain", [False, True], ids=["reboot", "replay"])
+async def test_gateway_reboot_restores_the_overrides(hass: HomeAssistant, mqtt_mock: MqttMockHAClient, freezer: FrozenDateTimeFactory, retain: bool) -> None:
+    entry = await setup_heating(hass, mqtt_mock, {CONF_PUSH_SETPOINT_TO_THERMOSTAT: True})
+    coordinator = entry.runtime_data.coordinator
+    modulation = entry.runtime_data.climate.relative_modulation_value
+    await coordinator.async_set_control_hot_water_setpoint(50)
+
+    async_fire_mqtt_message(hass, AVAILABILITY_TOPIC, "offline")
+    await hass.async_block_till_done()
+    mqtt_mock.async_publish.reset_mock()
+    async_fire_mqtt_message(hass, AVAILABILITY_TOPIC, "online", retain=retain)
+    await hass.async_block_till_done()
+    freezer.tick(timedelta(seconds=11))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+
+    assert coordinator.online
+    sent = commands(mqtt_mock)
+    if retain:
+        assert "PM=3" not in sent
+    else:
+        assert {"PM=3", "PM=15", "PM=48", f"SH={coordinator.maximum_setpoint}", "SW=50", f"MM={modulation}", "TC=21.0"} <= set(sent)
+        assert any(command.startswith("CS=") for command in sent)
+    assert await hass.config_entries.async_unload(entry.entry_id)

@@ -4,7 +4,6 @@ import logging
 from typing import Optional
 
 from homeassistant.components import mqtt
-from homeassistant.core import callback
 
 from . import SatMqttCoordinator
 from ..coordinator import DeviceState
@@ -36,6 +35,7 @@ class SatOpenThermMqttCoordinator(SatMqttCoordinator):
 
     _thermostat_setpoint: Optional[float] = None
     _online: Optional[bool] = None
+    _hot_water_setpoint: Optional[float] = None
 
     @property
     def device_type(self) -> str:
@@ -163,13 +163,33 @@ class SatOpenThermMqttCoordinator(SatMqttCoordinator):
         # OTGW-firmware publishes its retained will message, "online" or "offline", on the bare value namespace
         self._subscriptions.append(await mqtt.async_subscribe(self.hass, f"{self._topic}/value/{self._device_id}", self._async_availability_changed))
 
-    @callback
-    def _async_availability_changed(self, message) -> None:
+    async def _async_availability_changed(self, message) -> None:
+        was_online = self._online
         self._online = message.payload == "online"
 
         if not self._online:
             self._stale_keys = set(self.data)
+            self.async_update_listeners()
+            return
 
+        # A live "online" is an ESP boot or reconnect; the ESP boot resets the PIC, which drops every override
+        if was_online or message.retain:
+            return
+
+        self._stale_keys = set(self.data)
+        await self.boot()
+        await self.async_set_control_max_setpoint(self.maximum_setpoint)
+
+        if self._hot_water_setpoint is not None:
+            await self.async_set_control_hot_water_setpoint(self._hot_water_setpoint)
+
+        if self._control_max_relative_modulation is not None:
+            await self.async_set_control_max_relative_modulation(self._control_max_relative_modulation)
+
+        if self._thermostat_setpoint is not None:
+            await self.async_set_control_thermostat_setpoint(self._thermostat_setpoint)
+
+        # The climate schedules a control loop when the boiler temperature goes missing
         self.async_update_listeners()
 
     async def boot(self) -> None:
@@ -203,6 +223,7 @@ class SatOpenThermMqttCoordinator(SatMqttCoordinator):
 
     async def async_set_control_hot_water_setpoint(self, value: float) -> None:
         await self._publish_command(f"SW={value}")
+        self._hot_water_setpoint = value
 
         await super().async_set_control_hot_water_setpoint(value)
 
