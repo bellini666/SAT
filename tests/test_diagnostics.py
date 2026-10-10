@@ -23,14 +23,14 @@ async def test_config_entry_diagnostics(hass: HomeAssistant, hass_client: Client
     entry = MockConfigEntry(
         domain=DOMAIN,
         unique_id="otgw",
-        data={**DEFAULT_USER_DATA, CONF_MODE: MODE_MQTT_OPENTHERM, CONF_DEVICE: "otgw", CONF_MQTT_TOPIC: "OTGW", CONF_MINIMUM_SETPOINT: 45},
+        data={**DEFAULT_USER_DATA, CONF_MODE: MODE_MQTT_OPENTHERM, CONF_DEVICE: "otgw", CONF_MQTT_TOPIC: "otgw_home", CONF_MINIMUM_SETPOINT: 45},
     )
     entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
 
-    async_fire_mqtt_message(hass, "OTGW/value/otgw/flame", "ON")
-    async_fire_mqtt_message(hass, "OTGW/value/otgw/Tboiler", "40.0")
+    async_fire_mqtt_message(hass, "otgw_home/value/otgw/flame", "ON")
+    async_fire_mqtt_message(hass, "otgw_home/value/otgw/Tboiler", "40.0")
     await hass.async_block_till_done()
     await entry.runtime_data.climate.async_set_hvac_mode(HVACMode.HEAT)
 
@@ -45,7 +45,7 @@ async def test_config_entry_diagnostics(hass: HomeAssistant, hass_client: Client
     assert diagnostics["climate"]["errors"] == [{"entity_id": "climate.mock_title", "value": -1.5}]
     assert diagnostics["coordinator"]["data"]["flame"] == "ON"
     assert diagnostics["coordinator"]["boiler"]["flow_temperature"] == 40.0
-    assert diagnostics["coordinator"]["messages"][-1]["topic"] == f"OTGW/value/{REDACTED}/Tboiler"
+    assert diagnostics["coordinator"]["messages"][-1]["topic"] == f"otgw_home/value/{REDACTED}/Tboiler"
     assert diagnostics["coordinator"]["messages"][-1]["payload"] == "40.0"
 
     assert await hass.config_entries.async_unload(entry.entry_id)
