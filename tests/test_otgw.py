@@ -420,3 +420,36 @@ async def test_boiler_fault_is_reported(hass: HomeAssistant, mqtt_mock: MqttMock
     assert hass.states.get("sensor.mock_title_boiler_fault_code").state == "38"
     assert hass.states.get("binary_sensor.mock_title_boiler_health").state == STATE_ON
     assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_startup_with_missing_inputs_hands_control_back_once(hass: HomeAssistant, mqtt_mock: MqttMockHAClient, freezer: FrozenDateTimeFactory) -> None:
+    hass.states.async_set("sensor.test_inside_sensor", "unavailable")
+    hass.states.async_set("sensor.test_outside_sensor", "5.0")
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="otgw",
+        data={**DEFAULT_USER_DATA, CONF_MODE: MODE_MQTT_OPENTHERM, CONF_DEVICE: "otgw", CONF_MQTT_TOPIC: "OTGW", CONF_MINIMUM_SETPOINT: 45},
+        options={"default_hvac_mode": HVACMode.HEAT},
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    async_fire_mqtt_message(hass, "OTGW/value/otgw/Tboiler", "40.0")
+    await hass.async_block_till_done()
+    climate = entry.runtime_data.climate
+    await climate.async_set_target_temperature(21.0)
+    mqtt_mock.async_publish.reset_mock()
+
+    await climate.async_control_heating_loop()
+    freezer.tick(timedelta(minutes=11))
+    await climate.async_control_heating_loop()
+    await climate.async_control_heating_loop()
+
+    assert [command for command in commands(mqtt_mock) if command.startswith(("CS=", "MM="))] == ["CS=0", "MM=T"]
+
+    mqtt_mock.async_publish.reset_mock()
+    hass.states.async_set("sensor.test_inside_sensor", "19.5")
+    await climate.async_control_heating_loop()
+
+    assert any(command.startswith("CS=") and command != "CS=0" for command in commands(mqtt_mock))
+    assert await hass.config_entries.async_unload(entry.entry_id)

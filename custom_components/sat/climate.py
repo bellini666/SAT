@@ -157,6 +157,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         self._control_heating_loop_unsub: Optional[Callable[[], None]] = None
         self._last_control_at = dt_util.utcnow()
         self._inputs_missing_since: Optional[datetime] = None
+        self._inputs_missing_released = False
         self._valves_open = True
         self.control_paused = False
         self.calibration: Optional[asyncio.Task] = None
@@ -1045,14 +1046,16 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
                 # The gateway hands the boiler back to the room thermostat when the override is not refreshed
                 if self._setpoint is not None and dt_util.utcnow() - self._inputs_missing_since < INPUTS_MISSING_GRACE_PERIOD:
                     await self._coordinator.async_set_control_setpoint(min(self._setpoint, self._coordinator.maximum_setpoint))
-                elif self._setpoint is not None:
+                elif dt_util.utcnow() - self._inputs_missing_since >= INPUTS_MISSING_GRACE_PERIOD and not self._inputs_missing_released:
                     _LOGGER.warning("Inputs missing for %s, handing the boiler back to the room thermostat.", INPUTS_MISSING_GRACE_PERIOD)
                     self._setpoint = None
+                    self._inputs_missing_released = True
                     await self._coordinator.async_release_control()
 
                 return
 
             self._inputs_missing_since = None
+            self._inputs_missing_released = False
 
             # Control the heating through the coordinator
             await self._coordinator.async_control_heating_loop(climate=self, pwm_state=self.pwm.state)
