@@ -15,6 +15,7 @@ from pytest_homeassistant_custom_component.typing import MqttMockHAClient
 
 from custom_components.sat.const import (
     CONF_DEVICE,
+    CONF_MANUFACTURER,
     CONF_MINIMUM_SETPOINT,
     CONF_MODE,
     CONF_MQTT_TOPIC,
@@ -201,4 +202,18 @@ async def test_listeners_are_notified_while_values_keep_changing(hass: HomeAssis
 
     assert len(updates) >= 3
     unsubscribe()
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_boot_does_not_set_the_stand_alone_message_interval(hass: HomeAssistant, mqtt_mock: MqttMockHAClient) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="otgw",
+        data={**DEFAULT_USER_DATA, CONF_MODE: MODE_MQTT_OPENTHERM, CONF_DEVICE: "otgw", CONF_MQTT_TOPIC: "OTGW", CONF_MANUFACTURER: "Intergas"},
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert not any(command.startswith("MI=") for command in commands(mqtt_mock))
     assert await hass.config_entries.async_unload(entry.entry_id)
