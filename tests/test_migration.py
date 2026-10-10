@@ -5,7 +5,7 @@ from homeassistant.helpers import device_registry as dr, entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.sat.config_flow import SatFlowHandler
-from custom_components.sat.const import CONF_NAME, DOMAIN
+from custom_components.sat.const import CONF_AUTOMATIC_GAINS, CONF_DERIVATIVE, CONF_INTEGRAL, CONF_NAME, CONF_PROPORTIONAL, DOMAIN
 from tests.const import DEFAULT_USER_DATA
 
 
@@ -79,3 +79,16 @@ async def test_v11_without_a_name_migrates(hass: HomeAssistant) -> None:
 
     assert entry.version == SatFlowHandler.VERSION
     assert entities.async_get("climate.sat").unique_id == entry.entry_id
+
+
+async def test_v12_copies_the_pid_gains_to_options(hass: HomeAssistant) -> None:
+    data = {**DEFAULT_USER_DATA, "minimum_setpoint": 45, CONF_AUTOMATIC_GAINS: False, CONF_PROPORTIONAL: "50", CONF_INTEGRAL: "0.01", CONF_DERIVATIVE: "5000"}
+    entry = MockConfigEntry(domain=DOMAIN, version=12, data=data, options={CONF_PROPORTIONAL: "40"})
+    entry.add_to_hass(hass)
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entry.version == SatFlowHandler.VERSION
+    assert entry.options == {CONF_AUTOMATIC_GAINS: False, CONF_PROPORTIONAL: "40", CONF_INTEGRAL: "0.01", CONF_DERIVATIVE: "5000"}
+    assert entry.runtime_data.climate.pid.kp == 40.0

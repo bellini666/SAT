@@ -223,6 +223,11 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             if device := devices.async_get_device_by_identifier((DOMAIN, name), entry.entry_id):
                 devices.async_update_device(device.id, new_identifiers={(DOMAIN, entry.entry_id)})
 
+        if entry.version < 13:
+            for key in ("automatic_gains", "proportional", "integral", "derivative"):
+                if key in new_data and key not in new_options:
+                    new_options[key] = new_data[key]
+
         hass.config_entries.async_update_entry(entry, version=SatFlowHandler.VERSION, data=new_data, options=new_options)
 
     _LOGGER.info("Migration to version %s successful", entry.version)

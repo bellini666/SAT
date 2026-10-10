@@ -34,7 +34,7 @@ _LOGGER = logging.getLogger(__name__)
 
 class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     """Config flow for SAT."""
-    VERSION = 12
+    VERSION = 13
     MINOR_VERSION = 0
 
     calibration: asyncio.Task[float | None] | None = None
