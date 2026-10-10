@@ -202,6 +202,23 @@ async def test_disable_clears_the_adjusted_setpoint(hass: HomeAssistant) -> None
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
+async def test_reset_keeps_the_adjusted_setpoint(hass: HomeAssistant) -> None:
+    entry, climate, coordinator = await setup_climate(hass, {CONF_FORCE_PULSE_WIDTH_MODULATION: True})
+    await coordinator.async_set_boiler_temperature(57)
+    await climate.async_set_hvac_mode(HVACMode.HEAT)
+    await climate.async_set_target_temperature(21.0)
+    await hass.async_block_till_done()
+    adjusted = climate.pwm.setpoint
+    assert adjusted > MINIMUM_SETPOINT
+
+    climate.pwm.reset()
+    assert climate.pwm.setpoint == adjusted
+
+    await climate.async_control_heating_loop()
+    assert climate.pwm.setpoint == adjusted
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
 async def test_cycle_limit_survives_resets_and_holds_off(hass: HomeAssistant) -> None:
     entry, climate, coordinator = await setup_climate(hass, {CONF_FORCE_PULSE_WIDTH_MODULATION: True})
     await coordinator.async_set_boiler_temperature(57)
