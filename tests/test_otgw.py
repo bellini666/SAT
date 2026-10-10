@@ -9,7 +9,6 @@ from freezegun.api import FrozenDateTimeFactory
 from homeassistant.components.climate import HVACMode
 from homeassistant.const import EVENT_HOMEASSISTANT_FINAL_WRITE, EVENT_HOMEASSISTANT_STOP, STATE_ON
 from homeassistant.core import HomeAssistant
-from freezegun.api import FrozenDateTimeFactory
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_mqtt_message, async_fire_time_changed
 from pytest_homeassistant_custom_component.typing import MqttMockHAClient
 
@@ -188,6 +187,7 @@ async def test_startup_hands_control_back_unless_heating(hass: HomeAssistant, mq
     await hass.async_block_till_done()
 
     assert ({"CS=0", "MM=T"} <= set(commands(mqtt_mock))) is released
+    assert await hass.config_entries.async_unload(entry.entry_id)
 
 
 async def test_listeners_are_notified_while_values_keep_changing(hass: HomeAssistant, mqtt_mock: MqttMockHAClient, freezer: FrozenDateTimeFactory) -> None:
