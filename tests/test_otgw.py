@@ -7,7 +7,7 @@ from unittest.mock import patch
 import pytest
 from freezegun.api import FrozenDateTimeFactory
 from homeassistant.components.climate import HVACMode
-from homeassistant.const import EVENT_HOMEASSISTANT_STOP
+from homeassistant.const import EVENT_HOMEASSISTANT_FINAL_WRITE, EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import HomeAssistant
 from freezegun.api import FrozenDateTimeFactory
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_mqtt_message, async_fire_time_changed
@@ -26,6 +26,7 @@ from custom_components.sat.const import (
 from tests.const import DEFAULT_USER_DATA
 
 COMMAND_TOPIC = "OTGW/set/otgw/command"
+STORAGE_KEY = "sat_open_therm_mqtt_coordinator_otgw"
 
 pytestmark = pytest.mark.usefixtures("instant_mqtt_command_delay")
 
@@ -216,4 +217,49 @@ async def test_boot_does_not_set_the_stand_alone_message_interval(hass: HomeAssi
     await hass.async_block_till_done()
 
     assert not any(command.startswith("MI=") for command in commands(mqtt_mock))
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+def otgw_entry(hass: HomeAssistant) -> MockConfigEntry:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="otgw",
+        data={**DEFAULT_USER_DATA, CONF_MODE: MODE_MQTT_OPENTHERM, CONF_DEVICE: "otgw", CONF_MQTT_TOPIC: "OTGW"},
+    )
+    entry.add_to_hass(hass)
+
+    return entry
+
+
+async def test_restored_values_are_stale_until_a_live_message(hass: HomeAssistant, mqtt_mock: MqttMockHAClient, hass_storage: dict) -> None:
+    hass_storage[STORAGE_KEY] = {"version": 1, "key": STORAGE_KEY, "data": {"Tboiler": "40.0", "domestichotwater": "ON"}}
+    entry = otgw_entry(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    coordinator = entry.runtime_data.coordinator
+
+    assert coordinator.data["Tboiler"] == "40.0"
+    assert coordinator.boiler_temperature is None
+    assert not coordinator.hot_water_active
+
+    async_fire_mqtt_message(hass, "OTGW/value/otgw/Tboiler", "41.0")
+    await hass.async_block_till_done()
+
+    assert coordinator.boiler_temperature == 41.0
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+@pytest.mark.parametrize("expected_lingering_timers", [True])
+async def test_values_are_saved_when_home_assistant_stops(hass: HomeAssistant, mqtt_mock: MqttMockHAClient, hass_storage: dict) -> None:
+    entry = otgw_entry(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    async_fire_mqtt_message(hass, "OTGW/value/otgw/Tboiler", "41.0")
+    await hass.async_block_till_done()
+    hass.bus.async_fire(EVENT_HOMEASSISTANT_STOP)
+    hass.bus.async_fire(EVENT_HOMEASSISTANT_FINAL_WRITE)
+    await hass.async_block_till_done()
+
+    assert hass_storage[STORAGE_KEY]["data"]["Tboiler"] == "41.0"
     assert await hass.config_entries.async_unload(entry.entry_id)

@@ -55,19 +55,19 @@ class SatOpenThermMqttCoordinator(SatMqttCoordinator):
 
     @property
     def device_active(self) -> bool:
-        return self.data.get(DATA_CENTRAL_HEATING) == STATE_ON
+        return self._live_value(DATA_CENTRAL_HEATING) == STATE_ON
 
     @property
     def flame_active(self) -> bool:
-        return self.data.get(DATA_FLAME_ACTIVE) == STATE_ON
+        return self._live_value(DATA_FLAME_ACTIVE) == STATE_ON
 
     @property
     def hot_water_active(self) -> bool:
-        return self.data.get(DATA_DHW_ENABLE) == STATE_ON
+        return self._live_value(DATA_DHW_ENABLE) == STATE_ON
 
     @property
     def setpoint(self) -> Optional[float]:
-        if (setpoint := self.data.get(DATA_CONTROL_SETPOINT)) is not None:
+        if (setpoint := self._live_value(DATA_CONTROL_SETPOINT)) is not None:
             return float(setpoint)
 
         return None
@@ -81,7 +81,7 @@ class SatOpenThermMqttCoordinator(SatMqttCoordinator):
 
     @property
     def hot_water_setpoint(self) -> Optional[float]:
-        if (setpoint := self.data.get(DATA_DHW_SETPOINT)) is not None:
+        if (setpoint := self._live_value(DATA_DHW_SETPOINT)) is not None:
             return float(setpoint)
 
         return super().hot_water_setpoint
@@ -102,21 +102,21 @@ class SatOpenThermMqttCoordinator(SatMqttCoordinator):
 
     @property
     def boiler_temperature(self) -> Optional[float]:
-        if (value := self.data.get(DATA_BOILER_TEMPERATURE)) is not None:
+        if (value := self._live_value(DATA_BOILER_TEMPERATURE)) is not None:
             return float(value)
 
         return super().boiler_temperature
 
     @property
     def return_temperature(self) -> Optional[float]:
-        if (value := self.data.get(DATA_RETURN_TEMPERATURE)) is not None:
+        if (value := self._live_value(DATA_RETURN_TEMPERATURE)) is not None:
             return float(value)
 
         return super().return_temperature
 
     @property
     def relative_modulation_value(self) -> Optional[float]:
-        if (value := self.data.get(DATA_REL_MOD_LEVEL)) is not None:
+        if (value := self._live_value(DATA_REL_MOD_LEVEL)) is not None:
             return float(value)
 
         return super().relative_modulation_value
