@@ -6,7 +6,7 @@ from datetime import timedelta
 from unittest.mock import patch
 
 import pytest
-from homeassistant.components.climate import HVACMode
+from homeassistant.components.climate import HVACMode, PRESET_ACTIVITY
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import Platform
 from homeassistant.config_entries import SOURCE_DHCP
@@ -19,7 +19,7 @@ from pytest_homeassistant_custom_component.typing import MqttMockHAClient
 
 from custom_components import sat
 from custom_components.sat.coordinator import SatDataUpdateCoordinatorFactory
-from custom_components.sat.const import CONF_DEVICE, CONF_MODE, CONF_MQTT_TOPIC, CONF_SIMULATION, DOMAIN, MODE_ESPHOME, MODE_MQTT_OPENTHERM
+from custom_components.sat.const import CONF_DEVICE, CONF_MODE, CONF_MQTT_TOPIC, CONF_SIMULATION, CONF_WINDOW_MINIMUM_OPEN_TIME, CONF_WINDOW_SENSORS, DOMAIN, MODE_ESPHOME, MODE_MQTT_OPENTHERM
 from tests.const import DEFAULT_USER_DATA
 
 
@@ -109,6 +109,22 @@ async def test_setup_does_not_depend_on_platform_order(hass: HomeAssistant, monk
     assert len(hass.states.async_entity_ids("climate")) == 1
     assert hass.states.get("sensor.mock_title_heating_curve") is not None
     assert hass.states.get("binary_sensor.mock_title_central_heating_synchro") is not None
+
+
+async def test_first_setup_with_window_sensors_tracks_the_window(hass: HomeAssistant, caplog: pytest.LogCaptureFixture) -> None:
+    hass.states.async_set("binary_sensor.window", "off")
+    entry = MockConfigEntry(domain=DOMAIN, data=DEFAULT_USER_DATA, options={CONF_WINDOW_SENSORS: ["binary_sensor.window"], CONF_WINDOW_MINIMUM_OPEN_TIME: "00:00:00"})
+    entry.add_to_hass(hass)
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    hass.states.async_set("binary_sensor.window", "on")
+    await hass.async_block_till_done()
+
+    assert errors(caplog) == []
+    assert entry.runtime_data.climate.preset_mode == PRESET_ACTIVITY
+    assert await hass.config_entries.async_unload(entry.entry_id)
 
 
 def mqtt_entry(hass: HomeAssistant) -> MockConfigEntry:

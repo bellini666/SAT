@@ -11,7 +11,6 @@ from time import monotonic, time
 from typing import Optional, Callable
 
 from homeassistant.components import notify, sensor, weather
-from homeassistant.components.binary_sensor import DOMAIN as BINARY_SENSOR_DOMAIN
 from homeassistant.components.climate import (
     ClimateEntity,
     ClimateEntityFeature,
@@ -32,7 +31,6 @@ from homeassistant.components.climate import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_TEMPERATURE, STATE_UNAVAILABLE, STATE_UNKNOWN, ATTR_ENTITY_ID, STATE_ON, STATE_OFF
 from homeassistant.core import CoreState, HomeAssistant, Event, EventStateChangedData, HassJob, callback
-from homeassistant.helpers import entity_registry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_track_state_change_event, async_track_time_interval, async_call_later
 from homeassistant.helpers.restore_state import ExtraStoredData, RestoreEntity
@@ -169,7 +167,6 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         self._attr_id = config_entry.entry_id
 
         self._radiators = config_entry.data.get(CONF_RADIATORS) or []
-        self._window_sensors = config_entry.options.get(CONF_WINDOW_SENSORS) or []
 
         self._simulation = bool(config_entry.data.get(CONF_SIMULATION))
         self._heating_system = str(config_entry.data.get(CONF_HEATING_SYSTEM))
@@ -319,16 +316,6 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
                 self.hass, self.areas.items(), self._async_climate_changed
             )
         )
-
-        if len(self._window_sensors) > 0:
-            entities = entity_registry.async_get(self.hass)
-            window_id = entities.async_get_entity_id(BINARY_SENSOR_DOMAIN, DOMAIN, f"{self._config_entry.entry_id}-window-sensor")
-
-            self.async_on_remove(
-                async_track_state_change_event(
-                    self.hass, [window_id], self._async_window_sensor_changed
-                )
-            )
 
         for entity_id in self.areas.items():
             state = self.hass.states.get(entity_id)
@@ -835,7 +822,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         self._async_control_pid()
         self.schedule_control_heating_loop()
 
-    async def _async_window_sensor_changed(self, event: Event[EventStateChangedData]) -> None:
+    async def async_window_sensor_changed(self, event: Event[EventStateChangedData]) -> None:
         """Handle changes to the contact sensor entity."""
         new_state = event.data.get("new_state")
         if new_state is None or new_state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
