@@ -24,7 +24,7 @@ class Area:
         self._hass: HomeAssistant | None = None
 
         # Create controllers with the given configuration options
-        self.pid: PID = create_pid_controller(config_options)
+        self.pid: PID = create_pid_controller(config_data, config_options)
         self.heating_curve: HeatingCurve = create_heating_curve_controller(config_data, config_options)
 
     @property
@@ -37,7 +37,7 @@ class Area:
         if (self._hass is None) or (state := self._hass.states.get(self._entity_id)) is None:
             return None
 
-        return state if state.state not in [STATE_UNKNOWN, STATE_UNAVAILABLE] else None
+        return state if state.state not in [STATE_UNKNOWN, STATE_UNAVAILABLE, HVACMode.OFF] else None
 
     @property
     def target_temperature(self) -> float | None:
@@ -153,7 +153,7 @@ class Areas:
 
         def update(self, boiler_temperature: float) -> None:
             for area in self.areas:
-                if area.error is not None:
+                if area.error is not None and area.heating_curve.value is not None:
                     area.pid.update(area.error, area.heating_curve.value, boiler_temperature)
 
         def reset(self) -> None:

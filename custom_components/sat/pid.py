@@ -91,8 +91,11 @@ class PID:
         """
         time_elapsed = seconds_since(self._last_updated)
 
-        # If nothing changed, skip
+        # If nothing changed, skip, but keep decaying the derivative inside the deadband
         if error.value == self._last_error:
+            if not self.derivative_enabled and (self._sample_time_limit is None or seconds_since(self._last_derivative_time) >= self._sample_time_limit):
+                self.update_derivative(error)
+
             return
 
         # Enforce minimum sample time if configured
@@ -146,7 +149,7 @@ class PID:
             self._last_interval_updated = monotonic()
 
         # Ensure the integral term is enabled
-        if not self.integral_enabled:
+        if abs(error.value) > self._deadband:
             self._integral = 0.0
             return
 
@@ -181,17 +184,13 @@ class PID:
         :param alpha1: First low-pass filter parameter (0..1).
         :param alpha2: Second low-pass filter parameter (0..1).
         """
-        # If the derivative is disabled, freeze it
-        if not self.derivative_enabled:
-            return
-
         now = monotonic()
         time_diff = now - self._last_derivative_time
         if time_diff <= 0:
             return
 
-        # Basic derivative: slope between current and last error
-        derivative = (error.value - self._last_error) / time_diff
+        # Inside the deadband the error counts as zero, so the filters decay the derivative toward zero without a step
+        derivative = (error.value - self._last_error) / time_diff if self.derivative_enabled else 0.0
 
         # First low-pass filter
         filtered_derivative = alpha1 * derivative + (1 - alpha1) * self._raw_derivative

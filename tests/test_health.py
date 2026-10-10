@@ -12,6 +12,7 @@ from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed
 
 from custom_components.sat.const import CONF_DEVICE, CONF_MODE, CONF_MQTT_TOPIC, DOMAIN, MODE_MQTT_OPENTHERM
+from custom_components.sat.coordinator import DeviceState
 from tests.const import DEFAULT_USER_DATA
 
 ENTITY_ID = "binary_sensor.mock_title_heating_control"
@@ -130,7 +131,7 @@ async def test_flags_missing_boiler_data(hass: HomeAssistant) -> None:
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
-async def test_failed_setup_raises_a_repair_issue(hass: HomeAssistant) -> None:
+async def test_failed_setup_raises_a_repair_issue_after_retrying(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
     entry = MockConfigEntry(
         domain=DOMAIN,
         unique_id="otgw",
@@ -140,6 +141,14 @@ async def test_failed_setup_raises_a_repair_issue(hass: HomeAssistant) -> None:
 
     await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.SETUP_RETRY
+    assert ir.async_get(hass).async_get_issue(DOMAIN, f"setup_failed_{entry.entry_id}") is None
+
+    for _ in range(6):
+        freezer.tick(timedelta(seconds=90))
+        async_fire_time_changed(hass)
+        await hass.async_block_till_done()
 
     assert entry.state is ConfigEntryState.SETUP_RETRY
     issue = ir.async_get(hass).async_get_issue(DOMAIN, f"setup_failed_{entry.entry_id}")
@@ -156,4 +165,21 @@ async def test_successful_setup_clears_the_repair_issue(hass: HomeAssistant) -> 
     await hass.async_block_till_done()
 
     assert ir.async_get(hass).async_get_issue(DOMAIN, f"setup_failed_{entry.entry_id}") is None
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_synchro_sensors_ignore_the_room_thermostat_while_off(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+    entry = await setup_heating(hass)
+    climate = entry.runtime_data.climate
+    coordinator = entry.runtime_data.coordinator
+
+    await climate.async_set_hvac_mode(HVACMode.OFF)
+    await coordinator.async_set_control_setpoint(30)
+    await coordinator.async_set_heater_state(DeviceState.ON)
+    climate.async_write_ha_state()
+    freezer.tick(timedelta(seconds=61))
+    climate.async_write_ha_state()
+
+    assert hass.states.get("binary_sensor.mock_title_control_setpoint_synchro").state == STATE_OFF
+    assert hass.states.get("binary_sensor.mock_title_central_heating_synchro").state == STATE_OFF
     assert await hass.config_entries.async_unload(entry.entry_id)

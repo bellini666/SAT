@@ -4,7 +4,7 @@ import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from statistics import fmean
+from statistics import fmean, linear_regression
 from typing import Any, Mapping
 
 from homeassistant.helpers.event import async_track_time_interval
@@ -13,6 +13,7 @@ from homeassistant.util import dt as dt_util
 from .const import CONF_CALIBRATION_FLAME_TIMEOUT, CONF_CALIBRATION_PLATEAU_TIMEOUT, MINIMUM_RELATIVE_MODULATION, MINIMUM_SETPOINT, OPTIONS_DEFAULTS, OVERSHOOT_PROTECTION_SETPOINT
 from .coordinator import DeviceState, SatDataUpdateCoordinator
 from .helpers import convert_time_str_to_seconds
+from .manufacturers.geminox import Geminox
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -74,16 +75,20 @@ class OvershootProtection:
 
         self.phase = "waiting_for_flame"
         self._samples: list[tuple[datetime, float, float]] = []
+        self._lowest_modulation = 100.0
         self._waited = timedelta()
         self._heated = timedelta()
         self._flame_losses = 0
         self._last_tick = dt_util.utcnow()
+        self._deadline = self._last_tick
         self._result: asyncio.Future[CalibrationResult] = coordinator.hass.loop.create_future()
         self._lock = asyncio.Lock()
 
     async def calculate(self) -> CalibrationResult:
         """Run the calibration and always hand the boiler back afterwards."""
         self._last_tick = dt_util.utcnow()
+        # Leaves the same time again for hot water draws and flame retries
+        self._deadline = self._last_tick + 2 * (self._flame_timeout + self._plateau_timeout)
 
         _LOGGER.info("Starting overshoot protection calibration at %.1f°C", self.setpoint)
         unsubscribe = async_track_time_interval(self._coordinator.hass, self._async_tick, TICK)
@@ -121,6 +126,8 @@ class OvershootProtection:
     async def _async_step(self, now: datetime) -> CalibrationResult | None:
         elapsed = now - self._last_tick
         self._last_tick = now
+        if now > self._deadline:
+            raise CalibrationError("timeout")
 
         coordinator = self._coordinator
         if coordinator.hot_water_active:
@@ -132,13 +139,17 @@ class OvershootProtection:
             self._samples.clear()
             return None
 
+        # Geminox boilers need at least 10 % maximum relative modulation
+        modulation = max(10, MINIMUM_RELATIVE_MODULATION) if isinstance(coordinator.manufacturer, Geminox) else MINIMUM_RELATIVE_MODULATION
+
         await coordinator.async_set_heater_state(DeviceState.ON)
         await coordinator.async_set_control_setpoint(self.setpoint)
-        await coordinator.async_set_control_max_relative_modulation(MINIMUM_RELATIVE_MODULATION)
+        await coordinator.async_set_control_max_relative_modulation(modulation)
+        await coordinator.async_control_heating_loop()
 
         _LOGGER.debug(
             "Calibration %s: sent CH=on CS=%.1f MM=%d, flame=%s flow=%s modulation=%s",
-            self.phase, self.setpoint, MINIMUM_RELATIVE_MODULATION, coordinator.flame_active,
+            self.phase, self.setpoint, modulation, coordinator.flame_active,
             coordinator.boiler_temperature, coordinator.relative_modulation_value,
         )
 
@@ -170,9 +181,12 @@ class OvershootProtection:
         self._heated += elapsed
         if coordinator.boiler_temperature is not None and coordinator.relative_modulation_value is not None:
             self._samples.append((now, float(coordinator.boiler_temperature), float(coordinator.relative_modulation_value)))
+            self._lowest_modulation = min(self._lowest_modulation, float(coordinator.relative_modulation_value))
 
             if (result := self._plateau(now)) is not None:
                 return result
+        elif coordinator.relative_modulation_value is None and self._heated > PLATEAU_WINDOW:
+            raise CalibrationError("no_modulation")
 
         if self._heated > self._plateau_timeout:
             raise CalibrationError("timeout")
@@ -186,14 +200,22 @@ class OvershootProtection:
         window = [sample for sample in self._samples if sample[0] >= now - PLATEAU_WINDOW]
         flows = [flow for _, flow, _ in window]
         modulations = [modulation for _, _, modulation in window]
-        floor = self._coordinator.minimum_relative_modulation_value or 0
+        # ID 17 is 0 at minimum modulation on spec boilers, others report ID 15's scale (% of maximum capacity)
+        floor = min(self._lowest_modulation, self._coordinator.minimum_relative_modulation_value or 100)
 
         _LOGGER.debug(
             "Calibration window: flow %.1f-%.1f°C, modulation %.0f-%.0f%%, modulation floor %.0f%%",
             min(flows), max(flows), min(modulations), max(modulations), floor,
         )
 
-        if max(flows) - min(flows) > PLATEAU_TOLERANCE:
+        # Whole-degree sensors flicker by one step around the plateau
+        step = 1 if all(flow.is_integer() for flow in flows) else 0.1
+        if len(window) < 2 or max(flows) - min(flows) > max(PLATEAU_TOLERANCE, step + 0.1):
+            return None
+
+        # A drift of one sensor step across the window still counts as flat, 0.02 °C/min at 0.1 °C resolution
+        offsets = [(timestamp - now) / PLATEAU_WINDOW for timestamp, _, _ in window]
+        if abs(linear_regression(offsets, flows).slope) > step:
             return None
 
         plateau = round(fmean(flows), 1)

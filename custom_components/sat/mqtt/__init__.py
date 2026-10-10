@@ -17,6 +17,7 @@ from ..helpers import snake_case
 _LOGGER: logging.Logger = logging.getLogger(__name__)
 
 STORAGE_VERSION = 1
+STORAGE_SAVE_DELAY = 60
 
 
 class SatMqttCoordinator(SatDataUpdateCoordinator):
@@ -29,6 +30,7 @@ class SatMqttCoordinator(SatDataUpdateCoordinator):
         self._topic: str = config_data.get(CONF_MQTT_TOPIC)
         self._subscriptions: list[Callable[[], None]] = []
         self._messages: deque[dict[str, str]] = deque(maxlen=50)
+        self._stale_keys: set[str] = set()
         self._store: Store = Store(hass, STORAGE_VERSION, snake_case(f"{self.__class__.__name__}_{device_id}"))
 
     @property
@@ -69,7 +71,9 @@ class SatMqttCoordinator(SatDataUpdateCoordinator):
     async def _load_stored_data(self) -> None:
         """Load the data from persistent storage."""
         if stored_data := await self._store.async_load():
-            self.async_set_updated_data({key: value for key, value in stored_data.items() if value not in (None, "")})
+            restored = {key: value for key, value in stored_data.items() if value not in (None, "")}
+            self._stale_keys = set(restored)
+            self.async_set_updated_data(restored)
 
     async def _save_data(self) -> None:
         """Save the data to persistent storage."""
@@ -109,10 +113,22 @@ class SatMqttCoordinator(SatDataUpdateCoordinator):
             except Exception as e:
                 _LOGGER.error("Failed to process message for key '%s': %s", key, str(e))
 
+            self._store.async_delay_save(lambda: dict(self.data), STORAGE_SAVE_DELAY)
+
         return message_handler
+
+    def _live_value(self, key: str) -> Any:
+        """Return the value of a key unless it was restored from storage or the device went offline since it arrived."""
+        return None if key in self._stale_keys else self.data.get(key)
 
     def _process_message_payload(self, key: str, value):
         """Process and store the payload of a received MQTT message."""
+        if key in self._stale_keys:
+            self._stale_keys.discard(key)
+
+            # Deleting marks the data dirty, so a stale value that comes back unchanged still notifies the listeners
+            del self.data[key]
+
         self.async_set_updated_data({key: value})
 
     async def _publish_command(self, payload: str, wait_time: float = 1.0):

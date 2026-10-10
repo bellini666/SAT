@@ -65,6 +65,10 @@ class PWM:
         self._setpoint_adjuster = SetpointAdjuster()
         self._setpoint_offset: int = 0.5 if supports_relative_modulation_management else 1
 
+        # The cycles per hour limit spans resets, otherwise every PID reset would start a new cycle
+        self._current_cycle: int = 0
+        self._first_duty_cycle_start: float | None = None
+
         _LOGGER.debug(
             "Initialized PWM control with duty cycle thresholds - Lower: %.2f%%, Upper: %.2f%%, Offset: %d°C",
             self._duty_cycle_lower_threshold * 100, self._duty_cycle_upper_threshold * 100, self._setpoint_offset
@@ -75,12 +79,9 @@ class PWM:
     def reset(self) -> None:
         """Reset the PWM control."""
         self._enabled = False
-        self._current_cycle: int = 0
         self._status: PWMStatus = PWMStatus.IDLE
         self._last_update: float = monotonic()
         self._duty_cycle: Tuple[int, int] | None = None
-
-        self._first_duty_cycle_start: float | None = None
         self._last_duty_cycle_percentage: float | None = None
 
     def restore(self, state: State) -> None:
@@ -96,6 +97,7 @@ class PWM:
         """Disable the PWM control."""
         self.reset()
         self._enabled = False
+        self._setpoint = None
         self._setpoint_adjuster.reset()
 
     async def update(self, boiler: "BoilerState", flame: "FlameState", requested_setpoint: float) -> None:
@@ -157,6 +159,7 @@ class PWM:
         if self._status != PWMStatus.ON and self._duty_cycle[0] >= HEATER_STARTUP_TIMEFRAME and (elapsed >= self._duty_cycle[1] or self._status == PWMStatus.IDLE):
             if self._current_cycle >= self._cycles.maximum_count:
                 _LOGGER.info("Reached max cycles per hour, preventing new duty cycle.")
+                self._status = PWMStatus.OFF
                 return
 
             self._current_cycle += 1
@@ -166,7 +169,7 @@ class PWM:
             _LOGGER.info("Starting new duty cycle (ON state). Current CYCLES count: %d", self._current_cycle)
             return
 
-        if self._status != PWMStatus.OFF and (self._duty_cycle[0] < HEATER_STARTUP_TIMEFRAME or elapsed >= self._duty_cycle[0] or self._status == PWMStatus.IDLE):
+        if self._status != PWMStatus.OFF and (self._duty_cycle[0] < HEATER_STARTUP_TIMEFRAME or (elapsed >= self._duty_cycle[0] and self._duty_cycle[1] > 0) or self._status == PWMStatus.IDLE):
             self._status = PWMStatus.OFF
             self._last_update = monotonic()
             _LOGGER.info("Duty cycle completed. Switching to OFF state.")

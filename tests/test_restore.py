@@ -79,3 +79,19 @@ async def test_default_hvac_mode_option(hass: HomeAssistant) -> None:
     await hass.async_block_till_done()
 
     assert hass.states.get(ENTITY_ID).state == HVACMode.OFF
+
+
+@pytest.mark.parametrize(("extra_data", "temperature"), [
+    ({"pre_custom_temperature": 20.5}, 20.5),
+    ({}, 21.0),
+])
+async def test_preset_none_after_restore_returns_to_the_custom_temperature(hass: HomeAssistant, extra_data: dict, temperature: float) -> None:
+    mock_restore_cache_with_extra_data(hass, [(
+        State(ENTITY_ID, STATE_UNAVAILABLE),
+        {"hvac_mode": HVACMode.HEAT, "target_temperature": 21.0, "preset_mode": "comfort", **extra_data},
+    )])
+
+    await setup_entry(hass)
+    await hass.services.async_call("climate", "set_preset_mode", {"entity_id": ENTITY_ID, "preset_mode": "none"}, blocking=True)
+
+    assert hass.states.get(ENTITY_ID).attributes["temperature"] == temperature

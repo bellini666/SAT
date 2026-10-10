@@ -22,9 +22,9 @@ from voluptuous import Marker
 from . import SatDataUpdateCoordinatorFactory
 from .const import *
 from .coordinator import SatDataUpdateCoordinator
-from .helpers import calculate_default_maximum_setpoint, snake_case
+from .helpers import calculate_default_maximum_setpoint, convert_time_str_to_seconds, snake_case
 from .manufacturer import ManufacturerFactory, MANUFACTURERS
-from .overshoot_protection import CalibrationError, create_overshoot_protection
+from .overshoot_protection import PLATEAU_WINDOW, CalibrationError, create_overshoot_protection
 from .validators import valid_serial_device
 
 DEFAULT_NAME = "Living Room"
@@ -34,7 +34,7 @@ _LOGGER = logging.getLogger(__name__)
 
 class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     """Config flow for SAT."""
-    VERSION = 12
+    VERSION = 13
     MINOR_VERSION = 0
 
     calibration: asyncio.Task[float | None] | None = None
@@ -344,6 +344,7 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_automatic_gains(self, _user_input: dict[str, Any] | None = None):
         if _user_input is not None:
             self.data.update(_user_input)
+            self.options.update(_user_input)
 
             if not self.data[CONF_AUTOMATIC_GAINS]:
                 return await self.async_step_pid_controller()
@@ -403,18 +404,30 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         options = self.config_entry.options if self.config_entry else {}
         maximum_setpoint = float(options.get(CONF_MAXIMUM_SETPOINT, calculate_default_maximum_setpoint(heating_system)))
 
+        climates = self.data.get(CONF_RADIATORS, []) + self.data.get(CONF_ROOMS, [])
+        hvac_modes = {entity_id: state.state for entity_id in climates if (state := self.hass.states.get(entity_id)) is not None and state.state in climate.HVACMode}
+
         try:
             if climate_entity is None:
                 await coordinator.async_setup()
                 await coordinator.async_added_to_hass()
 
             async with climate_entity.async_calibrating() if climate_entity is not None else contextlib.nullcontext():
-                # Make sure all climate valves are open
-                for entity_id in self.data.get(CONF_RADIATORS, []) + self.data.get(CONF_ROOMS, []):
-                    data = {ATTR_ENTITY_ID: entity_id, climate.ATTR_HVAC_MODE: climate.HVACMode.HEAT}
-                    await self.hass.services.async_call(climate.DOMAIN, climate.SERVICE_SET_HVAC_MODE, data, blocking=True)
+                try:
+                    # Make sure all climate valves are open
+                    for entity_id in climates:
+                        state = self.hass.states.get(entity_id)
+                        if state is None or climate.HVACMode.HEAT not in state.attributes.get("hvac_modes", []):
+                            continue
 
-                return (await create_overshoot_protection(coordinator, heating_system, maximum_setpoint, options).calculate()).value
+                        data = {ATTR_ENTITY_ID: entity_id, climate.ATTR_HVAC_MODE: climate.HVACMode.HEAT}
+                        await self.hass.services.async_call(climate.DOMAIN, climate.SERVICE_SET_HVAC_MODE, data, blocking=True)
+
+                    return (await create_overshoot_protection(coordinator, heating_system, maximum_setpoint, options).calculate()).value
+                finally:
+                    for entity_id, hvac_mode in hvac_modes.items():
+                        data = {ATTR_ENTITY_ID: entity_id, climate.ATTR_HVAC_MODE: hvac_mode}
+                        await self.hass.services.async_call(climate.DOMAIN, climate.SERVICE_SET_HVAC_MODE, data, blocking=True)
         except CalibrationError:
             return None
         finally:
@@ -429,18 +442,26 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
     async def async_step_overshoot_protection(self, _user_input: dict[str, Any] | None = None):
+        errors = {}
         if _user_input is not None:
-            self._enable_overshoot_protection(
-                _user_input[CONF_MINIMUM_SETPOINT]
-            )
+            options = self.config_entry.options if self.config_entry else {}
+            maximum_setpoint = float(options.get(CONF_MAXIMUM_SETPOINT, calculate_default_maximum_setpoint(self.data.get(CONF_HEATING_SYSTEM))))
 
-            if self.data[CONF_MODE] == MODE_SIMULATOR:
-                return await self.async_step_finish()
+            if _user_input[CONF_MINIMUM_SETPOINT] > maximum_setpoint:
+                errors[CONF_MINIMUM_SETPOINT] = "maximum_setpoint_below_overshoot_protection"
+            else:
+                self._enable_overshoot_protection(
+                    _user_input[CONF_MINIMUM_SETPOINT]
+                )
 
-            return await self.async_step_manufacturer()
+                if self.data[CONF_MODE] == MODE_SIMULATOR:
+                    return await self.async_step_finish()
+
+                return await self.async_step_manufacturer()
 
         return self.async_show_form(
             last_step=False,
+            errors=errors,
             step_id="overshoot_protection",
             data_schema=vol.Schema({
                 vol.Required(CONF_MINIMUM_SETPOINT, default=self.data.get(CONF_MINIMUM_SETPOINT, OPTIONS_DEFAULTS[CONF_MINIMUM_SETPOINT])): selector.NumberSelector(
@@ -451,9 +472,11 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_pid_controller(self, _user_input: dict[str, Any] | None = None):
         self.data[CONF_AUTOMATIC_GAINS] = False
+        self.options[CONF_AUTOMATIC_GAINS] = False
 
         if _user_input is not None:
             self.data.update(_user_input)
+            self.options.update(_user_input)
 
             if self.data[CONF_MODE] == MODE_SIMULATOR:
                 return await self.async_step_finish()
@@ -483,7 +506,7 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 await coordinator.async_setup()
 
             manufacturers = ManufacturerFactory.resolve_by_member_id(coordinator.member_id)
-            default_manufacturer = manufacturers[0].friendly_name if len(manufacturers) > 0 else -1
+            default_manufacturer = type(manufacturers[0]).__name__ if len(manufacturers) > 0 else -1
         finally:
             await coordinator.async_will_remove_from_hass()
 
@@ -496,7 +519,7 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             last_step=True,
             step_id="manufacturer",
             data_schema=vol.Schema({
-                vol.Required(CONF_MANUFACTURER, default=default_manufacturer): selector.SelectSelector(
+                vol.Required(CONF_MANUFACTURER, default=self.data.get(CONF_MANUFACTURER) or default_manufacturer): selector.SelectSelector(
                     selector.SelectSelectorConfig(options=options)
                 )
             })
@@ -514,7 +537,8 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_create_entry(
             title=self.data[CONF_NAME],
-            data=self.data
+            data=self.data,
+            options=self.options
         )
 
     async def async_create_coordinator(self) -> SatDataUpdateCoordinator:
@@ -556,8 +580,12 @@ class SatOptionsFlowHandler(OptionsFlowWithReload):
         )
 
     async def async_step_general(self, _user_input: dict[str, Any] | None = None):
+        errors = {}
         if _user_input is not None:
-            return await self.update_options(_user_input)
+            if _user_input[CONF_MAXIMUM_SETPOINT] < _user_input.get(CONF_MINIMUM_SETPOINT, MINIMUM_SETPOINT):
+                errors[CONF_MAXIMUM_SETPOINT] = "maximum_setpoint_below_overshoot_protection"
+            else:
+                return await self.update_options(_user_input)
 
         schema = {}
         options = await self.get_options()
@@ -640,7 +668,7 @@ class SatOptionsFlowHandler(OptionsFlowWithReload):
             )
         )
 
-        return self.async_show_form(step_id="general", data_schema=vol.Schema(schema))
+        return self.async_show_form(step_id="general", data_schema=vol.Schema(schema), errors=errors)
 
     async def async_step_presets(self, _user_input: dict[str, Any] | None = None):
         if _user_input is not None:
@@ -671,8 +699,13 @@ class SatOptionsFlowHandler(OptionsFlowWithReload):
         )
 
     async def async_step_system_configuration(self, _user_input: dict[str, Any] | None = None):
+        errors = {}
         if _user_input is not None:
-            return await self.update_options(_user_input)
+            advanced = _user_input["advanced"]
+            if convert_time_str_to_seconds(advanced[CONF_CALIBRATION_FLAME_TIMEOUT]) == 0 or convert_time_str_to_seconds(advanced[CONF_CALIBRATION_PLATEAU_TIMEOUT]) < PLATEAU_WINDOW.total_seconds():
+                errors["base"] = "calibration_timeout"
+            else:
+                return await self.update_options(_user_input)
 
         options = await self.get_options()
 
@@ -745,7 +778,8 @@ class SatOptionsFlowHandler(OptionsFlowWithReload):
 
         return self.async_show_form(
             step_id="system_configuration",
-            data_schema=vol.Schema(schema)
+            data_schema=vol.Schema(schema),
+            errors=errors,
         )
 
     async def update_options(self, _user_input):

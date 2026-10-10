@@ -10,7 +10,7 @@ from homeassistant.core import HomeAssistant, callback, HassJob
 from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
-from .boiler import BoilerTemperatureTracker, BoilerState, STABILIZATION_MARGIN
+from .boiler import BoilerTemperatureTracker, BoilerState, STABILIZATION_MARGIN, STABLE_DERIVATIVE
 from .const import *
 from .flame import Flame, FlameState
 from .helpers import calculate_default_maximum_setpoint, seconds_since
@@ -111,6 +111,8 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
         self._config_data: Mapping[str, Any] = config_data
 
         self._manufacturer: Optional[Manufacturer] = None
+        self._control_max_relative_modulation: Optional[int] = None
+        self._control_thermostat_setpoint: Optional[float] = None
         self._simulation: bool = bool(self._options.get(CONF_SIMULATION))
         self._heating_system: str = str(config_data.get(CONF_HEATING_SYSTEM, HEATING_SYSTEM_UNKNOWN))
 
@@ -134,6 +136,11 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
         return []
 
     @property
+    def online(self) -> bool:
+        """Return whether the device reports itself as reachable."""
+        return True
+
+    @property
     def device_status(self) -> BoilerStatus:
         """Return the current status of the device."""
         if self.boiler_temperature is None:
@@ -147,7 +154,7 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
 
         if self.device_active:
             if self.boiler_temperature_cold is not None and self.boiler_temperature_cold > self.boiler_temperature:
-                if self.boiler_temperature_derivative is not None and self.boiler_temperature_derivative <= 0:
+                if self.boiler_temperature_derivative is not None and self.boiler_temperature_derivative < STABLE_DERIVATIVE:
                     return BoilerStatus.PUMP_STARTING
 
                 if self._boiler_temperature_tracker.active and self.setpoint > self.boiler_temperature:
@@ -258,6 +265,14 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
         return None
 
     @property
+    def fault_active(self) -> bool:
+        return False
+
+    @property
+    def fault_code(self) -> Optional[int]:
+        return None
+
+    @property
     def boiler_temperature(self) -> Optional[float]:
         return None
 
@@ -291,7 +306,7 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
         if time_delta <= 0:
             return None
 
-        return round((last_temperature - first_temperature) / time_delta, 2)
+        return (last_temperature - first_temperature) / time_delta
 
     @property
     def boiler_temperature_cold(self) -> Optional[float]:
@@ -357,6 +372,16 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
     @property
     def maximum_relative_modulation_value(self) -> Optional[float]:
         return None
+
+    @property
+    def control_max_relative_modulation(self) -> Optional[int]:
+        """Return the maximum relative modulation SAT sent since it last took control."""
+        return self._control_max_relative_modulation
+
+    @property
+    def control_thermostat_setpoint(self) -> Optional[float]:
+        """Return the thermostat setpoint SAT sent since it last took control."""
+        return self._control_thermostat_setpoint
 
     @property
     def minimum_setpoint(self) -> float:
@@ -505,19 +530,26 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
         if self.supports_relative_modulation_management:
             _LOGGER.info("Set maximum relative modulation to %d%%", value)
 
+        self._control_max_relative_modulation = value
+
     async def async_set_control_thermostat_setpoint(self, value: float) -> None:
         """Control the setpoint temperature for the thermostat."""
-        pass
+        self._control_thermostat_setpoint = value
 
     async def async_release_control(self) -> None:
         """Hand boiler control back to the room thermostat."""
-        pass
+        self._control_max_relative_modulation = None
+        self._control_thermostat_setpoint = None
 
     async def async_notify_listeners(self, _time=None) -> None:
         """Notify listeners of an update asynchronously."""
         # Make sure we do not spam
         self._async_unsub_refresh()
         self._debounced_refresh.async_cancel()
+
+        if self._listeners_unsub is not None:
+            self._listeners_unsub()
+            self._listeners_unsub = None
 
         # Inform the listeners that we are updated
         self.async_update_listeners()
@@ -529,16 +561,12 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
         self.data.update(data)
 
         if self.data.is_dirty():
-            # Cancel previous scheduled run, if any
-            if self._listeners_unsub is not None:
-                self._listeners_unsub()
-                self._listeners_unsub = None
-
             # Confirm that we've taken care of the changes
             self.data.reset_dirty()
 
-            # Notify listeners to ensure the entities are updated
-            self._listeners_unsub = async_call_later(self.hass, 5, HassJob(self.async_notify_listeners))
+            # A scheduled run reads the latest data, so a busy bus still notifies every 5 seconds
+            if self._listeners_unsub is None:
+                self._listeners_unsub = async_call_later(self.hass, 5, HassJob(self.async_notify_listeners))
 
     def _get_latest_boiler_cold_temperature(self) -> Optional[float]:
         """Get the latest boiler cold temperature based on recent boiler temperatures."""

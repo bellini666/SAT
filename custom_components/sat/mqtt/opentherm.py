@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional
+from typing import Any, Mapping, Optional
+
+from homeassistant.components import mqtt
+from homeassistant.core import HomeAssistant
 
 from . import SatMqttCoordinator
+from ..const import CONF_PUSH_SETPOINT_TO_THERMOSTAT
 from ..coordinator import DeviceState
-from ..manufacturers.ideal import Ideal
 from ..manufacturers.immergas import Immergas
-from ..manufacturers.intergas import Intergas
-from ..manufacturers.nefit import Nefit
 
 STATE_ON = "ON"
 
@@ -28,6 +29,9 @@ DATA_REL_MIN_MOD_LEVEL_LEGACY = "MaxCapacityMinModLevell_lb_u8"
 DATA_MAX_REL_MOD_LEVEL_SETTING = "MaxRelModLevelSetting"
 DATA_DHW_SETPOINT_MINIMUM = "TdhwSetUBTdhwSetLB_value_lb"
 DATA_DHW_SETPOINT_MAXIMUM = "TdhwSetUBTdhwSetLB_value_hb"
+DATA_FAULT = "fault"
+DATA_FAULT_CODE = "OEMFaultCode"
+DATA_FAULT_FLAGS = "ASF_flags"
 
 _LOGGER: logging.Logger = logging.getLogger(__name__)
 
@@ -35,9 +39,19 @@ _LOGGER: logging.Logger = logging.getLogger(__name__)
 class SatOpenThermMqttCoordinator(SatMqttCoordinator):
     """Class to manage to fetch data from the OTGW Gateway using mqtt."""
 
+    def __init__(self, hass: HomeAssistant, device_id: str, config_data: Mapping[str, Any], options: Mapping[str, Any] | None = None) -> None:
+        super().__init__(hass, device_id, config_data, options)
+
+        self._online: Optional[bool] = None
+        self._hot_water_setpoint: Optional[float] = None
+
     @property
     def device_type(self) -> str:
         return "OpenThermGateway (via mqtt)"
+
+    @property
+    def online(self) -> bool:
+        return self._online is not False
 
     @property
     def supports_setpoint_management(self):
@@ -57,19 +71,35 @@ class SatOpenThermMqttCoordinator(SatMqttCoordinator):
 
     @property
     def device_active(self) -> bool:
-        return self.data.get(DATA_CENTRAL_HEATING) == STATE_ON
+        return self._live_value(DATA_CENTRAL_HEATING) == STATE_ON
 
     @property
     def flame_active(self) -> bool:
-        return self.data.get(DATA_FLAME_ACTIVE) == STATE_ON
+        return self._live_value(DATA_FLAME_ACTIVE) == STATE_ON
 
     @property
     def hot_water_active(self) -> bool:
-        return self.data.get(DATA_DHW_ENABLE) == STATE_ON
+        return self._live_value(DATA_DHW_ENABLE) == STATE_ON
+
+    @property
+    def fault_active(self) -> bool:
+        return self._live_value(DATA_FAULT) == STATE_ON
+
+    @property
+    def fault_code(self) -> Optional[int]:
+        if (value := self._live_value(DATA_FAULT_CODE)) is not None:
+            return int(value)
+
+        return None
+
+    @property
+    def fault_flags(self) -> Optional[str]:
+        """Return the application-specific fault flags (ID 5 high byte), most significant bit first."""
+        return self._live_value(DATA_FAULT_FLAGS)
 
     @property
     def setpoint(self) -> Optional[float]:
-        if (setpoint := self.data.get(DATA_CONTROL_SETPOINT)) is not None:
+        if (setpoint := self._live_value(DATA_CONTROL_SETPOINT)) is not None:
             return float(setpoint)
 
         return None
@@ -83,7 +113,7 @@ class SatOpenThermMqttCoordinator(SatMqttCoordinator):
 
     @property
     def hot_water_setpoint(self) -> Optional[float]:
-        if (setpoint := self.data.get(DATA_DHW_SETPOINT)) is not None:
+        if (setpoint := self._live_value(DATA_DHW_SETPOINT)) is not None:
             return float(setpoint)
 
         return super().hot_water_setpoint
@@ -104,21 +134,21 @@ class SatOpenThermMqttCoordinator(SatMqttCoordinator):
 
     @property
     def boiler_temperature(self) -> Optional[float]:
-        if (value := self.data.get(DATA_BOILER_TEMPERATURE)) is not None:
+        if (value := self._live_value(DATA_BOILER_TEMPERATURE)) is not None:
             return float(value)
 
         return super().boiler_temperature
 
     @property
     def return_temperature(self) -> Optional[float]:
-        if (value := self.data.get(DATA_RETURN_TEMPERATURE)) is not None:
+        if (value := self._live_value(DATA_RETURN_TEMPERATURE)) is not None:
             return float(value)
 
         return super().return_temperature
 
     @property
     def relative_modulation_value(self) -> Optional[float]:
-        if (value := self.data.get(DATA_REL_MOD_LEVEL)) is not None:
+        if (value := self._live_value(DATA_REL_MOD_LEVEL)) is not None:
             return float(value)
 
         return super().relative_modulation_value
@@ -143,7 +173,7 @@ class SatOpenThermMqttCoordinator(SatMqttCoordinator):
 
     @property
     def maximum_relative_modulation_value(self) -> Optional[float]:
-        if (value := self.data.get(DATA_MAX_REL_MOD_LEVEL_SETTING)) is not None:
+        if (value := self._live_value(DATA_MAX_REL_MOD_LEVEL_SETTING)) is not None:
             return float(value)
 
         return super().maximum_relative_modulation_value
@@ -155,13 +185,48 @@ class SatOpenThermMqttCoordinator(SatMqttCoordinator):
 
         return None
 
+    async def async_setup(self):
+        await super().async_setup()
+
+        # OTGW-firmware publishes its retained will message, "online" or "offline", on the bare value namespace
+        self._subscriptions.append(await mqtt.async_subscribe(self.hass, f"{self._topic}/value/{self._device_id}", self._async_availability_changed))
+
+    async def _async_availability_changed(self, message) -> None:
+        was_online = self._online
+        self._online = message.payload == "online"
+
+        if not self._online:
+            self._stale_keys = set(self.data)
+            self.async_update_listeners()
+            return
+
+        # A live "online" is an ESP boot or reconnect; the ESP boot resets the PIC, which drops every override
+        if was_online or message.retain:
+            return
+
+        self._stale_keys = set(self.data)
+        await self.boot()
+        await self.async_set_control_max_setpoint(self.maximum_setpoint)
+
+        if self._hot_water_setpoint is not None:
+            await self.async_set_control_hot_water_setpoint(self._hot_water_setpoint)
+
+        # The last sent MM is set by the first control loop and cleared by the release, so without one SAT is not in control
+        if self._control_max_relative_modulation is None:
+            await self.async_release_control()
+        else:
+            await self.async_set_control_max_relative_modulation(self._control_max_relative_modulation)
+
+        if self._control_thermostat_setpoint is not None:
+            await self.async_set_control_thermostat_setpoint(self._control_thermostat_setpoint)
+
+        # The climate schedules a control loop when the boiler temperature goes missing
+        self.async_update_listeners()
+
     async def boot(self) -> None:
         await self._publish_command("PM=3")
         await self._publish_command("PM=15")
         await self._publish_command("PM=48")
-
-        if isinstance(self.manufacturer, (Ideal, Intergas, Nefit)):
-            await self._publish_command("MI=500")
 
     def get_tracked_entities(self) -> list[str]:
         return [
@@ -180,6 +245,9 @@ class SatOpenThermMqttCoordinator(SatMqttCoordinator):
             DATA_MAX_REL_MOD_LEVEL_SETTING,
             DATA_DHW_SETPOINT_MINIMUM,
             DATA_DHW_SETPOINT_MAXIMUM,
+            DATA_FAULT,
+            DATA_FAULT_CODE,
+            DATA_FAULT_FLAGS,
         ]
 
     async def async_set_control_setpoint(self, value: float) -> None:
@@ -190,6 +258,7 @@ class SatOpenThermMqttCoordinator(SatMqttCoordinator):
 
     async def async_set_control_hot_water_setpoint(self, value: float) -> None:
         await self._publish_command(f"SW={value}")
+        self._hot_water_setpoint = value
 
         await super().async_set_control_hot_water_setpoint(value)
 
@@ -214,6 +283,10 @@ class SatOpenThermMqttCoordinator(SatMqttCoordinator):
     async def async_release_control(self) -> None:
         await self._publish_command("CS=0")
         await self._publish_command("MM=T")
+
+        # TC has no expiry on the gateway, and one sent before a restart is not tracked
+        if self._options.get(CONF_PUSH_SETPOINT_TO_THERMOSTAT):
+            await self._publish_command("TC=0")
 
         await super().async_release_control()
 

@@ -8,12 +8,14 @@ from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv, device_registry, entity_registry as er, issue_registry as ir
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.helpers.storage import Store
+from homeassistant.util import dt as dt_util
 
 from .const import (
     DOMAIN,
     CONF_MODE,
     CONF_NAME,
     CONF_DEVICE,
+    SETUP_FAILED_ISSUE_DELAY,
 )
 from .climate import SatClimate
 from .coordinator import SatDataUpdateCoordinator, SatDataUpdateCoordinatorFactory
@@ -49,31 +51,31 @@ async def async_setup_entry(hass: HomeAssistant, entry: SatConfigEntry):
     coordinator = SatDataUpdateCoordinatorFactory().resolve(
         hass=hass, data=entry.data, options=entry.options, mode=entry.data.get(CONF_MODE), device=entry.data.get(CONF_DEVICE)
     )
+    entry.async_on_unload(lambda: coordinator.async_will_remove_from_hass())
 
     # Making sure everything is loaded
     issue_id = f"setup_failed_{entry.entry_id}"
     try:
         await coordinator.async_setup()
     except ConfigEntryNotReady as exception:
-        ir.async_create_issue(
-            hass,
-            DOMAIN,
-            issue_id,
-            is_fixable=False,
-            severity=ir.IssueSeverity.ERROR,
-            translation_key="setup_failed",
-            translation_placeholders={"title": entry.title, "error": str(exception)},
-        )
+        # MQTT can take a while to connect at boot, so only a lasting failure is a repair issue
+        failing_since = hass.data.setdefault(DOMAIN, {}).setdefault(issue_id, dt_util.utcnow())
+        if dt_util.utcnow() - failing_since >= SETUP_FAILED_ISSUE_DELAY:
+            ir.async_create_issue(
+                hass,
+                DOMAIN,
+                issue_id,
+                is_fixable=False,
+                severity=ir.IssueSeverity.ERROR,
+                translation_key="setup_failed",
+                translation_placeholders={"title": entry.title, "error": str(exception)},
+            )
         raise
 
+    hass.data.get(DOMAIN, {}).pop(issue_id, None)
     ir.async_delete_issue(hass, DOMAIN, issue_id)
 
-    try:
-        climate = SatClimate(coordinator, entry, hass.config.units.temperature_unit)
-    except Exception:
-        await coordinator.async_will_remove_from_hass()
-        raise
-
+    climate = SatClimate(coordinator, entry, hass.config.units.temperature_unit)
     entry.runtime_data = SatRuntimeData(coordinator=coordinator, climate=climate)
 
     async def async_stop(_event: Event) -> None:
@@ -95,10 +97,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: SatConfigEntry) -> bool
     """
     await async_release_control(entry)
 
-    if unloaded := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
-        await entry.runtime_data.coordinator.async_will_remove_from_hass()
-
-    return unloaded
+    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
 
 async def async_release_control(entry: SatConfigEntry) -> None:
@@ -109,6 +108,7 @@ async def async_release_control(entry: SatConfigEntry) -> None:
 
 
 async def async_remove_entry(hass: HomeAssistant, entry: SatConfigEntry) -> None:
+    hass.data.get(DOMAIN, {}).pop(f"setup_failed_{entry.entry_id}", None)
     ir.async_delete_issue(hass, DOMAIN, f"setup_failed_{entry.entry_id}")
 
 
@@ -202,7 +202,8 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             if "push_setpoint_to_thermostat" in new_data:
                 new_options["push_setpoint_to_thermostat"] = new_data.pop("push_setpoint_to_thermostat")
 
-            name = entry.data.get(CONF_NAME)
+            # Matches the str() the v11 climate unique id used
+            name = str(entry.data.get(CONF_NAME))
             prefixes = (f"{name.lower()}-", f"{name}-")
 
             @callback
@@ -221,6 +222,11 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             devices = device_registry.async_get(hass)
             if device := devices.async_get_device_by_identifier((DOMAIN, name), entry.entry_id):
                 devices.async_update_device(device.id, new_identifiers={(DOMAIN, entry.entry_id)})
+
+        if entry.version < 13:
+            for key in ("automatic_gains", "proportional", "integral", "derivative"):
+                if key in new_data and key not in new_options:
+                    new_options[key] = new_data[key]
 
         hass.config_entries.async_update_entry(entry, version=SatFlowHandler.VERSION, data=new_data, options=new_options)
 

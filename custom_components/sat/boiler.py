@@ -11,6 +11,9 @@ _LOGGER = logging.getLogger(__name__)
 STABILIZATION_MARGIN = 5
 EXCEED_SETPOINT_MARGIN = 1.0
 
+# 0.3 °C/min: below this the boiler temperature counts as steady
+STABLE_DERIVATIVE = 0.005
+
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class BoilerState:
@@ -86,7 +89,7 @@ class BoilerTemperatureTracker:
 
     def _handle_tracking(self, boiler_temperature: float, boiler_temperature_derivative: float, setpoint: float) -> None:
         """Handle boiler temperature tracking logic."""
-        if not self._warming_up and boiler_temperature_derivative == 0:
+        if not self._warming_up and abs(boiler_temperature_derivative) < STABLE_DERIVATIVE:
             return self._stop_tracking("Temperature not changing.", boiler_temperature, setpoint)
 
         if boiler_temperature - EXCEED_SETPOINT_MARGIN > setpoint:
@@ -99,7 +102,7 @@ class BoilerTemperatureTracker:
 
     def _handle_adjusting_to_lower_setpoint(self, boiler_temperature: float, boiler_temperature_derivative: float, setpoint: float) -> None:
         """Handle stabilization when adjusting to a lower setpoint."""
-        if boiler_temperature <= setpoint and boiler_temperature_derivative == 0:
+        if boiler_temperature <= setpoint and abs(boiler_temperature_derivative) < STABLE_DERIVATIVE:
             return self._stop_adjusting_to_lower_setpoint("Setpoint stabilization complete.", boiler_temperature, setpoint)
 
         return None

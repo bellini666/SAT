@@ -8,9 +8,12 @@ from freezegun.api import FrozenDateTimeFactory
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import async_fire_time_changed
 
-from custom_components.sat.const import HEATING_SYSTEM_RADIATORS, MINIMUM_SETPOINT
+from custom_components.sat.const import CONF_MAXIMUM_SETPOINT, HEATING_SYSTEM_RADIATORS, MINIMUM_SETPOINT, OPTIONS_DEFAULTS
 from custom_components.sat.coordinator import DeviceState
+from custom_components.sat.manufacturer import Manufacturer
+from custom_components.sat.manufacturers.geminox import Geminox
 from custom_components.sat.overshoot_protection import CalibrationError, OvershootProtection
+from custom_components.sat.simulator import SatSimulatorCoordinator
 
 
 class Boiler:
@@ -23,6 +26,7 @@ class Boiler:
         self.boiler_temperature: float | None = 30.0
         self.relative_modulation_value: float | None = 0.0
         self.minimum_relative_modulation_value: float | None = 12.0
+        self.manufacturer: Manufacturer | None = None
         self.commands: list[tuple[str, object]] = []
         self.gate: asyncio.Event | None = None
         self.error: Exception | None = None
@@ -42,6 +46,9 @@ class Boiler:
 
     async def async_release_control(self) -> None:
         self.commands.append(("release", None))
+
+    async def async_control_heating_loop(self) -> None:
+        pass
 
 
 async def tick(hass: HomeAssistant, freezer: FrozenDateTimeFactory, count: int = 1) -> None:
@@ -99,6 +106,50 @@ async def test_measures_the_plateau(hass: HomeAssistant, freezer: FrozenDateTime
     assert released(boiler)
 
 
+@pytest.mark.parametrize(("flows", "low", "high"), [
+    ([43.5 + step * 0.05 for step in range(30)] + [45.0 + offset for offset in (0.0, 0.2, 0.3, 0.1, 0.2, 0.3, 0.0, 0.2, 0.1, 0.3, 0.2, 0.1)], 45.0, 45.3),
+    ([35, 40, 44, 46, 47, 48, 47, 48, 47, 47, 48, 47, 48, 48, 47, 48, 47], 47.0, 48.0),
+], ids=["slow_rise_is_not_a_plateau", "whole_degree_flicker_is_a_plateau"])
+async def test_plateau_detection(hass: HomeAssistant, freezer: FrozenDateTimeFactory, flows: list[float], low: float, high: float) -> None:
+    boiler = Boiler(hass)
+    _protection, task = start(hass, boiler)
+
+    boiler.flame_active = True
+    boiler.relative_modulation_value = 13
+    for flow in flows:
+        boiler.boiler_temperature = float(flow)
+        await tick(hass, freezer)
+
+    assert task.done()
+    result = await task
+    assert result.method == "minimum_modulation"
+    assert low <= result.value <= high
+
+
+@pytest.mark.parametrize(("minimum", "ramp", "plateau", "method", "value"), [
+    (14.0, 0, 16, "formula", 46.2),
+    (None, 13, 13, "minimum_modulation", 45.2),
+])
+async def test_modulation_floor_is_the_lowest_level_seen(hass: HomeAssistant, freezer: FrozenDateTimeFactory, minimum: float | None, ramp: float, plateau: float, method: str, value: float) -> None:
+    boiler = Boiler(hass)
+    boiler.minimum_relative_modulation_value = minimum
+    _protection, task = start(hass, boiler)
+
+    boiler.flame_active = True
+    boiler.relative_modulation_value = ramp
+    for flow in (35, 40, 44):
+        boiler.boiler_temperature = flow
+        await tick(hass, freezer)
+
+    boiler.relative_modulation_value = plateau
+    for offset in (0.0, 0.2, 0.3, 0.1, 0.2, 0.3, 0.0, 0.2, 0.1, 0.3, 0.2, 0.1):
+        boiler.boiler_temperature = 45.0 + offset
+        await tick(hass, freezer)
+
+    result = await task
+    assert (result.method, result.value) == (method, value)
+
+
 async def test_fails_when_the_floor_plateau_reaches_the_setpoint(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
     boiler = Boiler(hass)
     _protection, task = start(hass, boiler)
@@ -145,6 +196,36 @@ async def test_times_out_without_a_plateau(hass: HomeAssistant, freezer: FrozenD
         await tick(hass, freezer)
 
     with pytest.raises(CalibrationError, match="timeout"):
+        await task
+    assert released(boiler)
+
+
+async def test_hot_water_counts_towards_the_overall_deadline(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+    boiler = Boiler(hass)
+    boiler.hot_water_active = True
+    _protection, task = start(hass, boiler, flame_timeout=timedelta(minutes=5), plateau_timeout=timedelta(minutes=10))
+
+    await tick(hass, freezer, 59)
+    assert not task.done()
+
+    await tick(hass, freezer, 2)
+    assert task.done()
+    with pytest.raises(CalibrationError, match="timeout"):
+        await task
+    assert released(boiler)
+
+
+async def test_fails_early_without_modulation(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+    boiler = Boiler(hass)
+    boiler.relative_modulation_value = None
+    _protection, task = start(hass, boiler)
+
+    boiler.flame_active = True
+    boiler.boiler_temperature = 45.0
+    await tick(hass, freezer, 11)
+
+    assert task.done()
+    with pytest.raises(CalibrationError, match="no_modulation"):
         await task
     assert released(boiler)
 
@@ -230,3 +311,28 @@ async def test_gateway_error_ends_the_calibration(hass: HomeAssistant, freezer: 
     with pytest.raises(RuntimeError, match="gateway"):
         await task
     assert released(boiler)
+
+
+async def test_simulator_heats_during_calibration(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+    simulator = SatSimulatorCoordinator(hass, {**OPTIONS_DEFAULTS, CONF_MAXIMUM_SETPOINT: 55})
+    _protection, task = start(hass, simulator)
+
+    await tick(hass, freezer, 4)
+
+    assert simulator.boiler_temperature > MINIMUM_SETPOINT
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+
+async def test_geminox_gets_the_climate_modulation_clamp(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+    boiler = Boiler(hass)
+    boiler.manufacturer = Geminox()
+    _protection, task = start(hass, boiler)
+    await tick(hass, freezer)
+
+    assert ("MM", 10) in boiler.commands
+    assert ("MM", 0) not in boiler.commands
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task

@@ -5,6 +5,7 @@
       "reconfigure_successful": "Gateway wurde neu konfiguriert."
     },
     "error": {
+      "maximum_setpoint_below_overshoot_protection": "The maximum setpoint can't be below the overshoot protection value.",
       "connection": "Verbindung zum Gateway konnte nicht hergestellt werden.",
       "mqtt_component": "Die MQTT-Komponente ist nicht verfügbar.",
       "unable_to_calibrate": "Der Kalibrierungsprozess ist auf ein Problem gestoßen und konnte nicht erfolgreich abgeschlossen werden. Bitte stellen Sie sicher, dass Ihr Heizsystem ordnungsgemäß funktioniert und dass alle erforderlichen Sensoren angeschlossen und funktionsfähig sind.\n\nWenn Sie weiterhin Probleme mit der Kalibrierung haben, ziehen Sie in Erwägung, uns für weitere Unterstützung zu kontaktieren. Wir entschuldigen uns für etwaige Unannehmlichkeiten."
@@ -144,6 +145,10 @@
     }
   },
   "options": {
+    "error": {
+      "maximum_setpoint_below_overshoot_protection": "The maximum setpoint can't be below the overshoot protection value.",
+      "calibration_timeout": "The calibration flame timeout must be above zero and the plateau timeout at least 5 minutes."
+    },
     "step": {
       "general": {
         "data": {

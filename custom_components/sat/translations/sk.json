@@ -5,6 +5,7 @@
       "reconfigure_successful": "Gateway bol prekonfigurovaný."
     },
     "error": {
+      "maximum_setpoint_below_overshoot_protection": "The maximum setpoint can't be below the overshoot protection value.",
       "invalid_device": "Toto je neplatné zariadenie.",
       "connection": "Nedá sa pripojiť k gateway.",
       "mqtt_component": "MQTT komponent je nedostupný.",
@@ -152,6 +153,10 @@
     }
   },
   "options": {
+    "error": {
+      "maximum_setpoint_below_overshoot_protection": "The maximum setpoint can't be below the overshoot protection value.",
+      "calibration_timeout": "The calibration flame timeout must be above zero and the plateau timeout at least 5 minutes."
+    },
     "step": {
       "general": {
         "data": {
