@@ -181,17 +181,13 @@ class PID:
         :param alpha1: First low-pass filter parameter (0..1).
         :param alpha2: Second low-pass filter parameter (0..1).
         """
-        # If the derivative is disabled, freeze it
-        if not self.derivative_enabled:
-            return
-
         now = monotonic()
         time_diff = now - self._last_derivative_time
         if time_diff <= 0:
             return
 
-        # Basic derivative: slope between current and last error
-        derivative = (error.value - self._last_error) / time_diff
+        # Inside the deadband the error counts as zero, so the filters decay the derivative toward zero without a step
+        derivative = (error.value - self._last_error) / time_diff if self.derivative_enabled else 0.0
 
         # First low-pass filter
         filtered_derivative = alpha1 * derivative + (1 - alpha1) * self._raw_derivative
