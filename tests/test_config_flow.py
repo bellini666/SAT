@@ -292,3 +292,15 @@ async def test_reconfigure_offers_the_overshoot_protection_value_in_use(hass: Ho
 
     field = next(key for key in result["data_schema"].schema if key == "minimum_setpoint")
     assert field.default() == 42
+
+
+async def test_reconfigure_offers_the_saved_manufacturer(hass: HomeAssistant) -> None:
+    entry = MockConfigEntry(domain=DOMAIN, version=SatFlowHandler.VERSION, data={**DEFAULT_USER_DATA, "minimum_setpoint": 45, "heating_system": "radiators", "manufacturer": "Ideal"})
+    entry.add_to_hass(hass)
+
+    result = await reconfigure_to_menu(hass, entry, "overshoot_protection")
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"minimum_setpoint": 45})
+
+    field = next(key for key in result["data_schema"].schema if key == "manufacturer")
+    assert field.default() == "Ideal"
+    hass.config_entries.flow.async_abort(result["flow_id"])

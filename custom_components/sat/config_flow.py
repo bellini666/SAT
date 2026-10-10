@@ -504,7 +504,7 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             last_step=True,
             step_id="manufacturer",
             data_schema=vol.Schema({
-                vol.Required(CONF_MANUFACTURER, default=default_manufacturer): selector.SelectSelector(
+                vol.Required(CONF_MANUFACTURER, default=self.data.get(CONF_MANUFACTURER) or default_manufacturer): selector.SelectSelector(
                     selector.SelectSelectorConfig(options=options)
                 )
             })
