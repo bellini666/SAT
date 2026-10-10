@@ -134,6 +134,30 @@ async def test_whole_degree_flicker_is_a_plateau(hass: HomeAssistant, freezer: F
     assert 47.0 <= result.value <= 48.0
 
 
+@pytest.mark.parametrize(("minimum", "ramp", "plateau", "method", "value"), [
+    (14.0, 0, 16, "formula", 46.2),
+    (None, 13, 13, "minimum_modulation", 45.2),
+])
+async def test_modulation_floor_is_the_lowest_level_seen(hass: HomeAssistant, freezer: FrozenDateTimeFactory, minimum: float | None, ramp: float, plateau: float, method: str, value: float) -> None:
+    boiler = Boiler(hass)
+    boiler.minimum_relative_modulation_value = minimum
+    _protection, task = start(hass, boiler)
+
+    boiler.flame_active = True
+    boiler.relative_modulation_value = ramp
+    for flow in (35, 40, 44):
+        boiler.boiler_temperature = flow
+        await tick(hass, freezer)
+
+    boiler.relative_modulation_value = plateau
+    for offset in (0.0, 0.2, 0.3, 0.1, 0.2, 0.3, 0.0, 0.2, 0.1, 0.3, 0.2, 0.1):
+        boiler.boiler_temperature = 45.0 + offset
+        await tick(hass, freezer)
+
+    result = await task
+    assert (result.method, result.value) == (method, value)
+
+
 async def test_fails_when_the_floor_plateau_reaches_the_setpoint(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
     boiler = Boiler(hass)
     _protection, task = start(hass, boiler)

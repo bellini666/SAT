@@ -74,6 +74,7 @@ class OvershootProtection:
 
         self.phase = "waiting_for_flame"
         self._samples: list[tuple[datetime, float, float]] = []
+        self._lowest_modulation = 100.0
         self._waited = timedelta()
         self._heated = timedelta()
         self._flame_losses = 0
@@ -170,6 +171,7 @@ class OvershootProtection:
         self._heated += elapsed
         if coordinator.boiler_temperature is not None and coordinator.relative_modulation_value is not None:
             self._samples.append((now, float(coordinator.boiler_temperature), float(coordinator.relative_modulation_value)))
+            self._lowest_modulation = min(self._lowest_modulation, float(coordinator.relative_modulation_value))
 
             if (result := self._plateau(now)) is not None:
                 return result
@@ -186,7 +188,8 @@ class OvershootProtection:
         window = [sample for sample in self._samples if sample[0] >= now - PLATEAU_WINDOW]
         flows = [flow for _, flow, _ in window]
         modulations = [modulation for _, _, modulation in window]
-        floor = self._coordinator.minimum_relative_modulation_value or 0
+        # ID 17 is 0 at minimum modulation on spec boilers, others report ID 15's scale (% of maximum capacity)
+        floor = min(self._lowest_modulation, self._coordinator.minimum_relative_modulation_value or 100)
 
         _LOGGER.debug(
             "Calibration window: flow %.1f-%.1f°C, modulation %.0f-%.0f%%, modulation floor %.0f%%",
