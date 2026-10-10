@@ -153,7 +153,7 @@ class Areas:
 
         def update(self, boiler_temperature: float) -> None:
             for area in self.areas:
-                if area.error is not None:
+                if area.error is not None and area.heating_curve.value is not None:
                     area.pid.update(area.error, area.heating_curve.value, boiler_temperature)
 
         def reset(self) -> None:

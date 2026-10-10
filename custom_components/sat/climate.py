@@ -1073,8 +1073,14 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             # Set the relative modulation value, if supported
             await self._async_control_relative_modulation()
 
-            # Control the integral (if exceeded the time limit)
+            # Apply an error change that arrived inside the sample time, then control the integral (if exceeded the time limit)
+            if self._coordinator.boiler_temperature_filtered is not None:
+                self.areas.pids.update(self._coordinator.boiler_temperature_filtered)
+
             if self.heating_curve.value is not None:
+                if self._coordinator.boiler_temperature_filtered is not None:
+                    self.pid.update(self.max_error, self.heating_curve.value, self._coordinator.boiler_temperature_filtered)
+
                 self.pid.update_integral(self.max_error, self.heating_curve.value)
 
             # Control our areas

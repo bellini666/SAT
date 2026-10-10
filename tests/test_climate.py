@@ -1,6 +1,9 @@
 """The tests for the climate component."""
 
+from datetime import timedelta
+
 import pytest
+from freezegun.api import FrozenDateTimeFactory
 from homeassistant.components.climate import HVACMode, PRESET_AWAY
 from homeassistant.components.sensor import DOMAIN as SENSOR_DOMAIN
 from homeassistant.components.template import DOMAIN as TEMPLATE_DOMAIN
@@ -235,4 +238,26 @@ async def test_rooms_attribute_follows_the_room_targets(hass: HomeAssistant) -> 
     await hass.async_block_till_done()
 
     assert entry.runtime_data.climate.extra_state_attributes["rooms"] == {ROOM: 22.0}
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_control_loop_applies_an_error_change_from_inside_the_sample_time(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+    entry = await setup_rooms(hass, {CONF_ROOMS: []})
+    climate = entry.runtime_data.climate
+    await entry.runtime_data.coordinator.async_set_boiler_temperature(40)
+    await climate.async_set_target_temperature(21.0)
+    await climate.async_set_hvac_mode(HVACMode.HEAT)
+
+    freezer.tick(timedelta(seconds=61))
+    hass.states.async_set("sensor.test_inside_sensor", "20.5")
+    await hass.async_block_till_done()
+    freezer.tick(timedelta(seconds=10))
+    hass.states.async_set("sensor.test_inside_sensor", "20.3")
+    await hass.async_block_till_done()
+    assert climate.pid.last_error == 0.5
+
+    freezer.tick(timedelta(seconds=61))
+    await climate.async_control_heating_loop()
+
+    assert climate.pid.last_error == 0.7
     assert await hass.config_entries.async_unload(entry.entry_id)
