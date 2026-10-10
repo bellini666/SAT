@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from time import monotonic
 
 from homeassistant.components.binary_sensor import BinarySensorEntity, BinarySensorDeviceClass
-from homeassistant.components.climate import HVACAction
+from homeassistant.components.climate import HVACAction, HVACMode
 from homeassistant.components.group.binary_sensor import BinarySensorGroup
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_ENTITY_ID
@@ -60,7 +60,8 @@ class SatSynchroSensor:
 
     def state_delayed(self, condition: bool) -> bool:
         """Determine the delayed state based on a condition."""
-        if not condition:
+        # Outside SAT control the boiler follows the room thermostat, so a mismatch is expected
+        if not condition or self._climate.hvac_mode != HVACMode.HEAT or self._climate.control_paused:
             self._last_mismatch = None
             return False
 
