@@ -18,6 +18,7 @@ from custom_components.sat.const import (
     CONF_MINIMUM_SETPOINT,
     DOMAIN,
     HEATING_SYSTEM_RADIATORS,
+    MINIMUM_SETPOINT,
     PWMStatus,
 )
 from tests.const import DEFAULT_USER_DATA
@@ -92,4 +93,18 @@ async def test_full_duty_cycle_stays_on(hass: HomeAssistant, freezer: FrozenDate
     await climate.async_control_heating_loop()
 
     assert climate.pwm.status == PWMStatus.ON
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_cycle_limit_survives_resets_and_holds_off(hass: HomeAssistant) -> None:
+    entry, climate, coordinator = await setup_climate(hass, {CONF_FORCE_PULSE_WIDTH_MODULATION: True})
+    await coordinator.async_set_boiler_temperature(57)
+    await climate.async_set_hvac_mode(HVACMode.HEAT)
+
+    for target in (21.0, 21.05, 21.1, 21.15):
+        await climate.async_set_target_temperature(target)
+        await climate.async_control_heating_loop()
+
+    assert climate.pwm.status == PWMStatus.OFF
+    assert climate.setpoint == MINIMUM_SETPOINT
     assert await hass.config_entries.async_unload(entry.entry_id)
