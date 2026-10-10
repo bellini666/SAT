@@ -416,6 +416,10 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 try:
                     # Make sure all climate valves are open
                     for entity_id in climates:
+                        state = self.hass.states.get(entity_id)
+                        if state is None or climate.HVACMode.HEAT not in state.attributes.get("hvac_modes", []):
+                            continue
+
                         data = {ATTR_ENTITY_ID: entity_id, climate.ATTR_HVAC_MODE: climate.HVACMode.HEAT}
                         await self.hass.services.async_call(climate.DOMAIN, climate.SERVICE_SET_HVAC_MODE, data, blocking=True)
 

@@ -202,6 +202,30 @@ async def test_calibration_restores_the_climate_hvac_modes(hass: HomeAssistant, 
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
+async def test_calibration_skips_a_climate_without_heat_mode(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+    hass.states.async_set("sensor.test_inside_sensor", "19.5")
+    hass.states.async_set("sensor.test_outside_sensor", "5.0")
+    hass.states.async_set("climate.radiator", HVACMode.OFF, {"hvac_modes": [HVACMode.OFF, HVACMode.HEAT]})
+    hass.states.async_set("climate.room", HVACMode.AUTO, {"hvac_modes": [HVACMode.OFF, HVACMode.AUTO]})
+
+    entry = MockConfigEntry(domain=DOMAIN, version=SatFlowHandler.VERSION, data={**DEFAULT_USER_DATA, "minimum_setpoint": 45, "heating_system": "radiators", CONF_RADIATORS: ["climate.radiator"], CONF_ROOMS: ["climate.room"]})
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    await entry.runtime_data.coordinator.async_set_boiler_temperature(40)
+    calls = async_mock_service(hass, "climate", "set_hvac_mode")
+
+    result = await reconfigure_to_menu(hass, entry, "calibrate")
+    await tick(hass, freezer, 14)
+    result = await hass.config_entries.flow.async_configure(result["flow_id"])
+
+    assert result["step_id"] == "calibrated"
+    assert ("climate.room", HVACMode.HEAT) not in [(call.data["entity_id"], call.data["hvac_mode"]) for call in calls]
+
+    hass.config_entries.flow.async_abort(result["flow_id"])
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
 async def test_failed_calibration_offers_manual_entry(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
     entry = await setup_heating_entry(hass)
     coordinator = entry.runtime_data.coordinator
