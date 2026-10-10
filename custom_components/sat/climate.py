@@ -157,6 +157,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         self._control_heating_loop_unsub: Optional[Callable[[], None]] = None
         self._last_control_at = dt_util.utcnow()
         self._inputs_missing_since: Optional[datetime] = None
+        self._valves_open = True
         self.control_paused = False
         self.calibration: Optional[asyncio.Task] = None
         self._control_lock = asyncio.Lock()
@@ -912,8 +913,8 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             _LOGGER.info("Pulse Width Modulation is disabled or in IDLE state. Running normal heating cycle.")
             _LOGGER.debug("Calculated setpoint for normal cycle: %.1f°C", self._calculated_setpoint)
 
-            # Some final checks to see if it's even warm
-            if self._setpoint < COLD_SETPOINT:
+            # Some final checks to see if it's even warm, or if any heat can go anywhere
+            if self._setpoint < COLD_SETPOINT or not self._valves_open:
                 self._setpoint = MINIMUM_SETPOINT
                 _LOGGER.debug("Calculated setpoint is too cold. Setting setpoint to minimum: %.1f°C", MINIMUM_SETPOINT)
         else:
@@ -1060,8 +1061,17 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
                 _LOGGER.info("Overshoot Handling detected, enabling Pulse Width Modulation.")
                 self.pwm.enable()
 
+            # Without open valves there is no demand, so PWM stays idle and the boiler is held at the minimum setpoint
+            if (valves_open := self.valves_open) != self._valves_open:
+                if valves_open:
+                    _LOGGER.info("Valves opened, resuming the heating cycle.")
+                else:
+                    _LOGGER.warning("No valves are open, holding the boiler at the minimum setpoint.")
+
+                self._valves_open = valves_open
+
             # Pulse Width Modulation
-            if not self.pulse_width_modulation_enabled:
+            if not valves_open or not self.pulse_width_modulation_enabled:
                 self.pwm.reset()
             else:
                 await self.pwm.update(flame=self._coordinator.flame, boiler=self._coordinator.boiler, requested_setpoint=self._calculated_setpoint)
