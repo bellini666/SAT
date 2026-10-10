@@ -9,7 +9,8 @@ from freezegun.api import FrozenDateTimeFactory
 from homeassistant.components.climate import HVACMode
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import HomeAssistant
-from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_mqtt_message
+from freezegun.api import FrozenDateTimeFactory
+from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_mqtt_message, async_fire_time_changed
 from pytest_homeassistant_custom_component.typing import MqttMockHAClient
 
 from custom_components.sat.const import (
@@ -184,4 +185,20 @@ async def test_startup_hands_control_back_unless_heating(hass: HomeAssistant, mq
     await hass.async_block_till_done()
 
     assert ({"CS=0", "MM=T"} <= set(commands(mqtt_mock))) is released
+
+
+async def test_listeners_are_notified_while_values_keep_changing(hass: HomeAssistant, mqtt_mock: MqttMockHAClient, freezer: FrozenDateTimeFactory) -> None:
+    entry = await setup_heating(hass, mqtt_mock)
+    updates = []
+    unsubscribe = entry.runtime_data.coordinator.async_add_listener(lambda: updates.append(True))
+
+    for second in range(0, 20, 2):
+        async_fire_mqtt_message(hass, "OTGW/value/otgw/Tboiler", f"{41 + second}.0")
+        await hass.async_block_till_done()
+        freezer.tick(timedelta(seconds=2))
+        async_fire_time_changed(hass)
+        await hass.async_block_till_done()
+
+    assert len(updates) >= 3
+    unsubscribe()
     assert await hass.config_entries.async_unload(entry.entry_id)

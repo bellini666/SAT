@@ -519,6 +519,10 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
         self._async_unsub_refresh()
         self._debounced_refresh.async_cancel()
 
+        if self._listeners_unsub is not None:
+            self._listeners_unsub()
+            self._listeners_unsub = None
+
         # Inform the listeners that we are updated
         self.async_update_listeners()
 
@@ -529,16 +533,12 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
         self.data.update(data)
 
         if self.data.is_dirty():
-            # Cancel previous scheduled run, if any
-            if self._listeners_unsub is not None:
-                self._listeners_unsub()
-                self._listeners_unsub = None
-
             # Confirm that we've taken care of the changes
             self.data.reset_dirty()
 
-            # Notify listeners to ensure the entities are updated
-            self._listeners_unsub = async_call_later(self.hass, 5, HassJob(self.async_notify_listeners))
+            # A scheduled run reads the latest data, so a busy bus still notifies every 5 seconds
+            if self._listeners_unsub is None:
+                self._listeners_unsub = async_call_later(self.hass, 5, HassJob(self.async_notify_listeners))
 
     def _get_latest_boiler_cold_temperature(self) -> Optional[float]:
         """Get the latest boiler cold temperature based on recent boiler temperatures."""
