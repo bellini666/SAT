@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional
+from typing import Any, Mapping, Optional
 
 from homeassistant.components import mqtt
+from homeassistant.core import HomeAssistant
 
 from . import SatMqttCoordinator
 from ..const import CONF_PUSH_SETPOINT_TO_THERMOSTAT
@@ -37,8 +38,11 @@ _LOGGER: logging.Logger = logging.getLogger(__name__)
 class SatOpenThermMqttCoordinator(SatMqttCoordinator):
     """Class to manage to fetch data from the OTGW Gateway using mqtt."""
 
-    _online: Optional[bool] = None
-    _hot_water_setpoint: Optional[float] = None
+    def __init__(self, hass: HomeAssistant, device_id: str, config_data: Mapping[str, Any], options: Mapping[str, Any] | None = None) -> None:
+        super().__init__(hass, device_id, config_data, options)
+
+        self._online: Optional[bool] = None
+        self._hot_water_setpoint: Optional[float] = None
 
     @property
     def device_type(self) -> str:
