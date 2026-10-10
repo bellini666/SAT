@@ -91,8 +91,11 @@ class PID:
         """
         time_elapsed = seconds_since(self._last_updated)
 
-        # If nothing changed, skip
+        # If nothing changed, skip, but keep decaying the derivative inside the deadband
         if error.value == self._last_error:
+            if not self.derivative_enabled and (self._sample_time_limit is None or seconds_since(self._last_derivative_time) >= self._sample_time_limit):
+                self.update_derivative(error)
+
             return
 
         # Enforce minimum sample time if configured
