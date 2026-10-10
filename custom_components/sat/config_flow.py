@@ -344,6 +344,7 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_automatic_gains(self, _user_input: dict[str, Any] | None = None):
         if _user_input is not None:
             self.data.update(_user_input)
+            self.options.update(_user_input)
 
             if not self.data[CONF_AUTOMATIC_GAINS]:
                 return await self.async_step_pid_controller()
@@ -467,9 +468,11 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_pid_controller(self, _user_input: dict[str, Any] | None = None):
         self.data[CONF_AUTOMATIC_GAINS] = False
+        self.options[CONF_AUTOMATIC_GAINS] = False
 
         if _user_input is not None:
             self.data.update(_user_input)
+            self.options.update(_user_input)
 
             if self.data[CONF_MODE] == MODE_SIMULATOR:
                 return await self.async_step_finish()
@@ -530,7 +533,8 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_create_entry(
             title=self.data[CONF_NAME],
-            data=self.data
+            data=self.data,
+            options=self.options
         )
 
     async def async_create_coordinator(self) -> SatDataUpdateCoordinator:

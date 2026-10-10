@@ -363,3 +363,25 @@ async def test_reconfigure_rejects_an_overshoot_protection_value_above_the_maxim
     assert result["step_id"] == "overshoot_protection"
     assert result["errors"] == {"minimum_setpoint": "maximum_setpoint_below_overshoot_protection"}
     hass.config_entries.flow.async_abort(result["flow_id"])
+
+
+async def test_setup_flow_applies_the_manual_pid_gains(hass: HomeAssistant) -> None:
+    hass.states.async_set("sensor.test_inside_sensor", "19.5")
+    hass.states.async_set("sensor.test_outside_sensor", "5.0")
+
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_USER})
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"next_step_id": "simulator"})
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"name": "Test"})
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {
+        "inside_sensor_entity_id": "sensor.test_inside_sensor",
+        "outside_sensor_entity_id": ["sensor.test_outside_sensor"],
+    })
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"heating_system": "radiators"})
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"next_step_id": "pid_controller"})
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"proportional": "10", "integral": "0.2", "derivative": "300"})
+    await hass.async_block_till_done()
+
+    pid = result["result"].runtime_data.climate.pid
+    assert (pid.kp, pid.ki, pid.kd) == (10.0, 0.2, 300.0)
+    assert await hass.config_entries.async_unload(result["result"].entry_id)
