@@ -75,13 +75,14 @@ class SatClimateExtraStoredData(ExtraStoredData):
     hvac_mode: str | None
     target_temperature: float | None
     preset_mode: str | None
+    pre_custom_temperature: float | None
 
     def as_dict(self) -> dict:
         return asdict(self)
 
     @classmethod
     def from_dict(cls, data: dict) -> SatClimateExtraStoredData:
-        return cls(data.get("hvac_mode"), data.get("target_temperature"), data.get("preset_mode"))
+        return cls(data.get("hvac_mode"), data.get("target_temperature"), data.get("preset_mode"), data.get("pre_custom_temperature"))
 
 
 class SatWarmingUp:
@@ -351,6 +352,9 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             if restored.preset_mode in self.preset_modes:
                 self._attr_preset_mode = restored.preset_mode
 
+            if restored.pre_custom_temperature is not None:
+                self._pre_custom_temperature = float(restored.pre_custom_temperature)
+
         # Unavailable or unknown placeholder states carry no attributes worth restoring
         if old_state is not None and old_state.state not in self.hvac_modes:
             old_state = None
@@ -402,6 +406,9 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             if not self._hvac_mode:
                 self._hvac_mode = self._default_hvac_mode
 
+        if self._attr_preset_mode != PRESET_NONE and self._pre_custom_temperature is None:
+            self._pre_custom_temperature = self._target_temperature
+
         self.async_write_ha_state()
 
     async def async_stop_control(self) -> None:
@@ -448,7 +455,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
 
     @property
     def extra_restore_state_data(self) -> SatClimateExtraStoredData:
-        return SatClimateExtraStoredData(self._hvac_mode, self._target_temperature, self._attr_preset_mode)
+        return SatClimateExtraStoredData(self._hvac_mode, self._target_temperature, self._attr_preset_mode, self._pre_custom_temperature)
 
     @property
     def extra_state_attributes(self):
