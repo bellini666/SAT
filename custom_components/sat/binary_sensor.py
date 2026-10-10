@@ -64,7 +64,7 @@ class SatSynchroSensor:
     def state_delayed(self, condition: bool) -> bool:
         """Determine the delayed state based on a condition."""
         # Outside SAT control the boiler follows the room thermostat, so a mismatch is expected
-        if not condition or self._climate.hvac_mode != HVACMode.HEAT or self._climate.control_paused:
+        if not condition or self._climate.hvac_mode != HVACMode.HEAT or self._climate.control_paused or self._climate.setpoint is None:
             self._last_mismatch = None
             return False
 

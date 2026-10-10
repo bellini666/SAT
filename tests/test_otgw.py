@@ -7,7 +7,7 @@ from unittest.mock import patch
 import pytest
 from freezegun.api import FrozenDateTimeFactory
 from homeassistant.components.climate import HVACMode
-from homeassistant.const import EVENT_HOMEASSISTANT_FINAL_WRITE, EVENT_HOMEASSISTANT_STOP, STATE_ON
+from homeassistant.const import EVENT_HOMEASSISTANT_FINAL_WRITE, EVENT_HOMEASSISTANT_STOP, STATE_OFF, STATE_ON
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_mqtt_message, async_fire_time_changed
 from pytest_homeassistant_custom_component.typing import MqttMockHAClient
@@ -181,6 +181,25 @@ async def test_control_is_handed_back_once_inputs_stay_missing(hass: HomeAssista
     await climate.async_control_heating_loop()
 
     assert any(command.startswith("CS=") and command != "CS=0" for command in commands(mqtt_mock))
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_synchro_sensors_ignore_the_room_thermostat_after_the_release(hass: HomeAssistant, mqtt_mock: MqttMockHAClient, freezer: FrozenDateTimeFactory) -> None:
+    entry = await setup_heating(hass, mqtt_mock)
+    climate = entry.runtime_data.climate
+
+    hass.states.async_set("sensor.test_inside_sensor", "unavailable")
+    await climate.async_control_heating_loop()
+    freezer.tick(timedelta(minutes=11))
+    await climate.async_control_heating_loop()
+    async_fire_mqtt_message(hass, "OTGW/value/otgw/MaxRelModLevelSetting", "0.0")
+    await hass.async_block_till_done()
+    climate.async_write_ha_state()
+    freezer.tick(timedelta(seconds=61))
+    climate.async_write_ha_state()
+
+    assert climate.setpoint is None
+    assert hass.states.get("binary_sensor.mock_title_relative_modulation_synchro").state == STATE_OFF
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
