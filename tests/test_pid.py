@@ -40,3 +40,16 @@ def test_derivative_decays_inside_the_deadband(freezer: FrozenDateTimeFactory) -
 
     assert entry_derivative < pid.derivative <= 0.0
     assert abs(pid.derivative) < 0.05 * abs(entry_derivative)
+
+
+def test_integral_stops_on_the_sample_that_leaves_the_deadband(freezer: FrozenDateTimeFactory) -> None:
+    pid = create_pid(ki=0.001)
+
+    for error in (0.3, 0.05, 0.08):
+        step(pid, freezer, error)
+
+    assert pid.integral == 0.002
+
+    step(pid, freezer, 0.5)
+
+    assert pid.integral == 0.0

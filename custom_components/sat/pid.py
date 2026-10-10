@@ -146,7 +146,7 @@ class PID:
             self._last_interval_updated = monotonic()
 
         # Ensure the integral term is enabled
-        if not self.integral_enabled:
+        if abs(error.value) > self._deadband:
             self._integral = 0.0
             return
 
