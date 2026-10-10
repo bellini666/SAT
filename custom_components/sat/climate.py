@@ -1033,6 +1033,11 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             if self.hvac_mode != HVACMode.HEAT or self.control_paused or not self._coordinator.online:
                 return
 
+            # A sensor that stops reporting fires no state change, so the stale reset has to happen here
+            if is_state_stale(self.hass.states.get(self.inside_sensor_entity_id), self._sensor_max_value_age):
+                self.pid.reset()
+                self.areas.pids.reset()
+
             if self.current_temperature is None or self.target_temperature is None or self.current_outside_temperature is None:
                 if self._inputs_missing_since is None:
                     self._inputs_missing_since = dt_util.utcnow()

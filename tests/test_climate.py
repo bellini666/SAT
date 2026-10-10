@@ -296,3 +296,26 @@ async def test_inside_sensor_reporting_the_same_value_is_not_stale(hass: HomeAss
     assert climate.current_temperature == 20.9
     assert climate.pid.integral != 0
     assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_inside_sensor_outage_resets_the_integral(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+    entry = await setup_rooms(hass, {CONF_ROOMS: []})
+    climate = entry.runtime_data.climate
+    await entry.runtime_data.coordinator.async_set_boiler_temperature(40)
+    await climate.async_set_target_temperature(21.0)
+    await climate.async_set_hvac_mode(HVACMode.HEAT)
+
+    for _ in range(3):
+        freezer.tick(timedelta(hours=1))
+        hass.states.async_set("sensor.test_inside_sensor", "20.9", force_update=True)
+        await hass.async_block_till_done()
+        await climate.async_control_heating_loop()
+    assert climate.pid.integral != 0
+
+    freezer.tick(timedelta(hours=7))
+    await climate.async_control_heating_loop()
+    hass.states.async_set("sensor.test_inside_sensor", "20.9", force_update=True)
+    await hass.async_block_till_done()
+
+    assert climate.pid.integral == 0
+    assert await hass.config_entries.async_unload(entry.entry_id)
