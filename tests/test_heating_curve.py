@@ -37,3 +37,14 @@ def test_autotune_moves_against_the_derivative(setpoint: float, derivative: floa
 
     assert heating_curve.coefficient_derivative == derivative
     assert heating_curve.optimal_coefficient == optimal_coefficient
+
+
+def test_heating_curve_stays_flat_once_outside_reaches_the_target() -> None:
+    heating_curve = HeatingCurve(heating_system=HEATING_SYSTEM_RADIATORS, coefficient=1.8)
+
+    heating_curve.update(target_temperature=21.0, outside_temperature=21.0)
+    at_target = heating_curve.value
+
+    heating_curve.update(target_temperature=21.0, outside_temperature=35.0)
+
+    assert heating_curve.value == at_target

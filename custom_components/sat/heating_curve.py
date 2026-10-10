@@ -73,11 +73,14 @@ class HeatingCurve:
     @staticmethod
     def calculate(target_temperature: float, outside_temperature: float) -> float:
         """Calculate the heating curve value based on the current outside temperature"""
+        # The parabola bottoms out near 26.7 °C and rises again, so outside temperatures above the target count as the target
+        outside_temperature = min(outside_temperature, target_temperature)
         return 4 * (target_temperature - 20) + 0.03 * (outside_temperature - 20) ** 2 - 0.4 * (outside_temperature - 20)
 
     @property
     def base_offset(self) -> float:
         """Determine the base offset for the heating system."""
+        # Heat pumps use the radiator offset: upstream's Precision Curve only defines radiators (27.2) and underfloor (20)
         return 20 if self._heating_system == HEATING_SYSTEM_UNDERFLOOR else 27.2
 
     @property
