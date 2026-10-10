@@ -7,7 +7,7 @@ import logging
 from collections.abc import AsyncIterator
 from dataclasses import asdict, dataclass
 from datetime import timedelta, datetime
-from time import monotonic, time
+from time import time
 from typing import Optional, Callable
 
 from homeassistant.components import notify, sensor, weather
@@ -863,7 +863,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             return
 
         # Reset the PID controller if the sensor data is too old
-        if self._sensor_max_value_age != 0 and monotonic() - self.pid.last_updated > self._sensor_max_value_age:
+        if is_state_stale(self.hass.states.get(self.inside_sensor_entity_id), self._sensor_max_value_age):
             self.pid.reset()
             self.areas.pids.reset()
 
