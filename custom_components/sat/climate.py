@@ -949,7 +949,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             relative_modulation_value = max(10, relative_modulation_value)
 
         # Determine if the value needs to be updated
-        if self._coordinator.maximum_relative_modulation_value == relative_modulation_value:
+        if self._coordinator.control_max_relative_modulation == relative_modulation_value == self._coordinator.maximum_relative_modulation_value:
             _LOGGER.debug("Relative modulation value unchanged (%d%%). No update necessary.", relative_modulation_value)
             return
 

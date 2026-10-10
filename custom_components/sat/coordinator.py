@@ -111,6 +111,7 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
         self._config_data: Mapping[str, Any] = config_data
 
         self._manufacturer: Optional[Manufacturer] = None
+        self._control_max_relative_modulation: Optional[int] = None
         self._simulation: bool = bool(self._options.get(CONF_SIMULATION))
         self._heating_system: str = str(config_data.get(CONF_HEATING_SYSTEM, HEATING_SYSTEM_UNKNOWN))
 
@@ -359,6 +360,11 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
         return None
 
     @property
+    def control_max_relative_modulation(self) -> Optional[int]:
+        """Return the maximum relative modulation SAT sent since it last took control."""
+        return self._control_max_relative_modulation
+
+    @property
     def minimum_setpoint(self) -> float:
         """Return the minimum setpoint temperature before the device starts to overshoot."""
         return float(self._options.get(CONF_MINIMUM_SETPOINT, self._config_data.get(CONF_MINIMUM_SETPOINT)))
@@ -505,13 +511,15 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
         if self.supports_relative_modulation_management:
             _LOGGER.info("Set maximum relative modulation to %d%%", value)
 
+        self._control_max_relative_modulation = value
+
     async def async_set_control_thermostat_setpoint(self, value: float) -> None:
         """Control the setpoint temperature for the thermostat."""
         pass
 
     async def async_release_control(self) -> None:
         """Hand boiler control back to the room thermostat."""
-        pass
+        self._control_max_relative_modulation = None
 
     async def async_notify_listeners(self, _time=None) -> None:
         """Notify listeners of an update asynchronously."""

@@ -137,7 +137,7 @@ class SatOpenThermMqttCoordinator(SatMqttCoordinator):
 
     @property
     def maximum_relative_modulation_value(self) -> Optional[float]:
-        if (value := self.data.get(DATA_MAX_REL_MOD_LEVEL_SETTING)) is not None:
+        if (value := self._live_value(DATA_MAX_REL_MOD_LEVEL_SETTING)) is not None:
             return float(value)
 
         return super().maximum_relative_modulation_value

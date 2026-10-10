@@ -263,3 +263,31 @@ async def test_values_are_saved_when_home_assistant_stops(hass: HomeAssistant, m
 
     assert hass_storage[STORAGE_KEY]["data"]["Tboiler"] == "41.0"
     assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_max_modulation_is_sent_again_after_a_release(hass: HomeAssistant, mqtt_mock: MqttMockHAClient) -> None:
+    entry = await setup_heating(hass, mqtt_mock)
+    climate = entry.runtime_data.climate
+    value = climate.relative_modulation_value
+    async_fire_mqtt_message(hass, "OTGW/value/otgw/MaxRelModLevelSetting", f"{value}.00")
+    await hass.async_block_till_done()
+
+    await climate.async_set_hvac_mode(HVACMode.OFF)
+    await climate.async_set_hvac_mode(HVACMode.HEAT)
+    mqtt_mock.async_publish.reset_mock()
+    await climate.async_control_heating_loop()
+
+    assert f"MM={value}" in commands(mqtt_mock)
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_restored_max_modulation_does_not_skip_the_command(hass: HomeAssistant, mqtt_mock: MqttMockHAClient, hass_storage: dict) -> None:
+    hass_storage[STORAGE_KEY] = {"version": 1, "key": STORAGE_KEY, "data": {"MaxRelModLevelSetting": "100.00"}}
+
+    entry = await setup_heating(hass, mqtt_mock)
+    value = entry.runtime_data.climate.relative_modulation_value
+    await entry.runtime_data.climate.async_control_heating_loop()
+
+    assert value == 100
+    assert f"MM={value}" in commands(mqtt_mock)
+    assert await hass.config_entries.async_unload(entry.entry_id)
