@@ -70,21 +70,13 @@ async def test_off_hands_control_back(hass: HomeAssistant, mqtt_mock: MqttMockHA
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
-async def test_off_cancels_the_thermostat_override(hass: HomeAssistant, mqtt_mock: MqttMockHAClient) -> None:
-    entry = await setup_heating(hass, mqtt_mock, {CONF_PUSH_SETPOINT_TO_THERMOSTAT: True})
+@pytest.mark.parametrize("push_setpoint", [True, False])
+async def test_off_cancels_the_thermostat_override_only_when_pushing_the_setpoint(hass: HomeAssistant, mqtt_mock: MqttMockHAClient, push_setpoint: bool) -> None:
+    entry = await setup_heating(hass, mqtt_mock, {CONF_PUSH_SETPOINT_TO_THERMOSTAT: push_setpoint})
 
     await entry.runtime_data.climate.async_set_hvac_mode(HVACMode.OFF)
 
-    assert "TC=0" in commands(mqtt_mock)
-    assert await hass.config_entries.async_unload(entry.entry_id)
-
-
-async def test_off_leaves_the_thermostat_alone_without_an_override(hass: HomeAssistant, mqtt_mock: MqttMockHAClient) -> None:
-    entry = await setup_heating(hass, mqtt_mock)
-
-    await entry.runtime_data.climate.async_set_hvac_mode(HVACMode.OFF)
-
-    assert not any(command.startswith("TC=") for command in commands(mqtt_mock))
+    assert [command for command in commands(mqtt_mock) if command.startswith("TC=")] == (["TC=0"] if push_setpoint else [])
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
