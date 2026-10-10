@@ -8,12 +8,14 @@ from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv, device_registry, entity_registry as er, issue_registry as ir
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.helpers.storage import Store
+from homeassistant.util import dt as dt_util
 
 from .const import (
     DOMAIN,
     CONF_MODE,
     CONF_NAME,
     CONF_DEVICE,
+    SETUP_FAILED_ISSUE_DELAY,
 )
 from .climate import SatClimate
 from .coordinator import SatDataUpdateCoordinator, SatDataUpdateCoordinatorFactory
@@ -56,17 +58,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: SatConfigEntry):
     try:
         await coordinator.async_setup()
     except ConfigEntryNotReady as exception:
-        ir.async_create_issue(
-            hass,
-            DOMAIN,
-            issue_id,
-            is_fixable=False,
-            severity=ir.IssueSeverity.ERROR,
-            translation_key="setup_failed",
-            translation_placeholders={"title": entry.title, "error": str(exception)},
-        )
+        # MQTT can take a while to connect at boot, so only a lasting failure is a repair issue
+        failing_since = hass.data.setdefault(DOMAIN, {}).setdefault(issue_id, dt_util.utcnow())
+        if dt_util.utcnow() - failing_since >= SETUP_FAILED_ISSUE_DELAY:
+            ir.async_create_issue(
+                hass,
+                DOMAIN,
+                issue_id,
+                is_fixable=False,
+                severity=ir.IssueSeverity.ERROR,
+                translation_key="setup_failed",
+                translation_placeholders={"title": entry.title, "error": str(exception)},
+            )
         raise
 
+    hass.data.get(DOMAIN, {}).pop(issue_id, None)
     ir.async_delete_issue(hass, DOMAIN, issue_id)
 
     climate = SatClimate(coordinator, entry, hass.config.units.temperature_unit)
@@ -102,6 +108,7 @@ async def async_release_control(entry: SatConfigEntry) -> None:
 
 
 async def async_remove_entry(hass: HomeAssistant, entry: SatConfigEntry) -> None:
+    hass.data.get(DOMAIN, {}).pop(f"setup_failed_{entry.entry_id}", None)
     ir.async_delete_issue(hass, DOMAIN, f"setup_failed_{entry.entry_id}")
 
 

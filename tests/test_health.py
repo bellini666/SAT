@@ -131,7 +131,7 @@ async def test_flags_missing_boiler_data(hass: HomeAssistant) -> None:
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
-async def test_failed_setup_raises_a_repair_issue(hass: HomeAssistant) -> None:
+async def test_failed_setup_raises_a_repair_issue_after_retrying(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
     entry = MockConfigEntry(
         domain=DOMAIN,
         unique_id="otgw",
@@ -141,6 +141,14 @@ async def test_failed_setup_raises_a_repair_issue(hass: HomeAssistant) -> None:
 
     await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.SETUP_RETRY
+    assert ir.async_get(hass).async_get_issue(DOMAIN, f"setup_failed_{entry.entry_id}") is None
+
+    for _ in range(6):
+        freezer.tick(timedelta(seconds=90))
+        async_fire_time_changed(hass)
+        await hass.async_block_till_done()
 
     assert entry.state is ConfigEntryState.SETUP_RETRY
     issue = ir.async_get(hass).async_get_issue(DOMAIN, f"setup_failed_{entry.entry_id}")
