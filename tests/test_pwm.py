@@ -1,6 +1,7 @@
 """Tests for Pulse Width Modulation state handling in the climate."""
 
 import logging
+from dataclasses import replace
 from datetime import timedelta
 
 import pytest
@@ -93,6 +94,22 @@ async def test_full_duty_cycle_stays_on(hass: HomeAssistant, freezer: FrozenDate
     await climate.async_control_heating_loop()
 
     assert climate.pwm.status == PWMStatus.ON
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_dynamic_minimum_setpoint_below_the_overshoot_value_still_enables_pwm(hass: HomeAssistant) -> None:
+    entry, climate, coordinator = await setup_climate(hass, {CONF_DYNAMIC_MINIMUM_SETPOINT: True})
+    await coordinator.async_set_boiler_temperature(57)
+    climate.minimum_setpoint.warming_up(replace(coordinator.boiler, return_temperature=200))
+    climate.minimum_setpoint.calculate(replace(coordinator.boiler, return_temperature=0), PWMStatus.ON)
+    assert climate.minimum_setpoint.current < coordinator.minimum_setpoint
+
+    await climate.async_set_target_temperature(21.0)
+    await climate.async_set_hvac_mode(HVACMode.HEAT)
+    await climate.async_control_heating_loop()
+
+    assert climate.pulse_width_modulation_enabled
+    assert climate.setpoint == coordinator.minimum_setpoint
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 

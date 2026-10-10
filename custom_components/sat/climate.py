@@ -646,7 +646,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             return self._coordinator.minimum_setpoint > self._calculated_setpoint
 
         if self._minimum_setpoint_version == 1:
-            return self.minimum_setpoint.current > self._calculated_setpoint
+            return self.minimum_setpoint_value > self._calculated_setpoint
 
         return self.pwm.enabled
 
