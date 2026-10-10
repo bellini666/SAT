@@ -208,6 +208,36 @@ async def test_times_out_without_a_plateau(hass: HomeAssistant, freezer: FrozenD
     assert released(boiler)
 
 
+async def test_hot_water_counts_towards_the_overall_deadline(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+    boiler = Boiler(hass)
+    boiler.hot_water_active = True
+    _protection, task = start(hass, boiler, flame_timeout=timedelta(minutes=5), plateau_timeout=timedelta(minutes=10))
+
+    await tick(hass, freezer, 59)
+    assert not task.done()
+
+    await tick(hass, freezer, 2)
+    assert task.done()
+    with pytest.raises(CalibrationError, match="timeout"):
+        await task
+    assert released(boiler)
+
+
+async def test_fails_early_without_modulation(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+    boiler = Boiler(hass)
+    boiler.relative_modulation_value = None
+    _protection, task = start(hass, boiler)
+
+    boiler.flame_active = True
+    boiler.boiler_temperature = 45.0
+    await tick(hass, freezer, 11)
+
+    assert task.done()
+    with pytest.raises(CalibrationError, match="no_modulation"):
+        await task
+    assert released(boiler)
+
+
 async def test_fails_without_a_flame(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
     boiler = Boiler(hass)
     _protection, task = start(hass, boiler, flame_timeout=timedelta(minutes=5))

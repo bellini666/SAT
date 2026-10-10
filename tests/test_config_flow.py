@@ -71,6 +71,40 @@ async def test_options_advanced_section(hass: HomeAssistant, caplog: pytest.LogC
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
+@pytest.mark.parametrize(("flame_timeout", "plateau_timeout"), [("00:00:00", "00:40:00"), ("00:10:00", "00:04:59")])
+async def test_options_reject_calibration_timeouts_without_a_plateau(hass: HomeAssistant, flame_timeout: str, plateau_timeout: str) -> None:
+    entry = MockConfigEntry(domain=DOMAIN, data=DEFAULT_USER_DATA)
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(result["flow_id"], {"next_step_id": "system_configuration"})
+    result = await hass.config_entries.options.async_configure(result["flow_id"], {
+        "automatic_duty_cycle": True,
+        "sync_climates_with_mode": True,
+        "sensor_max_value_age": "06:00:00",
+        "default_hvac_mode": "heat",
+        "window_minimum_open_time": "00:00:15",
+        "advanced": {
+            "simulation": False,
+            "thermal_comfort": False,
+            "dynamic_minimum_setpoint": False,
+            "climate_valve_offset": 0,
+            "target_temperature_step": 0.5,
+            "maximum_relative_modulation": 100,
+            "sample_time": "00:01:00",
+            "calibration_flame_timeout": flame_timeout,
+            "calibration_plateau_timeout": plateau_timeout,
+        },
+    })
+
+    assert result["type"] == "form"
+    assert result["errors"] == {"base": "calibration_timeout"}
+    assert "calibration_flame_timeout" not in entry.options
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
 async def test_cycles_per_hour_follow_the_heating_system(hass: HomeAssistant) -> None:
     entry = MockConfigEntry(domain=DOMAIN, version=SatFlowHandler.VERSION, data={**DEFAULT_USER_DATA, "minimum_setpoint": 45, "heating_system": "heat_pump"})
     entry.add_to_hass(hass)

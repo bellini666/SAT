@@ -154,7 +154,8 @@
   },
   "options": {
     "error": {
-      "maximum_setpoint_below_overshoot_protection": "The maximum setpoint can't be below the overshoot protection value."
+      "maximum_setpoint_below_overshoot_protection": "The maximum setpoint can't be below the overshoot protection value.",
+      "calibration_timeout": "The calibration flame timeout must be above zero and the plateau timeout at least 5 minutes."
     },
     "step": {
       "general": {

@@ -79,12 +79,15 @@ class OvershootProtection:
         self._heated = timedelta()
         self._flame_losses = 0
         self._last_tick = dt_util.utcnow()
+        self._deadline = self._last_tick
         self._result: asyncio.Future[CalibrationResult] = coordinator.hass.loop.create_future()
         self._lock = asyncio.Lock()
 
     async def calculate(self) -> CalibrationResult:
         """Run the calibration and always hand the boiler back afterwards."""
         self._last_tick = dt_util.utcnow()
+        # Leaves the same time again for hot water draws and flame retries
+        self._deadline = self._last_tick + 2 * (self._flame_timeout + self._plateau_timeout)
 
         _LOGGER.info("Starting overshoot protection calibration at %.1f°C", self.setpoint)
         unsubscribe = async_track_time_interval(self._coordinator.hass, self._async_tick, TICK)
@@ -122,6 +125,8 @@ class OvershootProtection:
     async def _async_step(self, now: datetime) -> CalibrationResult | None:
         elapsed = now - self._last_tick
         self._last_tick = now
+        if now > self._deadline:
+            raise CalibrationError("timeout")
 
         coordinator = self._coordinator
         if coordinator.hot_water_active:
@@ -175,6 +180,8 @@ class OvershootProtection:
 
             if (result := self._plateau(now)) is not None:
                 return result
+        elif coordinator.relative_modulation_value is None and self._heated > PLATEAU_WINDOW:
+            raise CalibrationError("no_modulation")
 
         if self._heated > self._plateau_timeout:
             raise CalibrationError("timeout")

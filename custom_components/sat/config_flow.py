@@ -22,9 +22,9 @@ from voluptuous import Marker
 from . import SatDataUpdateCoordinatorFactory
 from .const import *
 from .coordinator import SatDataUpdateCoordinator
-from .helpers import calculate_default_maximum_setpoint, snake_case
+from .helpers import calculate_default_maximum_setpoint, convert_time_str_to_seconds, snake_case
 from .manufacturer import ManufacturerFactory, MANUFACTURERS
-from .overshoot_protection import CalibrationError, create_overshoot_protection
+from .overshoot_protection import PLATEAU_WINDOW, CalibrationError, create_overshoot_protection
 from .validators import valid_serial_device
 
 DEFAULT_NAME = "Living Room"
@@ -691,8 +691,13 @@ class SatOptionsFlowHandler(OptionsFlowWithReload):
         )
 
     async def async_step_system_configuration(self, _user_input: dict[str, Any] | None = None):
+        errors = {}
         if _user_input is not None:
-            return await self.update_options(_user_input)
+            advanced = _user_input["advanced"]
+            if convert_time_str_to_seconds(advanced[CONF_CALIBRATION_FLAME_TIMEOUT]) == 0 or convert_time_str_to_seconds(advanced[CONF_CALIBRATION_PLATEAU_TIMEOUT]) < PLATEAU_WINDOW.total_seconds():
+                errors["base"] = "calibration_timeout"
+            else:
+                return await self.update_options(_user_input)
 
         options = await self.get_options()
 
@@ -765,7 +770,8 @@ class SatOptionsFlowHandler(OptionsFlowWithReload):
 
         return self.async_show_form(
             step_id="system_configuration",
-            data_schema=vol.Schema(schema)
+            data_schema=vol.Schema(schema),
+            errors=errors,
         )
 
     async def update_options(self, _user_input):
