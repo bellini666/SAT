@@ -5,7 +5,7 @@ from homeassistant.helpers import device_registry as dr, entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.sat.config_flow import SatFlowHandler
-from custom_components.sat.const import DOMAIN
+from custom_components.sat.const import CONF_NAME, DOMAIN
 from tests.const import DEFAULT_USER_DATA
 
 
@@ -65,3 +65,17 @@ async def test_v11_moves_push_setpoint_to_options(hass: HomeAssistant) -> None:
     await hass.async_block_till_done()
 
     assert entry.options["push_setpoint_to_thermostat"] is True
+
+
+async def test_v11_without_a_name_migrates(hass: HomeAssistant) -> None:
+    data = {key: value for key, value in DEFAULT_USER_DATA.items() if key != CONF_NAME}
+    entry = MockConfigEntry(domain=DOMAIN, version=11, data={**data, "minimum_setpoint": 45})
+    entry.add_to_hass(hass)
+    entities = er.async_get(hass)
+    entities.async_get_or_create("climate", DOMAIN, "none", config_entry=entry, suggested_object_id="sat")
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entry.version == SatFlowHandler.VERSION
+    assert entities.async_get("climate.sat").unique_id == entry.entry_id

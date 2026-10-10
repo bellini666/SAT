@@ -202,7 +202,8 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             if "push_setpoint_to_thermostat" in new_data:
                 new_options["push_setpoint_to_thermostat"] = new_data.pop("push_setpoint_to_thermostat")
 
-            name = entry.data.get(CONF_NAME)
+            # Matches the str() the v11 climate unique id used
+            name = str(entry.data.get(CONF_NAME))
             prefixes = (f"{name.lower()}-", f"{name}-")
 
             @callback
