@@ -51,7 +51,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: SatConfigEntry):
     coordinator = SatDataUpdateCoordinatorFactory().resolve(
         hass=hass, data=entry.data, options=entry.options, mode=entry.data.get(CONF_MODE), device=entry.data.get(CONF_DEVICE)
     )
-    entry.async_on_unload(coordinator.async_will_remove_from_hass)
+    entry.async_on_unload(lambda: coordinator.async_will_remove_from_hass())
 
     # Making sure everything is loaded
     issue_id = f"setup_failed_{entry.entry_id}"
