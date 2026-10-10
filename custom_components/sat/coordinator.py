@@ -10,7 +10,7 @@ from homeassistant.core import HomeAssistant, callback, HassJob
 from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
-from .boiler import BoilerTemperatureTracker, BoilerState, STABILIZATION_MARGIN
+from .boiler import BoilerTemperatureTracker, BoilerState, STABILIZATION_MARGIN, STABLE_DERIVATIVE
 from .const import *
 from .flame import Flame, FlameState
 from .helpers import calculate_default_maximum_setpoint, seconds_since
@@ -154,7 +154,7 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
 
         if self.device_active:
             if self.boiler_temperature_cold is not None and self.boiler_temperature_cold > self.boiler_temperature:
-                if self.boiler_temperature_derivative is not None and self.boiler_temperature_derivative <= 0:
+                if self.boiler_temperature_derivative is not None and self.boiler_temperature_derivative < STABLE_DERIVATIVE:
                     return BoilerStatus.PUMP_STARTING
 
                 if self._boiler_temperature_tracker.active and self.setpoint > self.boiler_temperature:
