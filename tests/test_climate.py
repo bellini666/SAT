@@ -211,3 +211,16 @@ async def test_missing_temperature_attributes_do_not_break_the_loop(hass: HomeAs
     assert climate.valves_open is False
     assert climate.current_outside_temperature is None
     assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_thermostat_without_a_setpoint_keeps_the_target(hass: HomeAssistant) -> None:
+    hass.states.async_set("climate.thermostat", HVACMode.HEAT, {"temperature": 20.0})
+    entry = await setup_rooms(hass, {CONF_THERMOSTAT: "climate.thermostat"})
+    climate = entry.runtime_data.climate
+    await climate.async_set_target_temperature(21.0)
+
+    hass.states.async_set("climate.thermostat", HVACMode.OFF, {"temperature": None})
+    await hass.async_block_till_done()
+
+    assert climate.target_temperature == 21.0
+    assert await hass.config_entries.async_unload(entry.entry_id)

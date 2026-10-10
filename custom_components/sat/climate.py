@@ -724,12 +724,13 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         if new_state is None or new_state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
             return
 
-        if (
-                old_state.state != new_state.state or
-                old_state.attributes.get("temperature") != new_state.attributes.get("temperature")
-        ):
+        # A thermostat in off or auto reports no setpoint
+        if (temperature := new_state.attributes.get("temperature")) is None:
+            return
+
+        if old_state.state != new_state.state or old_state.attributes.get("temperature") != temperature:
             _LOGGER.debug("Thermostat State Changed.")
-            await self.async_set_target_temperature(new_state.attributes.get("temperature"), cascade=False)
+            await self.async_set_target_temperature(temperature, cascade=False)
 
     async def _async_inside_sensor_changed(self, event: Event[EventStateChangedData]) -> None:
         """Handle changes to the inside temperature sensor."""
