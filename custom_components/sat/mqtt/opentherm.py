@@ -6,6 +6,7 @@ from typing import Optional
 from homeassistant.components import mqtt
 
 from . import SatMqttCoordinator
+from ..const import CONF_PUSH_SETPOINT_TO_THERMOSTAT
 from ..coordinator import DeviceState
 from ..manufacturers.immergas import Immergas
 
@@ -201,7 +202,10 @@ class SatOpenThermMqttCoordinator(SatMqttCoordinator):
         if self._hot_water_setpoint is not None:
             await self.async_set_control_hot_water_setpoint(self._hot_water_setpoint)
 
-        if self._control_max_relative_modulation is not None:
+        # The last sent MM is set by the first control loop and cleared by the release, so without one SAT is not in control
+        if self._control_max_relative_modulation is None:
+            await self.async_release_control()
+        else:
             await self.async_set_control_max_relative_modulation(self._control_max_relative_modulation)
 
         if self._control_thermostat_setpoint is not None:
@@ -270,8 +274,8 @@ class SatOpenThermMqttCoordinator(SatMqttCoordinator):
         await self._publish_command("CS=0")
         await self._publish_command("MM=T")
 
-        # TC has no expiry on the gateway
-        if self._control_thermostat_setpoint is not None:
+        # TC has no expiry on the gateway, and one sent before a restart is not tracked
+        if self._options.get(CONF_PUSH_SETPOINT_TO_THERMOSTAT):
             await self._publish_command("TC=0")
 
         await super().async_release_control()

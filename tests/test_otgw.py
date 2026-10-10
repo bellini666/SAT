@@ -198,13 +198,13 @@ async def test_startup_hands_control_back_unless_heating(hass: HomeAssistant, mq
         domain=DOMAIN,
         unique_id="otgw",
         data={**DEFAULT_USER_DATA, CONF_MODE: MODE_MQTT_OPENTHERM, CONF_DEVICE: "otgw", CONF_MQTT_TOPIC: "OTGW"},
-        options={"default_hvac_mode": hvac_mode},
+        options={"default_hvac_mode": hvac_mode, CONF_PUSH_SETPOINT_TO_THERMOSTAT: True},
     )
     entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
 
-    assert ({"CS=0", "MM=T"} <= set(commands(mqtt_mock))) is released
+    assert ({"CS=0", "MM=T", "TC=0"} <= set(commands(mqtt_mock))) is released
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
@@ -350,6 +350,22 @@ async def test_gateway_reboot_restores_the_overrides(hass: HomeAssistant, mqtt_m
     else:
         assert {"PM=3", "PM=15", "PM=48", f"SH={coordinator.maximum_setpoint}", "SW=50", f"MM={modulation}", "TC=21.0"} <= set(sent)
         assert any(command.startswith("CS=") for command in sent)
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_gateway_reboot_repeats_the_release_while_off(hass: HomeAssistant, mqtt_mock: MqttMockHAClient) -> None:
+    entry = await setup_heating(hass, mqtt_mock, {CONF_PUSH_SETPOINT_TO_THERMOSTAT: True})
+    await entry.runtime_data.climate.async_set_hvac_mode(HVACMode.OFF)
+
+    async_fire_mqtt_message(hass, AVAILABILITY_TOPIC, "offline")
+    await hass.async_block_till_done()
+    mqtt_mock.async_publish.reset_mock()
+    async_fire_mqtt_message(hass, AVAILABILITY_TOPIC, "online")
+    await hass.async_block_till_done()
+
+    sent = commands(mqtt_mock)
+    assert {"CS=0", "MM=T", "TC=0"} <= set(sent)
+    assert not any(command.startswith(("MM=1", "TC=2")) for command in sent)
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
