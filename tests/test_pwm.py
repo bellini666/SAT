@@ -164,6 +164,30 @@ async def test_closed_valves_hold_the_minimum_setpoint(hass: HomeAssistant, capl
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
+async def test_closed_valves_keep_the_pwm_enabled(hass: HomeAssistant) -> None:
+    hass.states.async_set("climate.radiator", HVACMode.HEAT, {"hvac_action": "idle", "temperature": 21.0, "current_temperature": 20.8})
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={**DEFAULT_USER_DATA, CONF_HEATING_SYSTEM: HEATING_SYSTEM_RADIATORS, CONF_MINIMUM_SETPOINT: 57, CONF_MAXIMUM_SETPOINT: 75, CONF_RADIATORS: ["climate.radiator"]},
+        options={CONF_HEATING_CURVE_COEFFICIENT: 1.8},
+    )
+    hass.states.async_set("sensor.test_inside_sensor", "20.9")
+    hass.states.async_set("sensor.test_outside_sensor", "9.9")
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    climate = entry.runtime_data.climate
+
+    await climate.async_set_target_temperature(21.0)
+    await climate.async_set_hvac_mode(HVACMode.HEAT)
+    await climate.async_set_pulse_width_modulation(True)
+    await climate.async_control_heating_loop()
+
+    assert climate.pwm.enabled
+    assert climate.pwm.status == PWMStatus.IDLE
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
 async def test_disable_clears_the_adjusted_setpoint(hass: HomeAssistant) -> None:
     entry, climate, coordinator = await setup_climate(hass, {CONF_FORCE_PULSE_WIDTH_MODULATION: True})
     await coordinator.async_set_boiler_temperature(57)

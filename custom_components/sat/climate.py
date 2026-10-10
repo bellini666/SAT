@@ -1074,8 +1074,11 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
                 self._valves_open = valves_open
 
             # Pulse Width Modulation
-            if not valves_open or not self.pulse_width_modulation_enabled:
+            if not self.pulse_width_modulation_enabled:
                 self.pwm.reset()
+            elif not valves_open:
+                self.pwm.reset()
+                self.pwm.enable()
             else:
                 await self.pwm.update(flame=self._coordinator.flame, boiler=self._coordinator.boiler, requested_setpoint=self._calculated_setpoint)
 
