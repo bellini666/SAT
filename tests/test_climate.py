@@ -8,8 +8,11 @@ from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.sat.climate import SatClimate
+from custom_components.sat.config_flow import SatFlowHandler
 from custom_components.sat.const import *
+from custom_components.sat.errors import Error
 from custom_components.sat.fake import SatFakeCoordinator
+from tests.const import DEFAULT_USER_DATA
 
 
 @pytest.mark.parametrize(*[
@@ -150,3 +153,24 @@ async def test_scenario_3(hass: HomeAssistant, entry: MockConfigEntry, climate: 
     assert climate.pulse_width_modulation_enabled
     assert climate.pwm.last_duty_cycle_percentage == 53.62
     assert climate.pwm.duty_cycle == (643, 556)
+
+
+async def test_pid_uses_the_configured_heating_system(hass: HomeAssistant) -> None:
+    hass.states.async_set("sensor.test_inside_sensor", "20.9")
+    hass.states.async_set("sensor.test_outside_sensor", "9.9")
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=SatFlowHandler.VERSION,
+        data={**DEFAULT_USER_DATA, CONF_HEATING_SYSTEM: HEATING_SYSTEM_UNDERFLOOR, CONF_MINIMUM_SETPOINT: 10, CONF_MAXIMUM_SETPOINT: 55},
+        options={CONF_HEATING_CURVE_COEFFICIENT: 1.8},
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    climate = entry.runtime_data.climate
+    climate.pid.update_reset(error=Error("sensor.test_inside_sensor", 0.0), heating_curve_value=30.0)
+
+    assert climate.pid.kp == 13.5
+    assert await hass.config_entries.async_unload(entry.entry_id)
