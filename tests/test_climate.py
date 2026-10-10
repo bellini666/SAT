@@ -1,7 +1,7 @@
 """The tests for the climate component."""
 
 import pytest
-from homeassistant.components.climate import HVACMode
+from homeassistant.components.climate import HVACMode, PRESET_AWAY
 from homeassistant.components.sensor import DOMAIN as SENSOR_DOMAIN
 from homeassistant.components.template import DOMAIN as TEMPLATE_DOMAIN
 from homeassistant.core import HomeAssistant
@@ -223,4 +223,16 @@ async def test_thermostat_without_a_setpoint_keeps_the_target(hass: HomeAssistan
     await hass.async_block_till_done()
 
     assert climate.target_temperature == 21.0
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_rooms_attribute_follows_the_room_targets(hass: HomeAssistant) -> None:
+    hass.states.async_set(ROOM, HVACMode.HEAT, {"temperature": 21.0, "current_temperature": 20.0})
+    entry = await setup_rooms(hass)
+    await entry.runtime_data.climate.async_set_preset_mode(PRESET_AWAY)
+
+    hass.states.async_set(ROOM, HVACMode.HEAT, {"temperature": 22.0, "current_temperature": 20.0})
+    await hass.async_block_till_done()
+
+    assert entry.runtime_data.climate.extra_state_attributes["rooms"] == {ROOM: 22.0}
     assert await hass.config_entries.async_unload(entry.entry_id)
