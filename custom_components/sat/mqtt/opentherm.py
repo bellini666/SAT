@@ -36,7 +36,6 @@ _LOGGER: logging.Logger = logging.getLogger(__name__)
 class SatOpenThermMqttCoordinator(SatMqttCoordinator):
     """Class to manage to fetch data from the OTGW Gateway using mqtt."""
 
-    _thermostat_setpoint: Optional[float] = None
     _online: Optional[bool] = None
     _hot_water_setpoint: Optional[float] = None
 
@@ -205,8 +204,8 @@ class SatOpenThermMqttCoordinator(SatMqttCoordinator):
         if self._control_max_relative_modulation is not None:
             await self.async_set_control_max_relative_modulation(self._control_max_relative_modulation)
 
-        if self._thermostat_setpoint is not None:
-            await self.async_set_control_thermostat_setpoint(self._thermostat_setpoint)
+        if self._control_thermostat_setpoint is not None:
+            await self.async_set_control_thermostat_setpoint(self._control_thermostat_setpoint)
 
         # The climate schedules a control loop when the boiler temperature goes missing
         self.async_update_listeners()
@@ -251,7 +250,6 @@ class SatOpenThermMqttCoordinator(SatMqttCoordinator):
 
     async def async_set_control_thermostat_setpoint(self, value: float) -> None:
         await self._publish_command(f"TC={value}")
-        self._thermostat_setpoint = value
 
         await super().async_set_control_thermostat_setpoint(value)
 
@@ -273,9 +271,8 @@ class SatOpenThermMqttCoordinator(SatMqttCoordinator):
         await self._publish_command("MM=T")
 
         # TC has no expiry on the gateway
-        if self._thermostat_setpoint is not None:
+        if self._control_thermostat_setpoint is not None:
             await self._publish_command("TC=0")
-            self._thermostat_setpoint = None
 
         await super().async_release_control()
 

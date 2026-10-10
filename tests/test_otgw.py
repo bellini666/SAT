@@ -88,6 +88,24 @@ async def test_off_leaves_the_thermostat_alone_without_an_override(hass: HomeAss
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
+@pytest.mark.parametrize("release", ["reload", "off"])
+async def test_control_loop_restores_the_thermostat_override_after_a_release(hass: HomeAssistant, mqtt_mock: MqttMockHAClient, release: str) -> None:
+    entry = await setup_heating(hass, mqtt_mock, {CONF_PUSH_SETPOINT_TO_THERMOSTAT: True})
+
+    if release == "reload":
+        assert await hass.config_entries.async_reload(entry.entry_id)
+        await hass.async_block_till_done()
+    else:
+        await entry.runtime_data.climate.async_set_hvac_mode(HVACMode.OFF)
+        await entry.runtime_data.climate.async_set_hvac_mode(HVACMode.HEAT)
+
+    await entry.runtime_data.climate.async_control_heating_loop()
+    sent = commands(mqtt_mock)
+
+    assert "TC=21.0" in sent[sent.index("TC=0"):]
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
 async def test_unload_hands_control_back(hass: HomeAssistant, mqtt_mock: MqttMockHAClient) -> None:
     entry = await setup_heating(hass, mqtt_mock)
 
