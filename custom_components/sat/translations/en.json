@@ -2,7 +2,8 @@
   "config": {
     "abort": {
       "already_configured": "Gateway is already configured.",
-      "reconfigure_successful": "Gateway has been re-configured."
+      "reconfigure_successful": "Gateway has been re-configured.",
+      "already_in_progress": "A calibration is already running."
     },
     "error": {
       "invalid_device": "This is an invalid device.",
@@ -108,7 +109,7 @@
           "device": "URL",
           "name": "Name"
         },
-        "description": "To establish a connection with the OpenTherm Gateway using a socket connection, please provide the following details. In the Name field, enter a name for the gateway that will help you identify it within your system.\n\nSpecify the network address of the OpenTherm Gateway in the Device field. This could be in the format of \"socket://otgw.local:25238\", where \"otgw.local\" is the hostname or IP address of the gateway and \"25238\" is the port number.\n\nThese settings are essential for establishing communication and integration with your OpenTherm Gateway through the socket connection. Ensure that the provided details are accurate to ensure proper functionality.",
+        "description": "To establish a connection with the OpenTherm Gateway using a socket connection, please provide the following details. In the Name field, enter a name for the gateway that will help you identify it within your system.\n\nSpecify the network address of the OpenTherm Gateway in the Device field. This could be in the format of \"{example_device}\", where \"otgw.local\" is the hostname or IP address of the gateway and \"25238\" is the port number.\n\nThese settings are essential for establishing communication and integration with your OpenTherm Gateway through the socket connection. Ensure that the provided details are accurate to ensure proper functionality.",
         "title": "OpenTherm Gateway ( SERIAL )"
       },
       "simulator": {
@@ -153,32 +154,6 @@
   },
   "options": {
     "step": {
-      "advanced": {
-        "data": {
-          "error_monitoring": "Enable error monitoring",
-          "climate_valve_offset": "Climate valve offset",
-          "dynamic_minimum_setpoint": "Dynamic Minimum Setpoint (Experimental)",
-          "force_pulse_width_modulation": "Force Pulse Width Modulation",
-          "maximum_consumption": "Maximum Consumption",
-          "maximum_relative_modulation": "Maximum Relative Modulation",
-          "minimum_consumption": "Minimum Consumption",
-          "sample_time": "Sample Time",
-          "simulation": "Simulation",
-          "target_temperature_step": "Target Temperature Step",
-          "thermal_comfort": "Thermal Comfort"
-        },
-        "data_description": {
-          "climate_valve_offset": "Offset to adjust the opening degree of the climate valve.",
-          "dynamic_minimum_setpoint": "Activates the dynamic setpoint adjustment based on the boiler's return temperature, which also helps identify if any valves are closed.",
-          "maximum_consumption": "The maximum gas consumption when the boiler is active.",
-          "maximum_relative_modulation": "Representing the highest modulation level for an efficient heating system.",
-          "minimum_consumption": "The minimum gas consumption when the boiler is active.",
-          "sample_time": "The minimum time interval between updates to the PID controller.",
-          "target_temperature_step": "Adjust the target temperature step for fine-tuning comfort levels.",
-          "thermal_comfort": "Enable the use of the Simmer Index for thermal comfort adjustment."
-        },
-        "title": "Advanced"
-      },
       "general": {
         "data": {
           "automatic_gains_value": "Automatic Gains Value",
@@ -193,7 +168,8 @@
           "pid_controller_version": "PID Controller Version",
           "proportional": "Proportional (kP)",
           "window_sensors": "Contact Sensors",
-          "heating_mode": "Heating Mode"
+          "heating_mode": "Heating Mode",
+          "minimum_setpoint": "Overshoot protection value"
         },
         "data_description": {
           "automatic_gains_value": "The value used for automatic gains in the PID controller.",
@@ -204,14 +180,14 @@
           "integral": "The integral term (kI) in the PID controller, responsible for reducing steady-state error.",
           "maximum_setpoint": "The optimal temperature for efficient boiler operation.",
           "proportional": "The proportional term (kP) in the PID controller, responsible for the immediate response to errors.",
-          "window_sensors": "Contact Sensors that trigger the system to react when a window or door is open for a period of time."
+          "window_sensors": "Contact Sensors that trigger the system to react when a window or door is open for a period of time.",
+          "minimum_setpoint": "Lowest flow temperature the boiler holds at minimum modulation."
         },
         "description": "General settings and configurations.",
         "title": "General"
       },
       "init": {
         "menu_options": {
-          "advanced": "Advanced Options",
           "general": "General",
           "presets": "Presets",
           "system_configuration": "System Configuration"
@@ -237,17 +213,50 @@
           "sync_climates_with_mode": "Synchronize climates with mode",
           "overshoot_protection": "Overshoot Protection (with PWM)",
           "sensor_max_value_age": "Temperature Sensor maximum value age",
-          "window_minimum_open_time": "Minimum time for window to be open"
+          "window_minimum_open_time": "Minimum time for window to be open",
+          "default_hvac_mode": "Mode when nothing can be restored"
         },
         "data_description": {
           "cycles_per_hour": "The maximum amount of duty cycles per hour.",
           "automatic_duty_cycle": "Enable or disable automatic duty cycle for Pulse Width Modulation (PWM).",
           "overshoot_protection": "Enable overshoot protection with Pulse Width Modulation (PWM) to prevent boiler temperature overshooting.",
           "sensor_max_value_age": "The maximum age of the temperature sensor value before considering it as a stall.",
-          "window_minimum_open_time": "The minimum time a window must be open before the system reacts."
+          "window_minimum_open_time": "The minimum time a window must be open before the system reacts.",
+          "default_hvac_mode": "HVAC mode used on the first start, or when no saved state is available."
         },
         "description": "For fine-tuning and customization.",
-        "title": "System Configuration"
+        "title": "System Configuration",
+        "sections": {
+          "advanced": {
+            "name": "Advanced",
+            "data": {
+              "climate_valve_offset": "Climate valve offset",
+              "dynamic_minimum_setpoint": "Dynamic Minimum Setpoint (Experimental)",
+              "force_pulse_width_modulation": "Force Pulse Width Modulation",
+              "maximum_consumption": "Maximum Consumption",
+              "maximum_relative_modulation": "Maximum Relative Modulation",
+              "minimum_consumption": "Minimum Consumption",
+              "sample_time": "Sample Time",
+              "simulation": "Simulation",
+              "target_temperature_step": "Target Temperature Step",
+              "thermal_comfort": "Thermal Comfort",
+              "calibration_flame_timeout": "Calibration flame timeout",
+              "calibration_plateau_timeout": "Calibration plateau timeout"
+            },
+            "data_description": {
+              "climate_valve_offset": "Offset to adjust the opening degree of the climate valve.",
+              "dynamic_minimum_setpoint": "Activates the dynamic setpoint adjustment based on the boiler's return temperature, which also helps identify if any valves are closed.",
+              "maximum_consumption": "The maximum gas consumption when the boiler is active.",
+              "maximum_relative_modulation": "Representing the highest modulation level for an efficient heating system.",
+              "minimum_consumption": "The minimum gas consumption when the boiler is active.",
+              "sample_time": "The minimum time interval between updates to the PID controller.",
+              "target_temperature_step": "Adjust the target temperature step for fine-tuning comfort levels.",
+              "thermal_comfort": "Enable the use of the Simmer Index for thermal comfort adjustment.",
+              "calibration_flame_timeout": "How long the overshoot protection calibration waits for the burner to light.",
+              "calibration_plateau_timeout": "How long the overshoot protection calibration heats while waiting for a stable flow temperature."
+            }
+          }
+        }
       }
     }
   },
@@ -265,6 +274,75 @@
           "description": "The state you want to force."
         }
       }
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "control_setpoint_synchro": {
+        "name": "Control setpoint synchro"
+      },
+      "relative_modulation_synchro": {
+        "name": "Relative modulation synchro"
+      },
+      "central_heating_synchro": {
+        "name": "Central heating synchro"
+      },
+      "boiler_health": {
+        "name": "Boiler health"
+      },
+      "flame_health": {
+        "name": "Flame health"
+      },
+      "window": {
+        "name": "Window"
+      },
+      "heating_control": {
+        "name": "Heating control",
+        "state_attributes": {
+          "problems": {
+            "name": "Problems"
+          }
+        }
+      }
+    },
+    "number": {
+      "hot_water_setpoint": {
+        "name": "Hot water setpoint"
+      }
+    },
+    "sensor": {
+      "boiler_power": {
+        "name": "Boiler power"
+      },
+      "boiler_consumption": {
+        "name": "Boiler gas consumption"
+      },
+      "heating_curve": {
+        "name": "Heating curve"
+      },
+      "error_value": {
+        "name": "Error value"
+      },
+      "boiler_manufacturer": {
+        "name": "Boiler manufacturer"
+      },
+      "flame_status": {
+        "name": "Flame status"
+      },
+      "boiler_status": {
+        "name": "Boiler status"
+      }
+    },
+    "button": {
+      "calibrate_overshoot_protection": {
+        "name": "Calibrate overshoot protection"
+      }
+    }
+  },
+  "issues": {
+    "setup_failed": {
+      "title": "SAT {title} is not controlling the boiler",
+      "description": "Setting up {title} failed and Home Assistant keeps retrying: {error}\n\nWhile it retries, the room thermostat attached to the boiler is in control."
     }
   }
 }

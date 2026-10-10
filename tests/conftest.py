@@ -1,11 +1,14 @@
 """Fixtures for testing."""
+import asyncio
+from types import SimpleNamespace
+
 import pytest
 from _pytest.logging import LogCaptureFixture
 from homeassistant.core import HomeAssistant
 from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import assert_setup_component, MockConfigEntry
 
-from custom_components.sat.const import DOMAIN, CLIMATE, COORDINATOR
+from custom_components.sat.const import DOMAIN
 from custom_components.sat.climate import SatClimate
 from custom_components.sat.fake import SatFakeCoordinator
 from tests.const import DEFAULT_USER_DATA
@@ -14,6 +17,18 @@ from tests.const import DEFAULT_USER_DATA
 @pytest.fixture(autouse=True)
 def auto_enable_custom_integrations(enable_custom_integrations):
     yield
+
+
+@pytest.fixture
+async def instant_mqtt_command_delay(hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch):
+    async def sleep(_delay: float) -> None:
+        pass
+
+    monkeypatch.setattr("custom_components.sat.mqtt.asyncio", SimpleNamespace(sleep=sleep))
+    yield
+
+    # The MQTT client misc timer stops on its first run against the paho mock, one second after it starts
+    await asyncio.sleep(1.1)
 
 
 @pytest.fixture
@@ -39,9 +54,9 @@ async def entry(hass: HomeAssistant, domains: list, data: dict, options: dict, c
 
 @pytest.fixture
 async def climate(hass, entry: MockConfigEntry) -> SatClimate:
-    return hass.data[DOMAIN][entry.entry_id][CLIMATE]
+    return entry.runtime_data.climate
 
 
 @pytest.fixture
 async def coordinator(hass, entry: MockConfigEntry) -> SatFakeCoordinator:
-    return hass.data[DOMAIN][entry.entry_id][COORDINATOR]
+    return entry.runtime_data.coordinator

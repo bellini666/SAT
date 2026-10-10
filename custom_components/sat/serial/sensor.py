@@ -85,7 +85,7 @@ SENSOR_INFO: dict[str, SatSensorInfo] = {
 
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, async_add_entities):
     """Setup sensor platform."""
-    coordinator = hass.data[DOMAIN][config_entry.entry_id][COORDINATOR]
+    coordinator = config_entry.runtime_data.coordinator
     has_thermostat = coordinator.data[OTGW].get(OTGW_THRM_DETECT) != "D"
 
     # Create a list of entities to be added
@@ -106,6 +106,8 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
 
 
 class SatSensor(SatEntity, sensor.SensorEntity):
+    _attr_has_entity_name = False
+
     def __init__(self, coordinator: SatSerialCoordinator, config_entry: ConfigEntry, info: SatSensorInfo, key: str, source: str):
         super().__init__(coordinator, config_entry)
 
@@ -157,4 +159,4 @@ class SatSensor(SatEntity, sensor.SensorEntity):
     @property
     def unique_id(self):
         """Return a unique ID to use for this entity."""
-        return f"{self._config_entry.data.get(CONF_NAME).lower()}-{self._source}-{self._key}"
+        return f"{self._config_entry.entry_id}-{self._source}-{self._key}"

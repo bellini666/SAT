@@ -106,7 +106,7 @@
           "device": "URL",
           "name": "Nome"
         },
-        "description": "Para estabelecer uma ligação com o OpenTherm Gateway usando uma ligação socket, por favor forneça os seguintes detalhes. No campo Nome, insira um nome para o gateway que o ajudará a identificá-lo dentro do seu sistema.\n\nEspecifique o endereço de rede do OpenTherm Gateway no campo Dispositivo. Isto pode ser no formato \"socket://otgw.local:25238\", onde \"otgw.local\" é o nome de host ou endereço IP do gateway e \"25238\" é o número da porta.\n\nEstas definições são essenciais para estabelecer comunicação e integração com o seu OpenTherm Gateway através da ligação socket. Assegure-se de que os detalhes fornecidos são precisos para garantir funcionalidade adequada.",
+        "description": "Para estabelecer uma ligação com o OpenTherm Gateway usando uma ligação socket, por favor forneça os seguintes detalhes. No campo Nome, insira um nome para o gateway que o ajudará a identificá-lo dentro do seu sistema.\n\nEspecifique o endereço de rede do OpenTherm Gateway no campo Dispositivo. Isto pode ser no formato \"{example_device}\", onde \"otgw.local\" é o nome de host ou endereço IP do gateway e \"25238\" é o número da porta.\n\nEstas definições são essenciais para estabelecer comunicação e integração com o seu OpenTherm Gateway através da ligação socket. Assegure-se de que os detalhes fornecidos são precisos para garantir funcionalidade adequada.",
         "title": "OpenTherm Gateway ( SERIAL )"
       },
       "simulator": {
@@ -145,32 +145,6 @@
   },
   "options": {
     "step": {
-      "advanced": {
-        "data": {
-          "error_monitoring": "Ativar monitoramento de erros",
-          "climate_valve_offset": "Offset da válvula do clima",
-          "dynamic_minimum_setpoint": "Setpoint Mínimo Dinâmico (Experimental)",
-          "force_pulse_width_modulation": "Forçar Modulação por Largura de Pulso",
-          "maximum_consumption": "Consumo Máximo",
-          "maximum_relative_modulation": "Modulação Relativa Máxima",
-          "minimum_consumption": "Consumo Mínimo",
-          "sample_time": "Tempo de Amostragem",
-          "simulation": "Simulação",
-          "target_temperature_step": "Passo da Temperatura Alvo",
-          "thermal_comfort": "Conforto Térmico"
-        },
-        "data_description": {
-          "climate_valve_offset": "Offset para ajustar o grau de abertura da válvula do clima.",
-          "dynamic_minimum_setpoint": "Ativa o ajuste dinâmico do setpoint com base na temperatura de retorno da caldeira, o que também ajuda a identificar se alguma válvula está fechada.",
-          "maximum_consumption": "O consumo máximo de gás quando a caldeira está ativa.",
-          "maximum_relative_modulation": "Representa o nível máximo de modulação para um sistema de aquecimento eficiente.",
-          "minimum_consumption": "O consumo mínimo de gás quando a caldeira está ativa.",
-          "sample_time": "O intervalo de tempo mínimo entre atualizações do controlador PID.",
-          "target_temperature_step": "Ajuste o passo da temperatura alvo para afinação do nível de conforto.",
-          "thermal_comfort": "Ativar o uso do Índice de Simmer para ajuste do conforto térmico."
-        },
-        "title": "Avançado"
-      },
       "general": {
         "data": {
           "automatic_gains_value": "Valor de Ganhos Automáticos",
@@ -202,7 +176,6 @@
       },
       "init": {
         "menu_options": {
-          "advanced": "Opções Avançadas",
           "general": "Geral",
           "presets": "Predefinições",
           "system_configuration": "Configuração do Sistema"
@@ -236,7 +209,34 @@
           "window_minimum_open_time": "O tempo mínimo que uma janela deve estar aberta antes de o sistema reagir."
         },
         "description": "Para afinação e personalização.",
-        "title": "Configuração do Sistema"
+        "title": "Configuração do Sistema",
+        "sections": {
+          "advanced": {
+            "name": "Avançado",
+            "data": {
+              "climate_valve_offset": "Offset da válvula do clima",
+              "dynamic_minimum_setpoint": "Setpoint Mínimo Dinâmico (Experimental)",
+              "force_pulse_width_modulation": "Forçar Modulação por Largura de Pulso",
+              "maximum_consumption": "Consumo Máximo",
+              "maximum_relative_modulation": "Modulação Relativa Máxima",
+              "minimum_consumption": "Consumo Mínimo",
+              "sample_time": "Tempo de Amostragem",
+              "simulation": "Simulação",
+              "target_temperature_step": "Passo da Temperatura Alvo",
+              "thermal_comfort": "Conforto Térmico"
+            },
+            "data_description": {
+              "climate_valve_offset": "Offset para ajustar o grau de abertura da válvula do clima.",
+              "dynamic_minimum_setpoint": "Ativa o ajuste dinâmico do setpoint com base na temperatura de retorno da caldeira, o que também ajuda a identificar se alguma válvula está fechada.",
+              "maximum_consumption": "O consumo máximo de gás quando a caldeira está ativa.",
+              "maximum_relative_modulation": "Representa o nível máximo de modulação para um sistema de aquecimento eficiente.",
+              "minimum_consumption": "O consumo mínimo de gás quando a caldeira está ativa.",
+              "sample_time": "O intervalo de tempo mínimo entre atualizações do controlador PID.",
+              "target_temperature_step": "Ajuste o passo da temperatura alvo para afinação do nível de conforto.",
+              "thermal_comfort": "Ativar o uso do Índice de Simmer para ajuste do conforto térmico."
+            }
+          }
+        }
       }
     }
   }

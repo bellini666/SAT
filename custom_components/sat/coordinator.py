@@ -130,6 +130,10 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
         pass
 
     @property
+    def messages(self) -> list[dict[str, str]]:
+        return []
+
+    @property
     def device_status(self) -> BoilerStatus:
         """Return the current status of the device."""
         if self.boiler_temperature is None:
@@ -357,7 +361,7 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
     @property
     def minimum_setpoint(self) -> float:
         """Return the minimum setpoint temperature before the device starts to overshoot."""
-        return float(self._config_data.get(CONF_MINIMUM_SETPOINT))
+        return float(self._options.get(CONF_MINIMUM_SETPOINT, self._config_data.get(CONF_MINIMUM_SETPOINT)))
 
     @property
     def maximum_setpoint(self) -> float:
@@ -423,7 +427,11 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
 
     async def async_will_remove_from_hass(self) -> None:
         """Run when an entity is removed from hass."""
-        pass
+        if self._listeners_unsub is not None:
+            self._listeners_unsub()
+            self._listeners_unsub = None
+
+        await self.async_shutdown()
 
     async def async_control_heating_loop(self, climate: Optional[SatClimate] = None, pwm_state: Optional[PWMState] = None, _time=None) -> None:
         """Control the heating loop for the device."""
@@ -499,6 +507,10 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
 
     async def async_set_control_thermostat_setpoint(self, value: float) -> None:
         """Control the setpoint temperature for the thermostat."""
+        pass
+
+    async def async_release_control(self) -> None:
+        """Hand boiler control back to the room thermostat."""
         pass
 
     async def async_notify_listeners(self, _time=None) -> None:

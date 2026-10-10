@@ -106,7 +106,7 @@
           "device": "URL",
           "name": "Nombre"
         },
-        "description": "Para establecer una conexión con la Puerta de Enlace OpenTherm usando una conexión de socket, por favor proporcione los siguientes detalles. En el campo Nombre, introduzca un nombre para la puerta de enlace que le ayude a identificarla dentro de su sistema.\n\nEspecifique la dirección de red de la Puerta de Enlace OpenTherm en el campo Dispositivo. Esto podría estar en el formato de \"socket://otgw.local:25238\", donde \"otgw.local\" es el nombre de host o la dirección IP de la puerta de enlace y \"25238\" es el número de puerto.\n\nEstos ajustes son esenciales para establecer la comunicación e integración con su Puerta de Enlace OpenTherm a través de la conexión de socket. Asegúrese de que los detalles proporcionados sean precisos para garantizar una funcionalidad adecuada.",
+        "description": "Para establecer una conexión con la Puerta de Enlace OpenTherm usando una conexión de socket, por favor proporcione los siguientes detalles. En el campo Nombre, introduzca un nombre para la puerta de enlace que le ayude a identificarla dentro de su sistema.\n\nEspecifique la dirección de red de la Puerta de Enlace OpenTherm en el campo Dispositivo. Esto podría estar en el formato de \"{example_device}\", donde \"otgw.local\" es el nombre de host o la dirección IP de la puerta de enlace y \"25238\" es el número de puerto.\n\nEstos ajustes son esenciales para establecer la comunicación e integración con su Puerta de Enlace OpenTherm a través de la conexión de socket. Asegúrese de que los detalles proporcionados sean precisos para garantizar una funcionalidad adecuada.",
         "title": "Puerta de Enlace OpenTherm (SERIAL)"
       },
       "simulator": {
@@ -145,32 +145,6 @@
   },
   "options": {
     "step": {
-      "advanced": {
-        "data": {
-          "error_monitoring": "Habilitar monitoreo de errores",
-          "climate_valve_offset": "Compensación de la Válvula Climática",
-          "dynamic_minimum_setpoint": "Punto de Ajuste Mínimo Dinámico (Experimental)",
-          "force_pulse_width_modulation": "Forzar Modulación de Ancho de Pulso",
-          "maximum_consumption": "Consumo Máximo",
-          "maximum_relative_modulation": "Modulación Relativa Máxima",
-          "minimum_consumption": "Consumo Mínimo",
-          "sample_time": "Tiempo de Muestreo",
-          "simulation": "Simulación",
-          "target_temperature_step": "Paso de Temperatura Objetivo",
-          "thermal_comfort": "Confort Térmico"
-        },
-        "data_description": {
-          "climate_valve_offset": "Compensación para ajustar el grado de apertura de la válvula climática.",
-          "dynamic_minimum_setpoint": "Activa el ajuste dinámico del punto de consigna mínimo basado en la temperatura de retorno de la caldera, lo que también ayuda a identificar si alguna válvula está cerrada.",
-          "maximum_consumption": "El consumo máximo de gas cuando la caldera está activa.",
-          "maximum_relative_modulation": "Representa el nivel más alto de modulación para un sistema de calefacción eficiente.",
-          "minimum_consumption": "El consumo mínimo de gas cuando la caldera está activa.",
-          "sample_time": "El intervalo de tiempo mínimo entre actualizaciones del controlador PID.",
-          "target_temperature_step": "Ajustar el paso de la temperatura objetivo para una afinación precisa de los niveles de confort.",
-          "thermal_comfort": "Habilitar el uso del Índice de Simmer para ajuste de confort térmico."
-        },
-        "title": "Avanzadas"
-      },
       "general": {
         "data": {
           "automatic_gains_value": "Valor de Ganancias Automáticas",
@@ -202,7 +176,6 @@
       },
       "init": {
         "menu_options": {
-          "advanced": "Opciones Avanzadas",
           "general": "General",
           "presets": "Preajustes",
           "system_configuration": "Configuración del Sistema"
@@ -236,7 +209,34 @@
           "window_minimum_open_time": "El tiempo mínimo que una ventana debe estar abierta antes de que el sistema reaccione."
         },
         "description": "Para un ajuste fino y personalización.",
-        "title": "Configuración del Sistema"
+        "title": "Configuración del Sistema",
+        "sections": {
+          "advanced": {
+            "name": "Avanzadas",
+            "data": {
+              "climate_valve_offset": "Compensación de la Válvula Climática",
+              "dynamic_minimum_setpoint": "Punto de Ajuste Mínimo Dinámico (Experimental)",
+              "force_pulse_width_modulation": "Forzar Modulación de Ancho de Pulso",
+              "maximum_consumption": "Consumo Máximo",
+              "maximum_relative_modulation": "Modulación Relativa Máxima",
+              "minimum_consumption": "Consumo Mínimo",
+              "sample_time": "Tiempo de Muestreo",
+              "simulation": "Simulación",
+              "target_temperature_step": "Paso de Temperatura Objetivo",
+              "thermal_comfort": "Confort Térmico"
+            },
+            "data_description": {
+              "climate_valve_offset": "Compensación para ajustar el grado de apertura de la válvula climática.",
+              "dynamic_minimum_setpoint": "Activa el ajuste dinámico del punto de consigna mínimo basado en la temperatura de retorno de la caldera, lo que también ayuda a identificar si alguna válvula está cerrada.",
+              "maximum_consumption": "El consumo máximo de gas cuando la caldera está activa.",
+              "maximum_relative_modulation": "Representa el nivel más alto de modulación para un sistema de calefacción eficiente.",
+              "minimum_consumption": "El consumo mínimo de gas cuando la caldera está activa.",
+              "sample_time": "El intervalo de tiempo mínimo entre actualizaciones del controlador PID.",
+              "target_temperature_step": "Ajustar el paso de la temperatura objetivo para una afinación precisa de los niveles de confort.",
+              "thermal_comfort": "Habilitar el uso del Índice de Simmer para ajuste de confort térmico."
+            }
+          }
+        }
       }
     }
   }

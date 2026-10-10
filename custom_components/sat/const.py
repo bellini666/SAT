@@ -1,13 +1,11 @@
 # Base component constants
 from __future__ import annotations
 
+from datetime import timedelta
 from enum import Enum
 
 NAME = "Smart Autotune Thermostat"
 DOMAIN = "sat"
-CLIMATE = "climate"
-SENTRY = "sentry"
-COORDINATOR = "coordinator"
 CONFIG_STORE = "config_store"
 
 MODE_FAKE = "fake"
@@ -24,6 +22,9 @@ HEATER_STARTUP_TIMEFRAME = 180
 
 COLD_SETPOINT = 28.2
 MINIMUM_SETPOINT = 10
+
+# Four missed 30 second control intervals
+CONTROL_LOOP_STALL_TIME = timedelta(minutes=2)
 MAXIMUM_SETPOINT = 65
 MINIMUM_RELATIVE_MODULATION = 0
 MAXIMUM_RELATIVE_MODULATION = 100
@@ -36,7 +37,6 @@ CONF_NAME = "name"
 CONF_DEVICE = "device"
 CONF_THERMOSTAT = "thermostat"
 CONF_MANUFACTURER = "manufacturer"
-CONF_ERROR_MONITORING = "error_monitoring"
 CONF_CYCLES_PER_HOUR = "cycles_per_hour"
 CONF_SIMULATED_HEATING = "simulated_heating"
 CONF_SIMULATED_COOLING = "simulated_cooling"
@@ -63,6 +63,9 @@ CONF_AUTOMATIC_GAINS_VALUE = "automatic_gains_value"
 CONF_DERIVATIVE_TIME_WEIGHT = "derivative_time_weight"
 CONF_CLIMATE_VALVE_OFFSET = "climate_valve_offset"
 CONF_SENSOR_MAX_VALUE_AGE = "sensor_max_value_age"
+CONF_DEFAULT_HVAC_MODE = "default_hvac_mode"
+CONF_CALIBRATION_FLAME_TIMEOUT = "calibration_flame_timeout"
+CONF_CALIBRATION_PLATEAU_TIMEOUT = "calibration_plateau_timeout"
 CONF_OVERSHOOT_PROTECTION = "overshoot_protection"
 CONF_SYNC_CLIMATES_WITH_MODE = "sync_climates_with_mode"
 CONF_SYNC_CLIMATES_WITH_PRESET = "sync_climates_with_preset"
@@ -103,7 +106,6 @@ OPTIONS_DEFAULTS = {
     CONF_PROPORTIONAL: "45",
     CONF_INTEGRAL: "0",
     CONF_DERIVATIVE: "6000",
-    CONF_ERROR_MONITORING: False,
 
     CONF_CYCLES_PER_HOUR: 4,
     CONF_AUTOMATIC_GAINS: True,
@@ -140,6 +142,9 @@ OPTIONS_DEFAULTS = {
     CONF_CLIMATE_VALVE_OFFSET: 0,
     CONF_TARGET_TEMPERATURE_STEP: 0.5,
     CONF_SENSOR_MAX_VALUE_AGE: "06:00:00",
+    CONF_DEFAULT_HVAC_MODE: "heat",
+    CONF_CALIBRATION_FLAME_TIMEOUT: "00:10:00",
+    CONF_CALIBRATION_PLATEAU_TIMEOUT: "00:40:00",
     CONF_SIMULATED_WARMING_UP: "00:00:15",
     CONF_WINDOW_MINIMUM_OPEN_TIME: "00:00:15",
 

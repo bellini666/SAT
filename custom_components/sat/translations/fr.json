@@ -106,7 +106,7 @@
           "device": "URL",
           "name": "Nom"
         },
-        "description": "Pour établir une connexion avec la passerelle OpenTherm en utilisant une connexion socket, veuillez fournir les détails suivants. Dans le champ Nom, entrez un nom pour la passerelle qui vous aidera à l'identifier au sein de votre système.\n\nSpécifiez l'adresse réseau de la passerelle OpenTherm dans le champ Appareil. Cela pourrait être au format \"socket://otgw.local:25238\", où \"otgw.local\" est le nom d'hôte ou l'adresse IP de la passerelle et \"25238\" est le numéro de port.\n\nCes paramètres sont essentiels pour établir la communication et l'intégration avec votre passerelle OpenTherm via la connexion socket. Assurez-vous que les détails fournis sont précis pour garantir une fonctionnalité appropriée.",
+        "description": "Pour établir une connexion avec la passerelle OpenTherm en utilisant une connexion socket, veuillez fournir les détails suivants. Dans le champ Nom, entrez un nom pour la passerelle qui vous aidera à l'identifier au sein de votre système.\n\nSpécifiez l'adresse réseau de la passerelle OpenTherm dans le champ Appareil. Cela pourrait être au format \"{example_device}\", où \"otgw.local\" est le nom d'hôte ou l'adresse IP de la passerelle et \"25238\" est le numéro de port.\n\nCes paramètres sont essentiels pour établir la communication et l'intégration avec votre passerelle OpenTherm via la connexion socket. Assurez-vous que les détails fournis sont précis pour garantir une fonctionnalité appropriée.",
         "title": "OpenTherm Gateway ( SERIAL )"
       },
       "simulator": {
@@ -145,32 +145,6 @@
   },
   "options": {
     "step": {
-      "advanced": {
-        "data": {
-          "error_monitoring": "Activer la surveillance des erreurs",
-          "climate_valve_offset": "Décalage de la vanne climatique",
-          "dynamic_minimum_setpoint": "Point de Consigne Minimum Dynamique (Expérimental)",
-          "force_pulse_width_modulation": "Forcer la Modulation de Largeur d'Impulsion",
-          "maximum_consumption": "Consommation Maximale",
-          "maximum_relative_modulation": "Modulation Relative Maximale",
-          "minimum_consumption": "Consommation Minimale",
-          "sample_time": "Temps d'Échantillonnage",
-          "simulation": "Simulation",
-          "target_temperature_step": "Pas de Température Cible",
-          "thermal_comfort": "Confort Thermique"
-        },
-        "data_description": {
-          "climate_valve_offset": "Décalage pour ajuster le degré d'ouverture de la vanne climatique.",
-          "dynamic_minimum_setpoint": "Active l'ajustement dynamique du point de consigne minimal en fonction de la température de retour de la chaudière, ce qui aide également à identifier si des vannes sont fermées.",
-          "maximum_consumption": "La consommation maximale de gaz lorsque la chaudière est active.",
-          "maximum_relative_modulation": "Représentant le niveau de modulation le plus élevé pour un système de chauffage efficace.",
-          "minimum_consumption": "La consommation minimale de gaz lorsque la chaudière est active.",
-          "sample_time": "L'intervalle de temps minimum entre les mises à jour du régulateur PID.",
-          "target_temperature_step": "Ajuster le pas de température cible pour un réglage fin des niveaux de confort.",
-          "thermal_comfort": "Activer l'utilisation de l'Indice de Simmer pour ajuster le confort thermique."
-        },
-        "title": "Avancé"
-      },
       "general": {
         "data": {
           "automatic_gains_value": "Valeur de Gains Automatiques",
@@ -202,7 +176,6 @@
       },
       "init": {
         "menu_options": {
-          "advanced": "Options Avancées",
           "general": "Général",
           "presets": "Préréglages",
           "system_configuration": "Configuration du Système"
@@ -236,7 +209,34 @@
           "window_minimum_open_time": "Le temps minimum qu'une fenêtre doit être ouverte avant que le système ne réagisse."
         },
         "description": "Pour un réglage fin et une personnalisation.",
-        "title": "Configuration du Système"
+        "title": "Configuration du Système",
+        "sections": {
+          "advanced": {
+            "name": "Avancé",
+            "data": {
+              "climate_valve_offset": "Décalage de la vanne climatique",
+              "dynamic_minimum_setpoint": "Point de Consigne Minimum Dynamique (Expérimental)",
+              "force_pulse_width_modulation": "Forcer la Modulation de Largeur d'Impulsion",
+              "maximum_consumption": "Consommation Maximale",
+              "maximum_relative_modulation": "Modulation Relative Maximale",
+              "minimum_consumption": "Consommation Minimale",
+              "sample_time": "Temps d'Échantillonnage",
+              "simulation": "Simulation",
+              "target_temperature_step": "Pas de Température Cible",
+              "thermal_comfort": "Confort Thermique"
+            },
+            "data_description": {
+              "climate_valve_offset": "Décalage pour ajuster le degré d'ouverture de la vanne climatique.",
+              "dynamic_minimum_setpoint": "Active l'ajustement dynamique du point de consigne minimal en fonction de la température de retour de la chaudière, ce qui aide également à identifier si des vannes sont fermées.",
+              "maximum_consumption": "La consommation maximale de gaz lorsque la chaudière est active.",
+              "maximum_relative_modulation": "Représentant le niveau de modulation le plus élevé pour un système de chauffage efficace.",
+              "minimum_consumption": "La consommation minimale de gaz lorsque la chaudière est active.",
+              "sample_time": "L'intervalle de temps minimum entre les mises à jour du régulateur PID.",
+              "target_temperature_step": "Ajuster le pas de température cible pour un réglage fin des niveaux de confort.",
+              "thermal_comfort": "Activer l'utilisation de l'Indice de Simmer pour ajuster le confort thermique."
+            }
+          }
+        }
       }
     }
   }

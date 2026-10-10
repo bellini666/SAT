@@ -8,20 +8,15 @@ from .entity import SatEntity
 
 
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, async_add_entities):
-    coordinator = hass.data[DOMAIN][config_entry.entry_id][COORDINATOR]
+    coordinator = config_entry.runtime_data.coordinator
 
     if coordinator.supports_hot_water_setpoint_management:
         async_add_entities([SatHotWaterSetpointEntity(coordinator, config_entry)])
 
 
 class SatHotWaterSetpointEntity(SatEntity, NumberEntity):
-    def __init__(self, coordinator: SatDataUpdateCoordinator, config_entry: ConfigEntry):
-        super().__init__(coordinator, config_entry)
-        self._name = self._config_entry.data.get(CONF_NAME)
+    _attr_translation_key = "hot_water_setpoint"
 
-    @property
-    def name(self) -> str | None:
-        return f"Hot Water Setpoint {self._name} (Boiler)"
 
     @property
     def device_class(self):
@@ -31,7 +26,7 @@ class SatHotWaterSetpointEntity(SatEntity, NumberEntity):
     @property
     def unique_id(self) -> str:
         """Return a unique ID to use for this entity."""
-        return f"{self._name.lower()}-boiler-dhw-setpoint"
+        return f"{self._config_entry.entry_id}-boiler-dhw-setpoint"
 
     @property
     def icon(self) -> str | None:

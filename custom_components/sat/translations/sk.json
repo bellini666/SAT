@@ -108,7 +108,7 @@
           "device": "URL",
           "name": "Názov"
         },
-        "description": "Ak chcete vytvoriť spojenie s bránou OpenTherm pomocou zásuvky, uveďte nasledujúce podrobnosti. Do poľa Názov zadajte názov brány, ktorý vám pomôže identifikovať ju vo vašom systéme.\n\nV poli Zariadenie zadajte sieťovú adresu brány OpenTherm. Môže to byť vo formáte \"socket://otgw.local:25238\", kde \"otgw.local\" je názov hostiteľa alebo IP adresa brány a \"25238\" je číslo portu.\n\nTieto nastavenia sú nevyhnutné pre nadviazanie komunikácie a integráciu s vašou bránou OpenTherm cez pripojenie soketu. Uistite sa, že poskytnuté podrobnosti sú presné, aby sa zabezpečila správna funkčnosť.",
+        "description": "Ak chcete vytvoriť spojenie s bránou OpenTherm pomocou zásuvky, uveďte nasledujúce podrobnosti. Do poľa Názov zadajte názov brány, ktorý vám pomôže identifikovať ju vo vašom systéme.\n\nV poli Zariadenie zadajte sieťovú adresu brány OpenTherm. Môže to byť vo formáte \"{example_device}\", kde \"otgw.local\" je názov hostiteľa alebo IP adresa brány a \"25238\" je číslo portu.\n\nTieto nastavenia sú nevyhnutné pre nadviazanie komunikácie a integráciu s vašou bránou OpenTherm cez pripojenie soketu. Uistite sa, že poskytnuté podrobnosti sú presné, aby sa zabezpečila správna funkčnosť.",
         "title": "OpenTherm Gateway ( SERIAL )"
       },
       "simulator": {
@@ -153,32 +153,6 @@
   },
   "options": {
     "step": {
-      "advanced": {
-        "data": {
-          "error_monitoring": "Povoliť monitorovanie chýb",
-          "climate_valve_offset": "Offset klimatizačného ventilu",
-          "dynamic_minimum_setpoint": "Dynamická minimálna nastavená hodnota (experimentálna)",
-          "force_pulse_width_modulation": "Vynútená modulácia šírky impulzu",
-          "maximum_consumption": "Maximálna spotreba",
-          "maximum_relative_modulation": "Maximálna relatívna modulácia",
-          "minimum_consumption": "Minimálna spotreba",
-          "sample_time": "Čas vzorky",
-          "simulation": "Simulácia",
-          "target_temperature_step": "Krok cieľovej teploty",
-          "thermal_comfort": "Tepelný komfort"
-        },
-        "data_description": {
-          "climate_valve_offset": "Offset na nastavenie stupňa otvorenia klimatizačného ventilu.",
-          "dynamic_minimum_setpoint": "Aktivuje dynamické nastavenie požadovanej hodnoty na základe teploty spiatočky kotla, čo tiež pomáha identifikovať, či sú nejaké ventily zatvorené.",
-          "maximum_consumption": "Maximálna spotreba plynu, keď je kotol aktívny.",
-          "maximum_relative_modulation": "Predstavuje najvyššiu úroveň modulácie pre efektívny vykurovací systém.",
-          "minimum_consumption": "Minimálna spotreba plynu, keď je kotol aktívny.",
-          "sample_time": "Minimálny časový interval medzi aktualizáciami PID regulátora.",
-          "target_temperature_step": "Upravte krok cieľovej teploty pre jemné doladenie úrovní komfortu.",
-          "thermal_comfort": "Povoľte používanie indexu Simmer na nastavenie tepelného komfortu."
-        },
-        "title": "Rozšírené"
-      },
       "general": {
         "data": {
           "automatic_gains_value": "Hodnota automatického zosilnenia",
@@ -211,7 +185,6 @@
       },
       "init": {
         "menu_options": {
-          "advanced": "Rozšírené možnosti",
           "general": "Všeobecné",
           "presets": "Predvoľby",
           "system_configuration": "Konfigurácia systému"
@@ -247,7 +220,34 @@
           "window_minimum_open_time": "Minimálny čas, počas ktorého musí byť okno otvorené, kým systém zareaguje."
         },
         "description": "Na jemné doladenie a prispôsobenie.",
-        "title": "Konfigurácia systému"
+        "title": "Konfigurácia systému",
+        "sections": {
+          "advanced": {
+            "name": "Rozšírené",
+            "data": {
+              "climate_valve_offset": "Offset klimatizačného ventilu",
+              "dynamic_minimum_setpoint": "Dynamická minimálna nastavená hodnota (experimentálna)",
+              "force_pulse_width_modulation": "Vynútená modulácia šírky impulzu",
+              "maximum_consumption": "Maximálna spotreba",
+              "maximum_relative_modulation": "Maximálna relatívna modulácia",
+              "minimum_consumption": "Minimálna spotreba",
+              "sample_time": "Čas vzorky",
+              "simulation": "Simulácia",
+              "target_temperature_step": "Krok cieľovej teploty",
+              "thermal_comfort": "Tepelný komfort"
+            },
+            "data_description": {
+              "climate_valve_offset": "Offset na nastavenie stupňa otvorenia klimatizačného ventilu.",
+              "dynamic_minimum_setpoint": "Aktivuje dynamické nastavenie požadovanej hodnoty na základe teploty spiatočky kotla, čo tiež pomáha identifikovať, či sú nejaké ventily zatvorené.",
+              "maximum_consumption": "Maximálna spotreba plynu, keď je kotol aktívny.",
+              "maximum_relative_modulation": "Predstavuje najvyššiu úroveň modulácie pre efektívny vykurovací systém.",
+              "minimum_consumption": "Minimálna spotreba plynu, keď je kotol aktívny.",
+              "sample_time": "Minimálny časový interval medzi aktualizáciami PID regulátora.",
+              "target_temperature_step": "Upravte krok cieľovej teploty pre jemné doladenie úrovní komfortu.",
+              "thermal_comfort": "Povoľte používanie indexu Simmer na nastavenie tepelného komfortu."
+            }
+          }
+        }
       }
     }
   },

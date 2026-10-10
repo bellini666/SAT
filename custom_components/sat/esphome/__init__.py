@@ -1,9 +1,9 @@
 from __future__ import annotations, annotations
 
 import logging
-from typing import Mapping, Any
+from typing import Any, Callable, Mapping
 
-from homeassistant.components import mqtt, binary_sensor, esphome, number, sensor, switch
+from homeassistant.components import mqtt, binary_sensor, number, sensor, switch
 from homeassistant.core import HomeAssistant, Event, EventStateChangedData
 from homeassistant.helpers import device_registry, entity_registry
 from homeassistant.helpers.device_registry import DeviceEntry
@@ -36,6 +36,8 @@ DATA_CONTROL_SETPOINT = "t_set"
 DATA_MAX_CH_SETPOINT = "max_t_set"
 DATA_MAX_REL_MOD_LEVEL_SETTING = "max_rel_mod_level"
 
+ESPHOME_DOMAIN = "esphome"
+
 _LOGGER: logging.Logger = logging.getLogger(__name__)
 
 
@@ -50,6 +52,7 @@ class SatEspHomeCoordinator(SatDataUpdateCoordinator, SatEntityCoordinator):
 
         self._entity_registry: EntityRegistry = entity_registry.async_get(hass)
         self._entities: list[RegistryEntry] = entity_registry.async_entries_for_device(self._entity_registry, self._device.id)
+        self._unsub_state_changes: Callable[[], None] | None = None
 
     @property
     def device_id(self) -> str:
@@ -159,9 +162,16 @@ class SatEspHomeCoordinator(SatDataUpdateCoordinator, SatEntityCoordinator):
         ]))
 
         # Track those entities so the coordinator can be updated when something changes
-        async_track_state_change_event(self.hass, entities, self.async_state_change_event)
+        self._unsub_state_changes = async_track_state_change_event(self.hass, entities, self.async_state_change_event)
 
         await super().async_added_to_hass()
+
+    async def async_will_remove_from_hass(self) -> None:
+        if self._unsub_state_changes is not None:
+            self._unsub_state_changes()
+            self._unsub_state_changes = None
+
+        await super().async_will_remove_from_hass()
 
     async def async_state_change_event(self, _event: Event[EventStateChangedData]):
         await self.async_notify_listeners()
@@ -194,7 +204,7 @@ class SatEspHomeCoordinator(SatDataUpdateCoordinator, SatEntityCoordinator):
     def _get_entity_id(self, domain: str, key: str):
         unique_id = f"{self._mac_address.upper()}-{domain}-{key}"
         _LOGGER.debug(f"Attempting to find the unique_id of {unique_id}")
-        return self._entity_registry.async_get_entity_id(domain, esphome.DOMAIN, unique_id)
+        return self._entity_registry.async_get_entity_id(domain, ESPHOME_DOMAIN, unique_id)
 
     async def _send_command(self, domain: str, service: str, _key: str, payload: dict):
         """Helper method to send a command to a specified domain and service."""

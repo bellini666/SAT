@@ -1,116 +1,115 @@
-import asyncio
 import logging
-import traceback
+from dataclasses import dataclass
 
-from homeassistant.components import binary_sensor, climate, number, sensor
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers import device_registry
+from homeassistant.const import EVENT_HOMEASSISTANT_STOP, Platform
+from homeassistant.core import Event, HomeAssistant, callback
+from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.helpers import config_validation as cv, device_registry, entity_registry as er, issue_registry as ir
+from homeassistant.helpers.typing import ConfigType
 from homeassistant.helpers.storage import Store
-from sentry_sdk import Client, Hub
 
 from .const import (
     DOMAIN,
-    CLIMATE,
-    SENTRY,
-    COORDINATOR,
-    OPTIONS_DEFAULTS,
     CONF_MODE,
+    CONF_NAME,
     CONF_DEVICE,
-    CONF_ERROR_MONITORING,
-    SERVICE_RESET_INTEGRAL,
-    SERVICE_PULSE_WIDTH_MODULATION,
 )
-from .coordinator import SatDataUpdateCoordinatorFactory
-from .services import async_register_services
-from .util import get_climate_entities
+from .climate import SatClimate
+from .coordinator import SatDataUpdateCoordinator, SatDataUpdateCoordinatorFactory
+from .services import async_setup_services
 
 _LOGGER: logging.Logger = logging.getLogger(__name__)
-PLATFORMS = [climate.DOMAIN, sensor.DOMAIN, number.DOMAIN, binary_sensor.DOMAIN]
+PLATFORMS = [Platform.CLIMATE, Platform.SENSOR, Platform.NUMBER, Platform.BINARY_SENSOR, Platform.BUTTON]
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
+@dataclass
+class SatRuntimeData:
+    coordinator: SatDataUpdateCoordinator
+    climate: SatClimate
+
+
+type SatConfigEntry = ConfigEntry[SatRuntimeData]
+
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
+
+async def async_setup(hass: HomeAssistant, _config: ConfigType) -> bool:
+    async_setup_services(hass)
+    return True
+
+
+async def async_setup_entry(hass: HomeAssistant, entry: SatConfigEntry):
     """
     Set up this integration using the UI.
 
     This function is called by Home Assistant when the integration is set up with the UI.
     """
-    # Make sure we have our default domain property
-    hass.data.setdefault(DOMAIN, {})
-
-    # Create a new dictionary for this entry
-    hass.data[DOMAIN][entry.entry_id] = {}
-
-    try:
-        # Setup error monitoring (if enabled)
-        if entry.options.get(CONF_ERROR_MONITORING, OPTIONS_DEFAULTS[CONF_ERROR_MONITORING]):
-            await hass.async_add_executor_job(initialize_sentry, hass)
-    except Exception as ex:
-        _LOGGER.error("Error during Sentry initialization: %s", str(ex))
-
     # Resolve the coordinator by using the factory according to the mode
-    hass.data[DOMAIN][entry.entry_id][COORDINATOR] = SatDataUpdateCoordinatorFactory().resolve(
+    coordinator = SatDataUpdateCoordinatorFactory().resolve(
         hass=hass, data=entry.data, options=entry.options, mode=entry.data.get(CONF_MODE), device=entry.data.get(CONF_DEVICE)
     )
 
     # Making sure everything is loaded
-    await hass.data[DOMAIN][entry.entry_id][COORDINATOR].async_setup()
+    issue_id = f"setup_failed_{entry.entry_id}"
+    try:
+        await coordinator.async_setup()
+    except ConfigEntryNotReady as exception:
+        ir.async_create_issue(
+            hass,
+            DOMAIN,
+            issue_id,
+            is_fixable=False,
+            severity=ir.IssueSeverity.ERROR,
+            translation_key="setup_failed",
+            translation_placeholders={"title": entry.title, "error": str(exception)},
+        )
+        raise
+
+    ir.async_delete_issue(hass, DOMAIN, issue_id)
+
+    try:
+        climate = SatClimate(coordinator, entry, hass.config.units.temperature_unit)
+    except Exception:
+        await coordinator.async_will_remove_from_hass()
+        raise
+
+    entry.runtime_data = SatRuntimeData(coordinator=coordinator, climate=climate)
+
+    async def async_stop(_event: Event) -> None:
+        await async_release_control(entry)
+
+    entry.async_on_unload(hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, async_stop))
 
     # Forward entry setup for used platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
-    # Register the services
-    await async_register_services(hass)
-
-    # Add an update listener for this entry
-    entry.async_on_unload(entry.add_update_listener(async_reload_entry))
-
     return True
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_unload_entry(hass: HomeAssistant, entry: SatConfigEntry) -> bool:
     """
     Handle removal of an entry.
 
     This function is called by Home Assistant when the integration is being removed.
     """
+    await async_release_control(entry)
 
-    _climate = hass.data[DOMAIN][entry.entry_id][CLIMATE]
-    _coordinator = hass.data[DOMAIN][entry.entry_id][COORDINATOR]
-
-    await _coordinator.async_will_remove_from_hass()
-
-    unloaded = all(
-        # Forward entry unload for used platforms
-        await asyncio.gather(hass.config_entries.async_unload_platforms(entry, PLATFORMS))
-    )
-
-    try:
-        if SENTRY in hass.data[DOMAIN]:
-            hass.data[DOMAIN][SENTRY].flush()
-            hass.data[DOMAIN][SENTRY].close()
-            hass.data[DOMAIN].pop(SENTRY, None)
-    except Exception as ex:
-        _LOGGER.error("Error during Sentry cleanup: %s", str(ex))
-
-    # Remove the entry from the data dictionary if all components are unloaded successfully
-    if unloaded:
-        hass.data[DOMAIN].pop(entry.entry_id)
+    if unloaded := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
+        await entry.runtime_data.coordinator.async_will_remove_from_hass()
 
     return unloaded
 
 
-async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """
-    Reload config entry.
+async def async_release_control(entry: SatConfigEntry) -> None:
+    """Hand the boiler back once the running calibration and control loop have finished."""
+    await entry.runtime_data.climate.async_cancel_calibration()
+    await entry.runtime_data.climate.async_stop_control()
+    await entry.runtime_data.coordinator.async_release_control()
 
-    This function is called by Home Assistant when the integration configuration is updated.
-    """
-    # Unload the entry and its dependent components
-    await async_unload_entry(hass, entry)
 
-    # Set up the entry again
-    await async_setup_entry(hass, entry)
+async def async_remove_entry(hass: HomeAssistant, entry: SatConfigEntry) -> None:
+    ir.async_delete_issue(hass, DOMAIN, f"setup_failed_{entry.entry_id}")
 
 
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -199,41 +198,33 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             if entry.data.get("sync_with_thermostat") is not None:
                 new_data["push_setpoint_to_thermostat"] = entry.data.get("sync_with_thermostat")
 
+        if entry.version < 12:
+            if "push_setpoint_to_thermostat" in new_data:
+                new_options["push_setpoint_to_thermostat"] = new_data.pop("push_setpoint_to_thermostat")
+
+            name = entry.data.get(CONF_NAME)
+            prefixes = (f"{name.lower()}-", f"{name}-")
+
+            @callback
+            def migrate_unique_id(entity_entry: er.RegistryEntry) -> dict[str, str] | None:
+                if entity_entry.unique_id == name.lower():
+                    return {"new_unique_id": entry.entry_id}
+
+                for prefix in prefixes:
+                    if entity_entry.unique_id.startswith(prefix):
+                        return {"new_unique_id": f"{entry.entry_id}-{entity_entry.unique_id.removeprefix(prefix)}"}
+
+                return None
+
+            await er.async_migrate_entries(hass, entry.entry_id, migrate_unique_id)
+
+            devices = device_registry.async_get(hass)
+            if device := devices.async_get_device_by_identifier((DOMAIN, name), entry.entry_id):
+                devices.async_update_device(device.id, new_identifiers={(DOMAIN, entry.entry_id)})
+
         hass.config_entries.async_update_entry(entry, version=SatFlowHandler.VERSION, data=new_data, options=new_options)
 
     _LOGGER.info("Migration to version %s successful", entry.version)
 
     return True
 
-
-def initialize_sentry(hass: HomeAssistant):
-    """Initialize Sentry synchronously in an offloaded executor job."""
-
-    def exception_filter(event, hint):
-        """Filter events to send only SAT-related exceptions to Sentry."""
-        exc_info = hint.get("exc_info")
-
-        if exc_info:
-            _, _, exc_traceback = exc_info
-            stack = traceback.extract_tb(exc_traceback)
-
-            # Check if the exception originates from the SAT custom component
-            if any("custom_components/sat/" in frame.filename for frame in stack):
-                return event
-
-        # Ignore exceptions not related to SAT
-        return None
-
-    # Configure the Sentry client
-    client = Client(
-        traces_sample_rate=1.0,
-        before_send=exception_filter,
-        dsn="https://216fc0a74c488abdb79f9839fb7da33e@o4508432869621760.ingest.de.sentry.io/4508432872898640",
-    )
-
-    # Bind the Sentry client to the Sentry hub
-    hub = Hub(client)
-    hub.bind_client(client)
-
-    # Store the hub in Home Assistant's data for later use
-    hass.data[DOMAIN][SENTRY] = client

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timedelta
 from time import monotonic
 
 from homeassistant.components.binary_sensor import BinarySensorEntity, BinarySensorDeviceClass
@@ -8,11 +9,12 @@ from homeassistant.components.climate import HVACAction
 from homeassistant.components.group.binary_sensor import BinarySensorGroup
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_ENTITY_ID
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.event import async_track_time_interval
 
 from .climate import SatClimate
-from .const import CONF_MODE, MODE_SERIAL, CONF_NAME, DOMAIN, COORDINATOR, CLIMATE, CONF_WINDOW_SENSORS, FlameStatus, BoilerStatus
+from .const import CONF_MODE, MODE_SERIAL, CONF_WINDOW_SENSORS, FlameStatus, BoilerStatus
 from .entity import SatClimateEntity, SatEntity
 from .helpers import seconds_since
 from .serial import binary_sensor as serial_binary_sensor
@@ -24,8 +26,8 @@ async def async_setup_entry(_hass: HomeAssistant, _config_entry: ConfigEntry, _a
     """
     Add binary sensors for the serial protocol if the integration is set to use it.
     """
-    climate = _hass.data[DOMAIN][_config_entry.entry_id][CLIMATE]
-    coordinator = _hass.data[DOMAIN][_config_entry.entry_id][COORDINATOR]
+    climate = _config_entry.runtime_data.climate
+    coordinator = _config_entry.runtime_data.coordinator
 
     # Check if integration is set to use the serial protocol
     if _config_entry.data.get(CONF_MODE) == MODE_SERIAL:
@@ -43,7 +45,8 @@ async def async_setup_entry(_hass: HomeAssistant, _config_entry: ConfigEntry, _a
     _async_add_entities([
         SatFlameHealthSensor(coordinator, _config_entry),
         SatBoilerHealthSensor(coordinator, _config_entry),
-        SatCentralHeatingSynchroSensor(coordinator, _config_entry, climate)
+        SatCentralHeatingSynchroSensor(coordinator, _config_entry, climate),
+        SatHeatingControlSensor(coordinator, _config_entry, climate),
     ])
 
 
@@ -71,14 +74,12 @@ class SatSynchroSensor:
 
 
 class SatControlSetpointSynchroSensor(SatSynchroSensor, SatClimateEntity, BinarySensorEntity):
+    _attr_translation_key = "control_setpoint_synchro"
+
     def __init__(self, coordinator, _config_entry, climate):
         SatSynchroSensor.__init__(self)
         SatClimateEntity.__init__(self, coordinator, _config_entry, climate)
 
-    @property
-    def name(self):
-        """Return the friendly name of the sensor."""
-        return "Control Setpoint Synchro"
 
     @property
     def device_class(self):
@@ -98,18 +99,16 @@ class SatControlSetpointSynchroSensor(SatSynchroSensor, SatClimateEntity, Binary
     @property
     def unique_id(self):
         """Return a unique ID to use for this entity."""
-        return f"{self._config_entry.data.get(CONF_NAME).lower()}-control-setpoint-synchro"
+        return f"{self._config_entry.entry_id}-control-setpoint-synchro"
 
 
 class SatRelativeModulationSynchroSensor(SatSynchroSensor, SatClimateEntity, BinarySensorEntity):
+    _attr_translation_key = "relative_modulation_synchro"
+
     def __init__(self, coordinator, _config_entry, climate):
         SatSynchroSensor.__init__(self)
         SatClimateEntity.__init__(self, coordinator, _config_entry, climate)
 
-    @property
-    def name(self):
-        """Return the friendly name of the sensor."""
-        return "Relative Modulation Synchro"
 
     @property
     def device_class(self):
@@ -129,18 +128,16 @@ class SatRelativeModulationSynchroSensor(SatSynchroSensor, SatClimateEntity, Bin
     @property
     def unique_id(self):
         """Return a unique ID to use for this entity."""
-        return f"{self._config_entry.data.get(CONF_NAME).lower()}-relative-modulation-synchro"
+        return f"{self._config_entry.entry_id}-relative-modulation-synchro"
 
 
 class SatCentralHeatingSynchroSensor(SatSynchroSensor, SatClimateEntity, BinarySensorEntity):
+    _attr_translation_key = "central_heating_synchro"
+
     def __init__(self, coordinator, _config_entry, climate):
         SatSynchroSensor.__init__(self)
         SatClimateEntity.__init__(self, coordinator, _config_entry, climate)
 
-    @property
-    def name(self) -> str:
-        """Return the friendly name of the sensor."""
-        return "Central Heating Synchro"
 
     @property
     def device_class(self) -> str:
@@ -150,13 +147,13 @@ class SatCentralHeatingSynchroSensor(SatSynchroSensor, SatClimateEntity, BinaryS
     @property
     def available(self) -> bool:
         """Return availability of the sensor."""
-        return self._climate is not None
+        return self.climate_added
 
     @property
     def is_on(self) -> bool:
         """Return the state of the sensor."""
         device_active = self._coordinator.device_active
-        climate_hvac_action = self._climate.state_attributes.get("hvac_action")
+        climate_hvac_action = self._climate.hvac_action
 
         return self.state_delayed(not (
                 (climate_hvac_action == HVACAction.OFF and not device_active) or
@@ -167,15 +164,41 @@ class SatCentralHeatingSynchroSensor(SatSynchroSensor, SatClimateEntity, BinaryS
     @property
     def unique_id(self) -> str:
         """Return a unique ID to use for this entity."""
-        return f"{self._config_entry.data.get(CONF_NAME).lower()}-central-heating-synchro"
+        return f"{self._config_entry.entry_id}-central-heating-synchro"
+
+
+class SatHeatingControlSensor(SatClimateEntity, BinarySensorEntity):
+    _attr_translation_key = "heating_control"
+    _attr_device_class = BinarySensorDeviceClass.PROBLEM
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        self.async_on_remove(async_track_time_interval(self.hass, self._async_refresh, timedelta(seconds=30)))
+
+    @callback
+    def _async_refresh(self, _now: datetime) -> None:
+        self.async_write_ha_state()
+
+    @property
+    def available(self) -> bool:
+        return self.climate_added
+
+    @property
+    def is_on(self) -> bool:
+        return len(self._climate.control_problems) > 0
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        return {"problems": self._climate.control_problems}
+
+    @property
+    def unique_id(self) -> str:
+        return f"{self._config_entry.entry_id}-heating-control"
 
 
 class SatBoilerHealthSensor(SatEntity, BinarySensorEntity):
+    _attr_translation_key = "boiler_health"
 
-    @property
-    def name(self) -> str:
-        """Return the friendly name of the sensor."""
-        return "Boiler Health"
 
     @property
     def device_class(self) -> str:
@@ -190,15 +213,12 @@ class SatBoilerHealthSensor(SatEntity, BinarySensorEntity):
     @property
     def unique_id(self) -> str:
         """Return a unique ID to use for this entity."""
-        return f"{self._config_entry.data.get(CONF_NAME).lower()}-boiler-health"
+        return f"{self._config_entry.entry_id}-boiler-health"
 
 
 class SatFlameHealthSensor(SatEntity, BinarySensorEntity):
+    _attr_translation_key = "flame_health"
 
-    @property
-    def name(self) -> str:
-        """Return the friendly name of the sensor."""
-        return "Flame Health"
 
     @property
     def device_class(self) -> str:
@@ -218,10 +238,12 @@ class SatFlameHealthSensor(SatEntity, BinarySensorEntity):
     @property
     def unique_id(self) -> str:
         """Return a unique ID to use for this entity."""
-        return f"{self._config_entry.data.get(CONF_NAME).lower()}-flame-health"
+        return f"{self._config_entry.entry_id}-flame-health"
 
 
 class SatWindowSensor(SatClimateEntity, BinarySensorGroup):
+    _attr_translation_key = "window"
+
     def __init__(self, coordinator, config_entry: ConfigEntry, climate: SatClimate):
         super().__init__(coordinator, config_entry, climate)
 
@@ -229,10 +251,6 @@ class SatWindowSensor(SatClimateEntity, BinarySensorGroup):
         self._entity_ids = self._config_entry.options.get(CONF_WINDOW_SENSORS)
         self._attr_extra_state_attributes = {ATTR_ENTITY_ID: self._entity_ids}
 
-    @property
-    def name(self) -> str:
-        """Return the friendly name of the sensor."""
-        return "Smart Autotune Thermostat Window Sensor"
 
     @property
     def device_class(self) -> str:
@@ -242,4 +260,4 @@ class SatWindowSensor(SatClimateEntity, BinarySensorGroup):
     @property
     def unique_id(self) -> str:
         """Return a unique ID to use for this entity."""
-        return f"{self._config_entry.data.get(CONF_NAME).lower()}-window-sensor"
+        return f"{self._config_entry.entry_id}-window-sensor"

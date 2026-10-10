@@ -106,7 +106,7 @@
           "device": "URL",
           "name": "Name"
         },
-        "description": "Um eine Verbindung mit dem OpenTherm Gateway über eine Socket-Verbindung herzustellen, geben Sie bitte die folgenden Details an. Geben Sie im Feld Name einen Namen für das Gateway ein, der Ihnen hilft, es in Ihrem System zu identifizieren.\n\nGeben Sie die Netzwerkadresse des OpenTherm Gateways im Feld Gerät an. Dies könnte im Format \"socket://otgw.local:25238\" sein, wobei \"otgw.local\" der Hostname oder die IP-Adresse des Gateways ist und \"25238\" die Portnummer.\n\nDiese Einstellungen sind wesentlich, um die Kommunikation und Integration mit Ihrem OpenTherm Gateway über die Socket-Verbindung herzustellen. Stellen Sie sicher, dass die angegebenen Details korrekt sind, um eine ordnungsgemäße Funktionalität zu gewährleisten.",
+        "description": "Um eine Verbindung mit dem OpenTherm Gateway über eine Socket-Verbindung herzustellen, geben Sie bitte die folgenden Details an. Geben Sie im Feld Name einen Namen für das Gateway ein, der Ihnen hilft, es in Ihrem System zu identifizieren.\n\nGeben Sie die Netzwerkadresse des OpenTherm Gateways im Feld Gerät an. Dies könnte im Format \"{example_device}\" sein, wobei \"otgw.local\" der Hostname oder die IP-Adresse des Gateways ist und \"25238\" die Portnummer.\n\nDiese Einstellungen sind wesentlich, um die Kommunikation und Integration mit Ihrem OpenTherm Gateway über die Socket-Verbindung herzustellen. Stellen Sie sicher, dass die angegebenen Details korrekt sind, um eine ordnungsgemäße Funktionalität zu gewährleisten.",
         "title": "OpenTherm Gateway ( SERIELL )"
       },
       "simulator": {
@@ -145,32 +145,6 @@
   },
   "options": {
     "step": {
-      "advanced": {
-        "data": {
-          "error_monitoring": "Fehlerüberwachung aktivieren",
-          "climate_valve_offset": "Klimaventil-Offset",
-          "dynamic_minimum_setpoint": "Dynamischer Minimaler Sollwert (Experimentell)",
-          "force_pulse_width_modulation": "Pulsweitenmodulation erzwingen",
-          "maximum_consumption": "Maximalverbrauch",
-          "maximum_relative_modulation": "Maximale relative Modulation",
-          "minimum_consumption": "Mindestverbrauch",
-          "sample_time": "Abtastzeit",
-          "simulation": "Simulation",
-          "target_temperature_step": "Schrittweite der Zieltemperatur",
-          "thermal_comfort": "Thermischer Komfort"
-        },
-        "data_description": {
-          "climate_valve_offset": "Offset zur Anpassung des Öffnungsgrads des Klimaventils.",
-          "dynamic_minimum_setpoint": "Aktiviert die dynamische Sollwertanpassung basierend auf der Rücklauftemperatur des Kessels, was auch hilft zu identifizieren, ob Ventile geschlossen sind.",
-          "maximum_consumption": "Der maximale Gasverbrauch, wenn der Kessel aktiv ist.",
-          "maximum_relative_modulation": "Die höchste Modulationsstufe für ein effizientes Heizsystem darstellen.",
-          "minimum_consumption": "Der minimale Gasverbrauch, wenn der Kessel aktiv ist.",
-          "sample_time": "Das minimale Zeitintervall zwischen Aktualisierungen des PID-Reglers.",
-          "target_temperature_step": "Die Schrittweite der Zieltemperatur zur Feinabstimmung der Komfortstufen anpassen.",
-          "thermal_comfort": "Verwendung des Simmer-Index für die Anpassung des thermischen Komforts aktivieren."
-        },
-        "title": "Erweitert"
-      },
       "general": {
         "data": {
           "automatic_gains_value": "Automatischer Verstärkungswert",
@@ -202,7 +176,6 @@
       },
       "init": {
         "menu_options": {
-          "advanced": "Erweiterte Optionen",
           "general": "Allgemein",
           "presets": "Voreinstellungen",
           "system_configuration": "Systemkonfiguration"
@@ -235,7 +208,34 @@
           "window_minimum_open_time": "Die Mindestzeit, die ein Fenster geöffnet sein muss, bevor das System reagiert."
         },
         "description": "Für Feinabstimmung und Anpassung.",
-        "title": "Systemkonfiguration"
+        "title": "Systemkonfiguration",
+        "sections": {
+          "advanced": {
+            "name": "Erweitert",
+            "data": {
+              "climate_valve_offset": "Klimaventil-Offset",
+              "dynamic_minimum_setpoint": "Dynamischer Minimaler Sollwert (Experimentell)",
+              "force_pulse_width_modulation": "Pulsweitenmodulation erzwingen",
+              "maximum_consumption": "Maximalverbrauch",
+              "maximum_relative_modulation": "Maximale relative Modulation",
+              "minimum_consumption": "Mindestverbrauch",
+              "sample_time": "Abtastzeit",
+              "simulation": "Simulation",
+              "target_temperature_step": "Schrittweite der Zieltemperatur",
+              "thermal_comfort": "Thermischer Komfort"
+            },
+            "data_description": {
+              "climate_valve_offset": "Offset zur Anpassung des Öffnungsgrads des Klimaventils.",
+              "dynamic_minimum_setpoint": "Aktiviert die dynamische Sollwertanpassung basierend auf der Rücklauftemperatur des Kessels, was auch hilft zu identifizieren, ob Ventile geschlossen sind.",
+              "maximum_consumption": "Der maximale Gasverbrauch, wenn der Kessel aktiv ist.",
+              "maximum_relative_modulation": "Die höchste Modulationsstufe für ein effizientes Heizsystem darstellen.",
+              "minimum_consumption": "Der minimale Gasverbrauch, wenn der Kessel aktiv ist.",
+              "sample_time": "Das minimale Zeitintervall zwischen Aktualisierungen des PID-Reglers.",
+              "target_temperature_step": "Die Schrittweite der Zieltemperatur zur Feinabstimmung der Komfortstufen anpassen.",
+              "thermal_comfort": "Verwendung des Simmer-Index für die Anpassung des thermischen Komforts aktivieren."
+            }
+          }
+        }
       }
     }
   }

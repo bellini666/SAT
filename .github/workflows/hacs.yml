@@ -2,18 +2,20 @@ name: HACS Action
 
 on:
   push:
-    branches:
-      - master
   pull_request:
   schedule:
     - cron: "0 0 * * *"
+  workflow_dispatch:
+
+permissions: {}
 
 jobs:
   hacs:
     name: HACS Action
-    runs-on: "ubuntu-latest"
+    runs-on: ubuntu-latest
     steps:
-      - name: HACS Action
-        uses: "hacs/action@main"
+      - uses: hacs/action@main
         with:
-          category: "integration"
+          category: integration
+          # The fork has issues disabled and no topics, both checked from the repository settings
+          ignore: issues topics

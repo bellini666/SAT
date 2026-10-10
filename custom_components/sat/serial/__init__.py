@@ -179,6 +179,8 @@ class SatSerialCoordinator(SatDataUpdateCoordinator):
 
         await self._graceful_disconnect()
 
+        await super().async_will_remove_from_hass()
+
     async def async_set_control_setpoint(self, value: float) -> None:
         if not self._simulation:
             await self._api.set_control_setpoint(value)
@@ -202,6 +204,13 @@ class SatSerialCoordinator(SatDataUpdateCoordinator):
             await self._api.set_ch_enable_bit(1 if state == DeviceState.ON else 0)
 
         await super().async_set_heater_state(state)
+
+    async def async_release_control(self) -> None:
+        if not self._simulation:
+            await self._api.set_control_setpoint(0)
+            await self._api.set_max_relative_mod("-")
+
+        await super().async_release_control()
 
     async def async_set_control_max_relative_modulation(self, value: int) -> None:
         if not self._simulation:

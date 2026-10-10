@@ -10,7 +10,7 @@ from ..simulator import SatSimulatorCoordinator
 
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, async_add_entities):
     """Setup sensor platform."""
-    coordinator = hass.data[DOMAIN][config_entry.entry_id][COORDINATOR]
+    coordinator = config_entry.runtime_data.coordinator
 
     # Add all devices
     async_add_entities([
@@ -20,6 +20,8 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
 
 
 class SatSetpointSensor(SatEntity, sensor.SensorEntity):
+    _attr_has_entity_name = False
+
     def __init__(self, coordinator: SatSimulatorCoordinator, config_entry: ConfigEntry):
         super().__init__(coordinator, config_entry)
 
@@ -56,10 +58,12 @@ class SatSetpointSensor(SatEntity, sensor.SensorEntity):
     @property
     def unique_id(self):
         """Return a unique ID to use for this entity."""
-        return f"{self._config_entry.data.get(CONF_NAME).lower()}-setpoint"
+        return f"{self._config_entry.entry_id}-setpoint"
 
 
 class SatBoilerTemperatureSensor(SatEntity, sensor.SensorEntity):
+    _attr_has_entity_name = False
+
     def __init__(self, coordinator: SatSimulatorCoordinator, config_entry: ConfigEntry):
         super().__init__(coordinator, config_entry)
 
@@ -96,4 +100,4 @@ class SatBoilerTemperatureSensor(SatEntity, sensor.SensorEntity):
     @property
     def unique_id(self):
         """Return a unique ID to use for this entity."""
-        return f"{self._config_entry.data.get(CONF_NAME).lower()}-boiler_temperature"
+        return f"{self._config_entry.entry_id}-boiler_temperature"

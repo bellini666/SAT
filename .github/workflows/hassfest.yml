@@ -2,12 +2,13 @@ name: Validate with hassfest
 
 on:
   push:
-    branches:
-      - master
+  pull_request:
+
+permissions: {}
 
 jobs:
   validate:
-    runs-on: "ubuntu-latest"
+    runs-on: ubuntu-latest
     steps:
-        - uses: "actions/checkout@v3"
-        - uses: "home-assistant/actions/hassfest@master"
+      - uses: actions/checkout@v7
+      - uses: home-assistant/actions/hassfest@master

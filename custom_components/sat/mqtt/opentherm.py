@@ -211,6 +211,12 @@ class SatOpenThermMqttCoordinator(SatMqttCoordinator):
 
         await super().async_set_control_max_relative_modulation(value)
 
+    async def async_release_control(self) -> None:
+        await self._publish_command("CS=0")
+        await self._publish_command("MM=T")
+
+        await super().async_release_control()
+
     async def async_set_control_max_setpoint(self, value: float) -> None:
         await self._publish_command(f"SH={value}")
 

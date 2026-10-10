@@ -2,10 +2,6 @@ from __future__ import annotations
 
 from types import MappingProxyType
 from typing import Any
-from typing import TYPE_CHECKING
-
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers import entity_registry
 
 from .const import *
 from .heating_curve import HeatingCurve
@@ -13,9 +9,6 @@ from .helpers import convert_time_str_to_seconds
 from .minimum_setpoint import MinimumSetpoint
 from .pid import PID
 from .pwm import PWM, CycleConfig
-
-if TYPE_CHECKING:
-    from .climate import SatClimate
 
 
 def create_pid_controller(config_options) -> PID:
@@ -47,10 +40,9 @@ def create_pid_controller(config_options) -> PID:
     )
 
 
-def create_minimum_setpoint_controller(config_data, config_options) -> MinimumSetpoint:
+def create_minimum_setpoint_controller(minimum_setpoint, config_options) -> MinimumSetpoint:
     """Create and return a Minimum Setpoint controller instance with the given configuration options."""
     # Extract the configuration options
-    minimum_setpoint = config_data.get(CONF_MINIMUM_SETPOINT)
     adjustment_factor = config_options.get(CONF_MINIMUM_SETPOINT_ADJUSTMENT_FACTOR)
 
     # Return a new Minimum Setpoint controller instance with the given configuration options
@@ -81,22 +73,3 @@ def create_pwm_controller(heating_curve: HeatingCurve, supports_relative_modulat
     # Return a new PWM controller instance with the given configuration options
     return PWM(heating_curve=heating_curve, cycles=cycles, automatic_duty_cycle=automatic_duty_cycle, supports_relative_modulation_management=supports_relative_modulation_management, force=force)
 
-
-def get_climate_entities(hass: "HomeAssistant", entity_ids: list[str]) -> list["SatClimate"]:
-    """Retrieve climate entities for the given entity IDs."""
-    entities = []
-    for entity_id in entity_ids:
-        registry = entity_registry.async_get(hass)
-
-        if not (entry := registry.async_get(entity_id)):
-            continue
-
-        if not (config_entry := hass.data[DOMAIN].get(entry.config_entry_id)):
-            continue
-
-        if not (climate := config_entry.get(CLIMATE)):
-            continue
-
-        entities.append(climate)
-
-    return entities

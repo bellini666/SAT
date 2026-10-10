@@ -1,11 +1,14 @@
 import asyncio
 import logging
+from collections import deque
 from abc import abstractmethod
-from typing import Mapping, Any
+from typing import Any, Callable, Mapping
 
 from homeassistant.components import mqtt
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers.storage import Store
+from homeassistant.util import dt as dt_util
 
 from ..const import CONF_MQTT_TOPIC
 from ..coordinator import SatDataUpdateCoordinator
@@ -24,32 +27,44 @@ class SatMqttCoordinator(SatDataUpdateCoordinator):
 
         self._device_id: str = device_id
         self._topic: str = config_data.get(CONF_MQTT_TOPIC)
+        self._subscriptions: list[Callable[[], None]] = []
+        self._messages: deque[dict[str, str]] = deque(maxlen=50)
         self._store: Store = Store(hass, STORAGE_VERSION, snake_case(f"{self.__class__.__name__}_{device_id}"))
 
     @property
     def device_id(self) -> str:
         return self._device_id
 
+    @property
+    def messages(self) -> list[dict[str, str]]:
+        return list(self._messages)
+
     async def async_setup(self):
         await self._load_stored_data()
 
-    async def async_added_to_hass(self) -> None:
-        await mqtt.async_wait_for_mqtt_client(self.hass)
+        if not await mqtt.async_wait_for_mqtt_client(self.hass):
+            raise ConfigEntryNotReady("MQTT is not available")
 
         for key in self.get_tracked_entities():
-            await mqtt.async_subscribe(
+            self._subscriptions.append(await mqtt.async_subscribe(
                 self.hass,
                 self._get_topic_for_subscription(key),
                 self._create_message_handler(key)
-            )
+            ))
 
+    async def async_added_to_hass(self) -> None:
         await self.boot()
 
         await super().async_added_to_hass()
 
     async def async_will_remove_from_hass(self) -> None:
+        while self._subscriptions:
+            self._subscriptions.pop()()
+
         # Save the updated data to persistent storage
         await self._save_data()
+
+        await super().async_will_remove_from_hass()
 
     async def _load_stored_data(self) -> None:
         """Load the data from persistent storage."""
@@ -86,6 +101,7 @@ class SatMqttCoordinator(SatDataUpdateCoordinator):
         @callback
         def message_handler(message):
             """Handle an incoming MQTT message and schedule an update."""
+            self._messages.append({"received": dt_util.utcnow().isoformat(), "topic": message.topic, "payload": message.payload})
 
             try:
                 # Process the payload and update the data property

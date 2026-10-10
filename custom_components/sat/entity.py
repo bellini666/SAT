@@ -7,7 +7,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, NAME, CONF_NAME
+from .const import DOMAIN
 
 _LOGGER: logging.Logger = logging.getLogger(__name__)
 
@@ -17,6 +17,8 @@ if typing.TYPE_CHECKING:
 
 
 class SatEntity(CoordinatorEntity):
+    _attr_has_entity_name = True
+
     def __init__(self, coordinator: SatDataUpdateCoordinator, config_entry: ConfigEntry):
         super().__init__(coordinator)
 
@@ -30,11 +32,10 @@ class SatEntity(CoordinatorEntity):
             manufacturer = self._coordinator.manufacturer.friendly_name
 
         return DeviceInfo(
-            name=NAME,
+            name=self._config_entry.title,
             manufacturer=manufacturer,
-            suggested_area="Living Room",
             model=self._coordinator.device_type,
-            identifiers={(DOMAIN, self._config_entry.data.get(CONF_NAME))}
+            identifiers={(DOMAIN, self._config_entry.entry_id)}
         )
 
 
@@ -43,3 +44,11 @@ class SatClimateEntity(SatEntity):
         super().__init__(coordinator, config_entry)
 
         self._climate = climate
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        self.async_on_remove(self._climate.async_add_state_listener(self.async_write_ha_state))
+
+    @property
+    def climate_added(self) -> bool:
+        return self._climate.hass is not None
