@@ -35,27 +35,29 @@ class HeatingCurve:
 
     def autotune(self, setpoint: float, target_temperature: float, outside_temperature: float):
         """Calculate an optimal coefficient value."""
-        if setpoint <= MINIMUM_SETPOINT:
+        if setpoint <= MINIMUM_SETPOINT or self.calculate(target_temperature, outside_temperature) <= 0:
             return
 
         coefficient = self.calculate_coefficient(setpoint, target_temperature, outside_temperature)
-        self._coefficient_derivative = round(coefficient - self._optimal_coefficient, 1) if self._optimal_coefficient else coefficient
+        self._coefficient_derivative = round(coefficient - self._optimal_coefficient, 1) if self._optimal_coefficient is not None else 0.0
 
         # Fuzzy logic for when the derivative is positive
-        if self._coefficient_derivative > 1:
-            coefficient -= 0.3
-        elif self._coefficient_derivative < 0.5:
-            coefficient -= 0.1
-        elif self._coefficient_derivative < 1:
-            coefficient -= 0.2
+        if self._coefficient_derivative > 0:
+            if self._coefficient_derivative > 1:
+                coefficient -= 0.3
+            elif self._coefficient_derivative < 0.5:
+                coefficient -= 0.1
+            else:
+                coefficient -= 0.2
 
         # Fuzzy logic for when the derivative is negative
-        if self._coefficient_derivative < -1:
-            coefficient += 0.3
-        elif self._coefficient_derivative > -0.5:
-            coefficient += 0.1
-        elif self._coefficient_derivative > -1:
-            coefficient += 0.2
+        elif self._coefficient_derivative < 0:
+            if self._coefficient_derivative < -1:
+                coefficient += 0.3
+            elif self._coefficient_derivative > -0.5:
+                coefficient += 0.1
+            else:
+                coefficient += 0.2
 
         # Store the results
         self._optimal_coefficients.append(coefficient)
