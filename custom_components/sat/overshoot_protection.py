@@ -4,7 +4,7 @@ import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from statistics import fmean
+from statistics import fmean, linear_regression
 from typing import Any, Mapping
 
 from homeassistant.helpers.event import async_track_time_interval
@@ -21,6 +21,8 @@ TICK = timedelta(seconds=30)
 
 PLATEAU_WINDOW = timedelta(minutes=5)
 PLATEAU_TOLERANCE = 0.5
+# 0.1 °C over the plateau window, the resolution the result is rounded to
+PLATEAU_SLOPE = 0.02
 MODULATION_TOLERANCE = 3
 MODULATION_STABILITY = 5
 SETPOINT_MARGIN = 2
@@ -193,7 +195,11 @@ class OvershootProtection:
             min(flows), max(flows), min(modulations), max(modulations), floor,
         )
 
-        if max(flows) - min(flows) > PLATEAU_TOLERANCE:
+        if len(window) < 2 or max(flows) - min(flows) > PLATEAU_TOLERANCE:
+            return None
+
+        minutes = [(timestamp - now).total_seconds() / 60 for timestamp, _, _ in window]
+        if abs(linear_regression(minutes, flows).slope) > PLATEAU_SLOPE:
             return None
 
         plateau = round(fmean(flows), 1)

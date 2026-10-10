@@ -99,6 +99,25 @@ async def test_measures_the_plateau(hass: HomeAssistant, freezer: FrozenDateTime
     assert released(boiler)
 
 
+async def test_a_rise_of_0_1_degrees_per_minute_is_not_a_plateau(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+    boiler = Boiler(hass)
+    _protection, task = start(hass, boiler)
+
+    boiler.flame_active = True
+    boiler.relative_modulation_value = 13
+    for step in range(30):
+        boiler.boiler_temperature = 43.5 + step * 0.05
+        await tick(hass, freezer)
+
+    for offset in (0.0, 0.2, 0.3, 0.1, 0.2, 0.3, 0.0, 0.2, 0.1, 0.3, 0.2, 0.1):
+        boiler.boiler_temperature = 45.0 + offset
+        await tick(hass, freezer)
+
+    result = await task
+    assert result.method == "minimum_modulation"
+    assert 45.0 <= result.value <= 45.3
+
+
 async def test_fails_when_the_floor_plateau_reaches_the_setpoint(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
     boiler = Boiler(hass)
     _protection, task = start(hass, boiler)
