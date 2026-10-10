@@ -405,9 +405,9 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
     async def async_calibrating(self) -> AsyncIterator[None]:
         """Pause control while the current task calibrates, so off, unload and stop can cancel it."""
         self.calibration = asyncio.current_task()
-        await self.async_stop_control()
-        self.async_write_ha_state()
         try:
+            await self.async_stop_control()
+            self.async_write_ha_state()
             yield
         finally:
             self.calibration = None

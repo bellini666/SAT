@@ -1,5 +1,6 @@
 """Tests for the overshoot protection calibration button."""
 
+import asyncio
 from datetime import timedelta
 from unittest.mock import patch
 
@@ -125,5 +126,32 @@ async def test_turning_off_stops_the_calibration(hass: HomeAssistant, freezer: F
         await tick(hass, freezer, 2)
 
     assert DeviceState.ON not in [call.args[0] for call in heater.call_args_list]
+    assert hass.states.get(BUTTON).state != STATE_UNAVAILABLE
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_turning_off_while_the_calibration_waits_for_the_control_loop(hass: HomeAssistant) -> None:
+    entry = await setup_heating_entry(hass)
+    climate = entry.runtime_data.climate
+    coordinator = entry.runtime_data.coordinator
+    set_control_setpoint = coordinator.async_set_control_setpoint
+    gate = asyncio.Event()
+
+    async def gated_control_setpoint(value: float) -> None:
+        await gate.wait()
+        await set_control_setpoint(value)
+
+    with patch.object(coordinator, "async_set_control_setpoint", gated_control_setpoint):
+        loop = hass.async_create_task(climate.async_control_heating_loop())
+        await asyncio.sleep(0)
+        await hass.services.async_call("button", "press", {"entity_id": BUTTON}, blocking=True)
+        turn_off = hass.async_create_task(climate.async_set_hvac_mode(HVACMode.OFF))
+        await asyncio.sleep(0)
+
+        gate.set()
+        await loop
+        await turn_off
+
+    assert climate.calibration is None
     assert hass.states.get(BUTTON).state != STATE_UNAVAILABLE
     assert await hass.config_entries.async_unload(entry.entry_id)
