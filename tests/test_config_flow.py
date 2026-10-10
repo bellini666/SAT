@@ -307,6 +307,18 @@ async def test_manufacturer_step_without_mqtt(hass: HomeAssistant) -> None:
     hass.config_entries.flow.async_abort(result["flow_id"])
 
 
+async def test_manufacturer_step_preselects_the_detected_manufacturer(hass: HomeAssistant, hass_storage: dict) -> None:
+    hass_storage["sat_open_therm_mqtt_coordinator_otgw"] = {"version": 1, "key": "sat_open_therm_mqtt_coordinator_otgw", "data": {"slave_memberid_code": "95"}}
+    entry = unloaded_mqtt_entry(hass)
+
+    result = await reconfigure_to_menu(hass, entry, "overshoot_protection")
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"minimum_setpoint": 52})
+
+    field = next(key for key in result["data_schema"].schema if key == "manufacturer")
+    assert field.default() == "Worcester"
+    hass.config_entries.flow.async_abort(result["flow_id"])
+
+
 async def test_calibration_refuses_while_another_runs(hass: HomeAssistant) -> None:
     entry = await setup_heating_entry(hass)
     await hass.services.async_call("button", "press", {"entity_id": BUTTON}, blocking=True)
