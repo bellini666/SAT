@@ -231,6 +231,18 @@ async def test_direct_control_loop_cancels_the_scheduled_run(hass: HomeAssistant
     assert await hass.config_entries.async_unload(sat_entry.entry_id)
 
 
+async def test_forced_schedule_runs_the_control_loop_right_away(hass: HomeAssistant, sat_entry: MockConfigEntry) -> None:
+    climate = await start_heating(hass, sat_entry)
+    await hass.async_block_till_done()
+
+    with patch.object(sat_entry.runtime_data.coordinator, "async_control_heating_loop") as control:
+        climate.schedule_control_heating_loop(force=True)
+        await hass.async_block_till_done()
+
+    assert control.await_count == 1
+    assert await hass.config_entries.async_unload(sat_entry.entry_id)
+
+
 async def test_periodic_tick_runs_the_control_loop(hass: HomeAssistant, sat_entry: MockConfigEntry) -> None:
     await start_heating(hass, sat_entry)
 

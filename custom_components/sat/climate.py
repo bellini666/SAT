@@ -1021,8 +1021,8 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
                 self._control_heating_loop_unsub()
                 self._control_heating_loop_unsub = None
 
-                self.hass.async_create_task(self.async_control_heating_loop())
-                return
+            self.hass.async_create_task(self.async_control_heating_loop())
+            return
 
         # If a run is already scheduled, do nothing.
         if self._control_heating_loop_unsub is not None:
