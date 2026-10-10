@@ -453,3 +453,14 @@ async def test_startup_with_missing_inputs_hands_control_back_once(hass: HomeAss
 
     assert any(command.startswith("CS=") and command != "CS=0" for command in commands(mqtt_mock))
     assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_minimum_modulation_falls_back_to_the_legacy_topic(hass: HomeAssistant, mqtt_mock: MqttMockHAClient) -> None:
+    entry = await setup_heating(hass, mqtt_mock)
+
+    # OTGW-firmware up to v0.10.2 publishes the misspelled name
+    async_fire_mqtt_message(hass, "OTGW/value/otgw/MaxCapacityMinModLevell_lb_u8", "20")
+    await hass.async_block_till_done()
+
+    assert entry.runtime_data.coordinator.minimum_relative_modulation_value == 20.0
+    assert await hass.config_entries.async_unload(entry.entry_id)
