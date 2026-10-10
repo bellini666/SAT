@@ -192,13 +192,6 @@ class Flame:
         if currently_active and self._flame_on_monotonic is not None:
             self._latest_on_time_seconds = now - self._flame_on_monotonic
 
-            if self._has_completed_first_cycle:
-                self._average_on_time_seconds = (
-                    self._latest_on_time_seconds
-                    if self._average_on_time_seconds is None
-                    else (1.0 - self._smoothing_alpha) * self._average_on_time_seconds + self._smoothing_alpha * self._latest_on_time_seconds
-                )
-
             self._last_update_monotonic = now
             self._recompute_health(now)
             return
@@ -210,6 +203,11 @@ class Flame:
             self._flame_on_monotonic = None
             self._flame_off_monotonic = now
             self._last_cycle_duration_seconds = duration
+            self._average_on_time_seconds = (
+                duration
+                if self._average_on_time_seconds is None
+                else (1.0 - self._smoothing_alpha) * self._average_on_time_seconds + self._smoothing_alpha * duration
+            )
 
             self._prune_cycles_window(now)
             self._prune_median_window(now)
