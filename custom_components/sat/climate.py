@@ -461,7 +461,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             "boiler_flame_timing": self._coordinator.flame.average_on_time_seconds,
             "boiler_temperature_cold": self._coordinator.boiler_temperature_cold,
             "boiler_temperature_tracking": self._coordinator.boiler_temperature_tracking,
-            "boiler_temperature_derivative": self._coordinator.boiler_temperature_derivative,
+            "boiler_temperature_derivative": round(derivative, 3) if (derivative := self._coordinator.boiler_temperature_derivative) is not None else None,
 
             "pre_custom_temperature": self._pre_custom_temperature,
             "pre_activity_temperature": self._pre_activity_temperature,

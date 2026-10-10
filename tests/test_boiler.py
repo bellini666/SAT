@@ -29,6 +29,7 @@ async def test_boiler_temperature_derivative_keeps_slow_changes(hass: HomeAssist
     await coordinator.async_control_heating_loop()
 
     assert abs(coordinator.boiler_temperature_derivative - 0.1 / 30) < 1e-6
+    assert entry.runtime_data.climate.extra_state_attributes["boiler_temperature_derivative"] == 0.003
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
