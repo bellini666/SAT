@@ -239,6 +239,10 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         # Let the coordinator know we are ready
         await self._coordinator.async_added_to_hass()
 
+        # A release sent while the gateway was unreachable is lost, and the gateway keeps the override until told otherwise
+        if self.hvac_mode != HVACMode.HEAT:
+            await self._coordinator.async_release_control()
+
     @callback
     def async_add_state_listener(self, listener: Callable[[], None]) -> Callable[[], None]:
         """Call the listener every time this entity writes its state."""

@@ -142,3 +142,19 @@ async def test_control_is_handed_back_once_inputs_stay_missing(hass: HomeAssista
 
     assert any(command.startswith("CS=") and command != "CS=0" for command in commands(mqtt_mock))
     assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+@pytest.mark.parametrize(("hvac_mode", "released"), [(HVACMode.OFF, True), (HVACMode.HEAT, False)])
+async def test_startup_hands_control_back_unless_heating(hass: HomeAssistant, mqtt_mock: MqttMockHAClient, hvac_mode: HVACMode, released: bool) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="otgw",
+        data={**DEFAULT_USER_DATA, CONF_MODE: MODE_MQTT_OPENTHERM, CONF_DEVICE: "otgw", CONF_MQTT_TOPIC: "OTGW"},
+        options={"default_hvac_mode": hvac_mode},
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert ({"CS=0", "MM=T"} <= set(commands(mqtt_mock))) is released
+    assert await hass.config_entries.async_unload(entry.entry_id)
