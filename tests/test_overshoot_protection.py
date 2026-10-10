@@ -8,9 +8,10 @@ from freezegun.api import FrozenDateTimeFactory
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import async_fire_time_changed
 
-from custom_components.sat.const import HEATING_SYSTEM_RADIATORS, MINIMUM_SETPOINT
+from custom_components.sat.const import CONF_MAXIMUM_SETPOINT, HEATING_SYSTEM_RADIATORS, MINIMUM_SETPOINT, OPTIONS_DEFAULTS
 from custom_components.sat.coordinator import DeviceState
 from custom_components.sat.overshoot_protection import CalibrationError, OvershootProtection
+from custom_components.sat.simulator import SatSimulatorCoordinator
 
 
 class Boiler:
@@ -42,6 +43,9 @@ class Boiler:
 
     async def async_release_control(self) -> None:
         self.commands.append(("release", None))
+
+    async def async_control_heating_loop(self) -> None:
+        pass
 
 
 async def tick(hass: HomeAssistant, freezer: FrozenDateTimeFactory, count: int = 1) -> None:
@@ -319,3 +323,15 @@ async def test_gateway_error_ends_the_calibration(hass: HomeAssistant, freezer: 
     with pytest.raises(RuntimeError, match="gateway"):
         await task
     assert released(boiler)
+
+
+async def test_simulator_heats_during_calibration(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+    simulator = SatSimulatorCoordinator(hass, {**OPTIONS_DEFAULTS, CONF_MAXIMUM_SETPOINT: 55})
+    _protection, task = start(hass, simulator)
+
+    await tick(hass, freezer, 4)
+
+    assert simulator.boiler_temperature > MINIMUM_SETPOINT
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task

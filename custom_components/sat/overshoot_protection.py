@@ -141,6 +141,7 @@ class OvershootProtection:
         await coordinator.async_set_heater_state(DeviceState.ON)
         await coordinator.async_set_control_setpoint(self.setpoint)
         await coordinator.async_set_control_max_relative_modulation(MINIMUM_RELATIVE_MODULATION)
+        await coordinator.async_control_heating_loop()
 
         _LOGGER.debug(
             "Calibration %s: sent CH=on CS=%.1f MM=%d, flame=%s flow=%s modulation=%s",
