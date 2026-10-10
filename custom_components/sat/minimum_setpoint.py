@@ -35,7 +35,7 @@ class MinimumSetpoint:
             _LOGGER.debug("Loaded base return temperature from storage.")
 
     def warming_up(self, boiler_state: BoilerState) -> None:
-        if self._base_return_temperature.value is not None and self._base_return_temperature.value == boiler_state.return_temperature:
+        if boiler_state.return_temperature is None or self._base_return_temperature.value == boiler_state.return_temperature:
             return
 
         self._base_return_temperature = update_state(previous=self._base_return_temperature, new_value=boiler_state.return_temperature)
@@ -81,6 +81,9 @@ class MinimumSetpoint:
     def _is_running_normal_mode(self, boiler_state: BoilerState, pwm_state: PWMStatus) -> bool:
         return (
                 pwm_state is PWMStatus.IDLE
+                and boiler_state.relative_modulation_level is not None
+                and boiler_state.flow_temperature is not None
+                and boiler_state.setpoint is not None
                 and to_int(self._relative_modulation_level.value, 0) > 0
                 and (utcnow() - self._relative_modulation_level.last_changed).total_seconds() > 180
                 and math.isclose(boiler_state.flow_temperature, boiler_state.setpoint, abs_tol=1.0)
