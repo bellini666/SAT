@@ -19,7 +19,7 @@ def seconds_since(start_time: float | None) -> float:
 
 def state_age_seconds(state: State) -> float:
     """Return the age of a HA state in seconds."""
-    return (dt.utcnow() - state.last_updated).total_seconds()
+    return (dt.utcnow() - state.last_reported).total_seconds()
 
 
 def is_state_stale(state: Optional[State], max_age_seconds: float) -> bool:
