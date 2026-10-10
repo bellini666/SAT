@@ -166,7 +166,7 @@ class PWM:
             _LOGGER.info("Starting new duty cycle (ON state). Current CYCLES count: %d", self._current_cycle)
             return
 
-        if self._status != PWMStatus.OFF and (self._duty_cycle[0] < HEATER_STARTUP_TIMEFRAME or elapsed >= self._duty_cycle[0] or self._status == PWMStatus.IDLE):
+        if self._status != PWMStatus.OFF and (self._duty_cycle[0] < HEATER_STARTUP_TIMEFRAME or (elapsed >= self._duty_cycle[0] and self._duty_cycle[1] > 0) or self._status == PWMStatus.IDLE):
             self._status = PWMStatus.OFF
             self._last_update = monotonic()
             _LOGGER.info("Duty cycle completed. Switching to OFF state.")

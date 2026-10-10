@@ -1,8 +1,10 @@
 """Tests for Pulse Width Modulation state handling in the climate."""
 
 import logging
+from datetime import timedelta
 
 import pytest
+from freezegun.api import FrozenDateTimeFactory
 from homeassistant.components.climate import HVACMode
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -73,4 +75,21 @@ async def test_dynamic_minimum_setpoint_starts_from_the_options_value(hass: Home
 
     assert coordinator.minimum_setpoint == 40
     assert climate.minimum_setpoint.current == 40
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_full_duty_cycle_stays_on(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+    entry, climate, coordinator = await setup_climate(hass, {CONF_FORCE_PULSE_WIDTH_MODULATION: True})
+
+    await coordinator.async_set_boiler_temperature(30)
+    await climate.async_set_target_temperature(25.0)
+    await climate.async_set_hvac_mode(HVACMode.HEAT)
+    await climate.async_control_heating_loop()
+    assert climate.pwm.status == PWMStatus.ON
+    assert climate.pwm.duty_cycle[1] == 0
+
+    freezer.tick(timedelta(seconds=climate.pwm.duty_cycle[0] + 1))
+    await climate.async_control_heating_loop()
+
+    assert climate.pwm.status == PWMStatus.ON
     assert await hass.config_entries.async_unload(entry.entry_id)
