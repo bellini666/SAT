@@ -291,7 +291,7 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
         if time_delta <= 0:
             return None
 
-        return round((last_temperature - first_temperature) / time_delta, 2)
+        return (last_temperature - first_temperature) / time_delta
 
     @property
     def boiler_temperature_cold(self) -> Optional[float]:
