@@ -158,8 +158,10 @@ async def test_unload_stops_mqtt_updates(hass: HomeAssistant, mqtt_mock: MqttMoc
 
 
 @pytest.mark.usefixtures("instant_mqtt_command_delay")
-async def test_failed_setup_stops_mqtt_updates(hass: HomeAssistant, mqtt_mock: MqttMockHAClient) -> None:
+@pytest.mark.parametrize("target", ["climate", "platforms"])
+async def test_failed_setup_stops_mqtt_updates(hass: HomeAssistant, mqtt_mock: MqttMockHAClient, target: str) -> None:
     entry = mqtt_entry(hass)
+    failure = (sat, "SatClimate") if target == "climate" else (hass.config_entries, "async_forward_entry_setups")
     resolve = SatDataUpdateCoordinatorFactory.resolve
     coordinators = []
 
@@ -167,7 +169,7 @@ async def test_failed_setup_stops_mqtt_updates(hass: HomeAssistant, mqtt_mock: M
         coordinators.append(resolve(**kwargs))
         return coordinators[-1]
 
-    with patch.object(SatDataUpdateCoordinatorFactory, "resolve", staticmethod(capture)), patch.object(sat, "SatClimate", side_effect=RuntimeError("climate")):
+    with patch.object(SatDataUpdateCoordinatorFactory, "resolve", staticmethod(capture)), patch.object(*failure, side_effect=RuntimeError("setup")):
         await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
 

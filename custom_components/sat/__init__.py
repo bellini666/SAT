@@ -49,6 +49,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: SatConfigEntry):
     coordinator = SatDataUpdateCoordinatorFactory().resolve(
         hass=hass, data=entry.data, options=entry.options, mode=entry.data.get(CONF_MODE), device=entry.data.get(CONF_DEVICE)
     )
+    entry.async_on_unload(coordinator.async_will_remove_from_hass)
 
     # Making sure everything is loaded
     issue_id = f"setup_failed_{entry.entry_id}"
@@ -68,12 +69,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: SatConfigEntry):
 
     ir.async_delete_issue(hass, DOMAIN, issue_id)
 
-    try:
-        climate = SatClimate(coordinator, entry, hass.config.units.temperature_unit)
-    except Exception:
-        await coordinator.async_will_remove_from_hass()
-        raise
-
+    climate = SatClimate(coordinator, entry, hass.config.units.temperature_unit)
     entry.runtime_data = SatRuntimeData(coordinator=coordinator, climate=climate)
 
     async def async_stop(_event: Event) -> None:
@@ -95,10 +91,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: SatConfigEntry) -> bool
     """
     await async_release_control(entry)
 
-    if unloaded := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
-        await entry.runtime_data.coordinator.async_will_remove_from_hass()
-
-    return unloaded
+    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
 
 async def async_release_control(entry: SatConfigEntry) -> None:
