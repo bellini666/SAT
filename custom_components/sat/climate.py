@@ -658,6 +658,9 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             return []
 
         problems = []
+        if not self._coordinator.online:
+            problems.append("gateway_offline")
+
         if self.current_temperature is None or self.target_temperature is None or self.current_outside_temperature is None:
             problems.append("inputs_missing")
 
@@ -1027,7 +1030,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
 
         async with self._control_lock:
             # No need to do anything if we are not on, or while something else drives the boiler
-            if self.hvac_mode != HVACMode.HEAT or self.control_paused:
+            if self.hvac_mode != HVACMode.HEAT or self.control_paused or not self._coordinator.online:
                 return
 
             if self.current_temperature is None or self.target_temperature is None or self.current_outside_temperature is None:

@@ -30,7 +30,7 @@ class SatMqttCoordinator(SatDataUpdateCoordinator):
         self._topic: str = config_data.get(CONF_MQTT_TOPIC)
         self._subscriptions: list[Callable[[], None]] = []
         self._messages: deque[dict[str, str]] = deque(maxlen=50)
-        self._restored_keys: set[str] = set()
+        self._stale_keys: set[str] = set()
         self._store: Store = Store(hass, STORAGE_VERSION, snake_case(f"{self.__class__.__name__}_{device_id}"))
 
     @property
@@ -72,7 +72,7 @@ class SatMqttCoordinator(SatDataUpdateCoordinator):
         """Load the data from persistent storage."""
         if stored_data := await self._store.async_load():
             restored = {key: value for key, value in stored_data.items() if value not in (None, "")}
-            self._restored_keys = set(restored)
+            self._stale_keys = set(restored)
             self.async_set_updated_data(restored)
 
     async def _save_data(self) -> None:
@@ -116,12 +116,12 @@ class SatMqttCoordinator(SatDataUpdateCoordinator):
         return message_handler
 
     def _live_value(self, key: str) -> Any:
-        """Return the value of a key once a live message has replaced the one restored from storage."""
-        return None if key in self._restored_keys else self.data.get(key)
+        """Return the value of a key unless it was restored from storage or the device went offline since it arrived."""
+        return None if key in self._stale_keys else self.data.get(key)
 
     def _process_message_payload(self, key: str, value):
         """Process and store the payload of a received MQTT message."""
-        self._restored_keys.discard(key)
+        self._stale_keys.discard(key)
         self.async_set_updated_data({key: value})
         self._store.async_delay_save(lambda: dict(self.data), STORAGE_SAVE_DELAY)
 

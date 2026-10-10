@@ -3,6 +3,9 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
+from homeassistant.components import mqtt
+from homeassistant.core import callback
+
 from . import SatMqttCoordinator
 from ..coordinator import DeviceState
 from ..manufacturers.immergas import Immergas
@@ -32,10 +35,15 @@ class SatOpenThermMqttCoordinator(SatMqttCoordinator):
     """Class to manage to fetch data from the OTGW Gateway using mqtt."""
 
     _thermostat_setpoint: Optional[float] = None
+    _online: Optional[bool] = None
 
     @property
     def device_type(self) -> str:
         return "OpenThermGateway (via mqtt)"
+
+    @property
+    def online(self) -> bool:
+        return self._online is not False
 
     @property
     def supports_setpoint_management(self):
@@ -148,6 +156,21 @@ class SatOpenThermMqttCoordinator(SatMqttCoordinator):
             return int(value)
 
         return None
+
+    async def async_setup(self):
+        await super().async_setup()
+
+        # OTGW-firmware publishes its retained will message, "online" or "offline", on the bare value namespace
+        self._subscriptions.append(await mqtt.async_subscribe(self.hass, f"{self._topic}/value/{self._device_id}", self._async_availability_changed))
+
+    @callback
+    def _async_availability_changed(self, message) -> None:
+        self._online = message.payload == "online"
+
+        if not self._online:
+            self._stale_keys = set(self.data)
+
+        self.async_update_listeners()
 
     async def boot(self) -> None:
         await self._publish_command("PM=3")

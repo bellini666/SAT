@@ -135,6 +135,11 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
         return []
 
     @property
+    def online(self) -> bool:
+        """Return whether the device reports itself as reachable."""
+        return True
+
+    @property
     def device_status(self) -> BoilerStatus:
         """Return the current status of the device."""
         if self.boiler_temperature is None:

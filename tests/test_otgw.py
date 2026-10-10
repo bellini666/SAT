@@ -7,7 +7,7 @@ from unittest.mock import patch
 import pytest
 from freezegun.api import FrozenDateTimeFactory
 from homeassistant.components.climate import HVACMode
-from homeassistant.const import EVENT_HOMEASSISTANT_FINAL_WRITE, EVENT_HOMEASSISTANT_STOP
+from homeassistant.const import EVENT_HOMEASSISTANT_FINAL_WRITE, EVENT_HOMEASSISTANT_STOP, STATE_ON
 from homeassistant.core import HomeAssistant
 from freezegun.api import FrozenDateTimeFactory
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_mqtt_message, async_fire_time_changed
@@ -27,6 +27,7 @@ from tests.const import DEFAULT_USER_DATA
 
 COMMAND_TOPIC = "OTGW/set/otgw/command"
 STORAGE_KEY = "sat_open_therm_mqtt_coordinator_otgw"
+AVAILABILITY_TOPIC = "OTGW/value/otgw"
 
 pytestmark = pytest.mark.usefixtures("instant_mqtt_command_delay")
 
@@ -290,4 +291,19 @@ async def test_restored_max_modulation_does_not_skip_the_command(hass: HomeAssis
 
     assert value == 100
     assert f"MM={value}" in commands(mqtt_mock)
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_offline_gateway_pauses_control(hass: HomeAssistant, mqtt_mock: MqttMockHAClient) -> None:
+    entry = await setup_heating(hass, mqtt_mock)
+    climate = entry.runtime_data.climate
+
+    async_fire_mqtt_message(hass, AVAILABILITY_TOPIC, "offline")
+    await hass.async_block_till_done()
+    await climate.async_control_heating_loop()
+
+    assert not entry.runtime_data.coordinator.online
+    assert "gateway_offline" in climate.control_problems
+    assert hass.states.get("binary_sensor.mock_title_boiler_health").state == STATE_ON
+    assert commands(mqtt_mock) == []
     assert await hass.config_entries.async_unload(entry.entry_id)
