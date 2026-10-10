@@ -123,7 +123,12 @@ class SatMqttCoordinator(SatDataUpdateCoordinator):
 
     def _process_message_payload(self, key: str, value):
         """Process and store the payload of a received MQTT message."""
-        self._stale_keys.discard(key)
+        if key in self._stale_keys:
+            self._stale_keys.discard(key)
+
+            # Deleting marks the data dirty, so a stale value that comes back unchanged still notifies the listeners
+            del self.data[key]
+
         self.async_set_updated_data({key: value})
 
     async def _publish_command(self, payload: str, wait_time: float = 1.0):

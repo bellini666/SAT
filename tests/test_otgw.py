@@ -268,6 +268,29 @@ async def test_restored_values_are_stale_until_a_live_message(hass: HomeAssistan
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
+async def test_listeners_are_notified_when_a_restored_value_comes_back_unchanged(hass: HomeAssistant, mqtt_mock: MqttMockHAClient, hass_storage: dict, freezer: FrozenDateTimeFactory) -> None:
+    hass_storage[STORAGE_KEY] = {"version": 1, "key": STORAGE_KEY, "data": {"Tboiler": "40.0"}}
+    entry = otgw_entry(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    coordinator = entry.runtime_data.coordinator
+    freezer.tick(timedelta(seconds=10))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+    updates = []
+    unsubscribe = coordinator.async_add_listener(lambda: updates.append(coordinator.boiler_temperature))
+
+    async_fire_mqtt_message(hass, "OTGW/value/otgw/Tboiler", "40.0")
+    await hass.async_block_till_done()
+    freezer.tick(timedelta(seconds=10))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+
+    assert updates == [40.0]
+    unsubscribe()
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
 @pytest.mark.parametrize("expected_lingering_timers", [True])
 async def test_values_are_saved_when_home_assistant_stops(hass: HomeAssistant, mqtt_mock: MqttMockHAClient, hass_storage: dict) -> None:
     entry = otgw_entry(hass)
