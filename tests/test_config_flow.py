@@ -6,11 +6,11 @@ from homeassistant.components.climate import HVACMode
 from homeassistant.config_entries import SOURCE_RECONFIGURE, SOURCE_USER
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import section
-from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_mqtt_message, async_fire_time_changed
+from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_mqtt_message, async_fire_time_changed, async_mock_service
 from pytest_homeassistant_custom_component.typing import MqttMockHAClient
 
 from custom_components.sat.config_flow import SatFlowHandler
-from custom_components.sat.const import DOMAIN, MODE_FAKE, MODE_MQTT_OPENTHERM
+from custom_components.sat.const import CONF_RADIATORS, CONF_ROOMS, DOMAIN, MODE_FAKE, MODE_MQTT_OPENTHERM
 from tests.const import BUTTON, DEFAULT_USER_DATA
 
 
@@ -134,6 +134,35 @@ async def test_calibration_uses_the_running_coordinator(hass: HomeAssistant, fre
     assert result["step_id"] == "calibrated"
     assert result["description_placeholders"]["minimum_setpoint"] == 40.0
     assert not entry.runtime_data.climate.control_paused
+
+    hass.config_entries.flow.async_abort(result["flow_id"])
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_calibration_restores_the_climate_hvac_modes(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+    hass.states.async_set("sensor.test_inside_sensor", "19.5")
+    hass.states.async_set("sensor.test_outside_sensor", "5.0")
+    hass.states.async_set("climate.radiator", HVACMode.OFF, {"hvac_modes": [HVACMode.OFF, HVACMode.HEAT]})
+    hass.states.async_set("climate.room", HVACMode.HEAT, {"hvac_modes": [HVACMode.OFF, HVACMode.HEAT]})
+
+    entry = MockConfigEntry(domain=DOMAIN, version=SatFlowHandler.VERSION, data={**DEFAULT_USER_DATA, "minimum_setpoint": 45, "heating_system": "radiators", CONF_RADIATORS: ["climate.radiator"], CONF_ROOMS: ["climate.room"]})
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    await entry.runtime_data.coordinator.async_set_boiler_temperature(40)
+    calls = async_mock_service(hass, "climate", "set_hvac_mode")
+
+    result = await reconfigure_to_menu(hass, entry, "calibrate")
+    await tick(hass, freezer, 14)
+    result = await hass.config_entries.flow.async_configure(result["flow_id"])
+
+    assert result["step_id"] == "calibrated"
+    assert [(call.data["entity_id"], call.data["hvac_mode"]) for call in calls] == [
+        ("climate.radiator", HVACMode.HEAT),
+        ("climate.room", HVACMode.HEAT),
+        ("climate.radiator", HVACMode.OFF),
+        ("climate.room", HVACMode.HEAT),
+    ]
 
     hass.config_entries.flow.async_abort(result["flow_id"])
     assert await hass.config_entries.async_unload(entry.entry_id)

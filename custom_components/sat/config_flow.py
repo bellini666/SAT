@@ -403,18 +403,26 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         options = self.config_entry.options if self.config_entry else {}
         maximum_setpoint = float(options.get(CONF_MAXIMUM_SETPOINT, calculate_default_maximum_setpoint(heating_system)))
 
+        climates = self.data.get(CONF_RADIATORS, []) + self.data.get(CONF_ROOMS, [])
+        hvac_modes = {entity_id: state.state for entity_id in climates if (state := self.hass.states.get(entity_id)) is not None and state.state in climate.HVACMode}
+
         try:
             if climate_entity is None:
                 await coordinator.async_setup()
                 await coordinator.async_added_to_hass()
 
             async with climate_entity.async_calibrating() if climate_entity is not None else contextlib.nullcontext():
-                # Make sure all climate valves are open
-                for entity_id in self.data.get(CONF_RADIATORS, []) + self.data.get(CONF_ROOMS, []):
-                    data = {ATTR_ENTITY_ID: entity_id, climate.ATTR_HVAC_MODE: climate.HVACMode.HEAT}
-                    await self.hass.services.async_call(climate.DOMAIN, climate.SERVICE_SET_HVAC_MODE, data, blocking=True)
+                try:
+                    # Make sure all climate valves are open
+                    for entity_id in climates:
+                        data = {ATTR_ENTITY_ID: entity_id, climate.ATTR_HVAC_MODE: climate.HVACMode.HEAT}
+                        await self.hass.services.async_call(climate.DOMAIN, climate.SERVICE_SET_HVAC_MODE, data, blocking=True)
 
-                return (await create_overshoot_protection(coordinator, heating_system, maximum_setpoint, options).calculate()).value
+                    return (await create_overshoot_protection(coordinator, heating_system, maximum_setpoint, options).calculate()).value
+                finally:
+                    for entity_id, hvac_mode in hvac_modes.items():
+                        data = {ATTR_ENTITY_ID: entity_id, climate.ATTR_HVAC_MODE: hvac_mode}
+                        await self.hass.services.async_call(climate.DOMAIN, climate.SERVICE_SET_HVAC_MODE, data, blocking=True)
         except CalibrationError:
             return None
         finally:
