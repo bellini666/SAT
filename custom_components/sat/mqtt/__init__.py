@@ -113,6 +113,8 @@ class SatMqttCoordinator(SatDataUpdateCoordinator):
             except Exception as e:
                 _LOGGER.error("Failed to process message for key '%s': %s", key, str(e))
 
+            self._store.async_delay_save(lambda: dict(self.data), STORAGE_SAVE_DELAY)
+
         return message_handler
 
     def _live_value(self, key: str) -> Any:
@@ -123,7 +125,6 @@ class SatMqttCoordinator(SatDataUpdateCoordinator):
         """Process and store the payload of a received MQTT message."""
         self._stale_keys.discard(key)
         self.async_set_updated_data({key: value})
-        self._store.async_delay_save(lambda: dict(self.data), STORAGE_SAVE_DELAY)
 
     async def _publish_command(self, payload: str, wait_time: float = 1.0):
         """Publish a command to the MQTT topic."""
