@@ -10,6 +10,8 @@ from pytest_homeassistant_custom_component.common import async_fire_time_changed
 
 from custom_components.sat.const import CONF_MAXIMUM_SETPOINT, HEATING_SYSTEM_RADIATORS, MINIMUM_SETPOINT, OPTIONS_DEFAULTS
 from custom_components.sat.coordinator import DeviceState
+from custom_components.sat.manufacturer import Manufacturer
+from custom_components.sat.manufacturers.geminox import Geminox
 from custom_components.sat.overshoot_protection import CalibrationError, OvershootProtection
 from custom_components.sat.simulator import SatSimulatorCoordinator
 
@@ -24,6 +26,7 @@ class Boiler:
         self.boiler_temperature: float | None = 30.0
         self.relative_modulation_value: float | None = 0.0
         self.minimum_relative_modulation_value: float | None = 12.0
+        self.manufacturer: Manufacturer | None = None
         self.commands: list[tuple[str, object]] = []
         self.gate: asyncio.Event | None = None
         self.error: Exception | None = None
@@ -332,6 +335,19 @@ async def test_simulator_heats_during_calibration(hass: HomeAssistant, freezer: 
     await tick(hass, freezer, 4)
 
     assert simulator.boiler_temperature > MINIMUM_SETPOINT
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+
+async def test_geminox_gets_the_climate_modulation_clamp(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+    boiler = Boiler(hass)
+    boiler.manufacturer = Geminox()
+    _protection, task = start(hass, boiler)
+    await tick(hass, freezer)
+
+    assert ("MM", 10) in boiler.commands
+    assert ("MM", 0) not in boiler.commands
     task.cancel()
     with pytest.raises(asyncio.CancelledError):
         await task

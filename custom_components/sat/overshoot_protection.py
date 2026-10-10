@@ -13,6 +13,7 @@ from homeassistant.util import dt as dt_util
 from .const import CONF_CALIBRATION_FLAME_TIMEOUT, CONF_CALIBRATION_PLATEAU_TIMEOUT, MINIMUM_RELATIVE_MODULATION, MINIMUM_SETPOINT, OPTIONS_DEFAULTS, OVERSHOOT_PROTECTION_SETPOINT
 from .coordinator import DeviceState, SatDataUpdateCoordinator
 from .helpers import convert_time_str_to_seconds
+from .manufacturers.geminox import Geminox
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -138,14 +139,17 @@ class OvershootProtection:
             self._samples.clear()
             return None
 
+        # Geminox boilers need at least 10 % maximum relative modulation
+        modulation = max(10, MINIMUM_RELATIVE_MODULATION) if isinstance(coordinator.manufacturer, Geminox) else MINIMUM_RELATIVE_MODULATION
+
         await coordinator.async_set_heater_state(DeviceState.ON)
         await coordinator.async_set_control_setpoint(self.setpoint)
-        await coordinator.async_set_control_max_relative_modulation(MINIMUM_RELATIVE_MODULATION)
+        await coordinator.async_set_control_max_relative_modulation(modulation)
         await coordinator.async_control_heating_loop()
 
         _LOGGER.debug(
             "Calibration %s: sent CH=on CS=%.1f MM=%d, flame=%s flow=%s modulation=%s",
-            self.phase, self.setpoint, MINIMUM_RELATIVE_MODULATION, coordinator.flame_active,
+            self.phase, self.setpoint, modulation, coordinator.flame_active,
             coordinator.boiler_temperature, coordinator.relative_modulation_value,
         )
 
