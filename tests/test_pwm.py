@@ -12,6 +12,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.sat.const import (
     CONF_DYNAMIC_MINIMUM_SETPOINT,
+    CONF_DYNAMIC_MINIMUM_SETPOINT_VERSION,
     CONF_FORCE_PULSE_WIDTH_MODULATION,
     CONF_HEATING_CURVE_COEFFICIENT,
     CONF_HEATING_SYSTEM,
@@ -20,8 +21,10 @@ from custom_components.sat.const import (
     DOMAIN,
     HEATING_SYSTEM_RADIATORS,
     MINIMUM_SETPOINT,
+    BoilerStatus,
     PWMStatus,
 )
+from custom_components.sat.coordinator import DeviceState
 from tests.const import DEFAULT_USER_DATA
 
 
@@ -110,6 +113,26 @@ async def test_dynamic_minimum_setpoint_below_the_overshoot_value_still_enables_
 
     assert climate.pulse_width_modulation_enabled
     assert climate.setpoint == coordinator.minimum_setpoint
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+@pytest.mark.parametrize(("options", "enabled"), [
+    ({CONF_DYNAMIC_MINIMUM_SETPOINT: True, CONF_DYNAMIC_MINIMUM_SETPOINT_VERSION: 2}, True),
+    ({CONF_DYNAMIC_MINIMUM_SETPOINT: True, CONF_DYNAMIC_MINIMUM_SETPOINT_VERSION: 1}, False),
+    ({}, False),
+])
+async def test_overshoot_handling_enables_pwm_only_for_dynamic_minimum_setpoint_v2(hass: HomeAssistant, options: dict, enabled: bool) -> None:
+    entry, climate, coordinator = await setup_climate(hass, {**options, CONF_MINIMUM_SETPOINT: 30})
+    await climate.async_set_target_temperature(21.0)
+    await climate.async_set_hvac_mode(HVACMode.HEAT)
+    await coordinator.async_set_control_setpoint(60)
+    await coordinator.async_set_heater_state(DeviceState.ON)
+    await coordinator.async_set_boiler_temperature(75)
+    assert coordinator.device_status == BoilerStatus.OVERSHOOT_HANDLING
+
+    await climate.async_control_heating_loop()
+
+    assert climate.pulse_width_modulation_enabled is enabled
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
