@@ -9,7 +9,7 @@ from homeassistant.const import UnitOfPower, UnitOfTemperature, UnitOfVolume
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import CONF_MODE, MODE_SERIAL, MODE_SIMULATOR, CONF_MINIMUM_CONSUMPTION, CONF_MAXIMUM_CONSUMPTION
+from .const import CONF_MODE, MODE_MQTT_OPENTHERM, MODE_SERIAL, MODE_SIMULATOR, CONF_MINIMUM_CONSUMPTION, CONF_MAXIMUM_CONSUMPTION
 from .coordinator import SatDataUpdateCoordinator
 from .entity import SatEntity, SatClimateEntity
 from .serial import sensor as serial_sensor
@@ -35,6 +35,9 @@ async def async_setup_entry(_hass: HomeAssistant, _config_entry: ConfigEntry, _a
     # Check if integration is set to use the simulator
     if _config_entry.data.get(CONF_MODE) == MODE_SIMULATOR:
         await simulator_sensor.async_setup_entry(_hass, _config_entry, _async_add_entities)
+
+    if _config_entry.data.get(CONF_MODE) == MODE_MQTT_OPENTHERM:
+        _async_add_entities([SatBoilerFaultCodeSensor(coordinator, _config_entry)])
 
     _async_add_entities([
         SatFlameSensor(coordinator, _config_entry),
@@ -246,3 +249,19 @@ class SatBoilerSensor(SatEntity, SensorEntity):
     @property
     def unique_id(self) -> str:
         return f"{self._config_entry.entry_id}-boiler-status"
+
+
+class SatBoilerFaultCodeSensor(SatEntity, SensorEntity):
+    _attr_translation_key = "boiler_fault_code"
+
+    @property
+    def native_value(self) -> int | None:
+        return self._coordinator.fault_code
+
+    @property
+    def available(self) -> bool:
+        return self._coordinator.fault_code is not None
+
+    @property
+    def unique_id(self) -> str:
+        return f"{self._config_entry.entry_id}-boiler-fault-code"

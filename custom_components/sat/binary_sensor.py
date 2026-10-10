@@ -14,7 +14,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_track_state_change_event, async_track_time_interval
 
 from .climate import SatClimate
-from .const import CONF_MODE, MODE_SERIAL, CONF_WINDOW_SENSORS, FlameStatus, BoilerStatus
+from .const import CONF_MODE, MODE_MQTT_OPENTHERM, MODE_SERIAL, CONF_WINDOW_SENSORS, FlameStatus, BoilerStatus
 from .entity import SatClimateEntity, SatEntity
 from .helpers import seconds_since
 from .serial import binary_sensor as serial_binary_sensor
@@ -38,6 +38,9 @@ async def async_setup_entry(_hass: HomeAssistant, _config_entry: ConfigEntry, _a
 
     if coordinator.supports_relative_modulation_management:
         _async_add_entities([SatRelativeModulationSynchroSensor(coordinator, _config_entry, climate)])
+
+    if _config_entry.data.get(CONF_MODE) == MODE_MQTT_OPENTHERM:
+        _async_add_entities([SatBoilerFaultSensor(coordinator, _config_entry)])
 
     if len(_config_entry.options.get(CONF_WINDOW_SENSORS, [])) > 0:
         _async_add_entities([SatWindowSensor(coordinator, _config_entry, climate)])
@@ -209,7 +212,7 @@ class SatBoilerHealthSensor(SatEntity, BinarySensorEntity):
     @property
     def is_on(self) -> bool:
         """Return the state of the sensor."""
-        return self._coordinator.boiler.status == BoilerStatus.INSUFFICIENT_DATA
+        return self._coordinator.boiler.status == BoilerStatus.INSUFFICIENT_DATA or self._coordinator.fault_active
 
     @property
     def unique_id(self) -> str:
@@ -266,3 +269,20 @@ class SatWindowSensor(SatClimateEntity, BinarySensorGroup):
     def unique_id(self) -> str:
         """Return a unique ID to use for this entity."""
         return f"{self._config_entry.entry_id}-window-sensor"
+
+
+class SatBoilerFaultSensor(SatEntity, BinarySensorEntity):
+    _attr_translation_key = "boiler_fault"
+    _attr_device_class = BinarySensorDeviceClass.PROBLEM
+
+    @property
+    def is_on(self) -> bool:
+        return self._coordinator.fault_active
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        return {"flags": self._coordinator.fault_flags}
+
+    @property
+    def unique_id(self) -> str:
+        return f"{self._config_entry.entry_id}-boiler-fault"

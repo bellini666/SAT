@@ -333,3 +333,22 @@ async def test_gateway_reboot_restores_the_overrides(hass: HomeAssistant, mqtt_m
         assert {"PM=3", "PM=15", "PM=48", f"SH={coordinator.maximum_setpoint}", "SW=50", f"MM={modulation}", "TC=21.0"} <= set(sent)
         assert any(command.startswith("CS=") for command in sent)
     assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_boiler_fault_is_reported(hass: HomeAssistant, mqtt_mock: MqttMockHAClient, freezer: FrozenDateTimeFactory) -> None:
+    entry = await setup_heating(hass, mqtt_mock)
+
+    async_fire_mqtt_message(hass, "OTGW/value/otgw/fault", "ON")
+    async_fire_mqtt_message(hass, "OTGW/value/otgw/OEMFaultCode", "38")
+    async_fire_mqtt_message(hass, "OTGW/value/otgw/ASF_flags", "00001000")
+    await hass.async_block_till_done()
+    freezer.tick(timedelta(seconds=6))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+
+    fault = hass.states.get("binary_sensor.mock_title_boiler_fault")
+    assert fault.state == STATE_ON
+    assert fault.attributes["flags"] == "00001000"
+    assert hass.states.get("sensor.mock_title_boiler_fault_code").state == "38"
+    assert hass.states.get("binary_sensor.mock_title_boiler_health").state == STATE_ON
+    assert await hass.config_entries.async_unload(entry.entry_id)

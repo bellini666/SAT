@@ -264,6 +264,14 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
         return None
 
     @property
+    def fault_active(self) -> bool:
+        return False
+
+    @property
+    def fault_code(self) -> Optional[int]:
+        return None
+
+    @property
     def boiler_temperature(self) -> Optional[float]:
         return None
 

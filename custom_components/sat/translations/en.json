@@ -295,6 +295,14 @@
       "boiler_health": {
         "name": "Boiler health"
       },
+      "boiler_fault": {
+        "name": "Boiler fault",
+        "state_attributes": {
+          "flags": {
+            "name": "Fault flags"
+          }
+        }
+      },
       "flame_health": {
         "name": "Flame health"
       },
@@ -336,6 +344,9 @@
       },
       "boiler_status": {
         "name": "Boiler status"
+      },
+      "boiler_fault_code": {
+        "name": "Boiler fault code"
       }
     },
     "button": {

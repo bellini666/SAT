@@ -26,6 +26,9 @@ DATA_REL_MIN_MOD_LEVEL = "MaxCapacityMinModLevel_lb_u8"
 DATA_MAX_REL_MOD_LEVEL_SETTING = "MaxRelModLevelSetting"
 DATA_DHW_SETPOINT_MINIMUM = "TdhwSetUBTdhwSetLB_value_lb"
 DATA_DHW_SETPOINT_MAXIMUM = "TdhwSetUBTdhwSetLB_value_hb"
+DATA_FAULT = "fault"
+DATA_FAULT_CODE = "OEMFaultCode"
+DATA_FAULT_FLAGS = "ASF_flags"
 
 _LOGGER: logging.Logger = logging.getLogger(__name__)
 
@@ -72,6 +75,22 @@ class SatOpenThermMqttCoordinator(SatMqttCoordinator):
     @property
     def hot_water_active(self) -> bool:
         return self._live_value(DATA_DHW_ENABLE) == STATE_ON
+
+    @property
+    def fault_active(self) -> bool:
+        return self._live_value(DATA_FAULT) == STATE_ON
+
+    @property
+    def fault_code(self) -> Optional[int]:
+        if (value := self._live_value(DATA_FAULT_CODE)) is not None:
+            return int(value)
+
+        return None
+
+    @property
+    def fault_flags(self) -> Optional[str]:
+        """Return the application-specific fault flags (ID 5 high byte), most significant bit first."""
+        return self._live_value(DATA_FAULT_FLAGS)
 
     @property
     def setpoint(self) -> Optional[float]:
@@ -213,6 +232,9 @@ class SatOpenThermMqttCoordinator(SatMqttCoordinator):
             DATA_MAX_REL_MOD_LEVEL_SETTING,
             DATA_DHW_SETPOINT_MINIMUM,
             DATA_DHW_SETPOINT_MAXIMUM,
+            DATA_FAULT,
+            DATA_FAULT_CODE,
+            DATA_FAULT_FLAGS,
         ]
 
     async def async_set_control_setpoint(self, value: float) -> None:
