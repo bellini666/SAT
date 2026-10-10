@@ -200,3 +200,14 @@ async def test_room_turned_off_adds_no_error(hass: HomeAssistant) -> None:
     assert len(climate.areas.errors) == 0
     assert climate.max_error.entity_id == climate.entity_id
     assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_missing_temperature_attributes_do_not_break_the_loop(hass: HomeAssistant) -> None:
+    hass.states.async_set("climate.radiator", HVACMode.HEAT, {"current_temperature": 19.0})
+    entry = await setup_rooms(hass, {CONF_RADIATORS: ["climate.radiator"], CONF_OUTSIDE_SENSOR_ENTITY_ID: ["weather.home"]})
+    hass.states.async_set("weather.home", "sunny", {})
+    climate = entry.runtime_data.climate
+
+    assert climate.valves_open is False
+    assert climate.current_outside_temperature is None
+    assert await hass.config_entries.async_unload(entry.entry_id)

@@ -45,7 +45,7 @@ from .const import PWMStatus
 from .coordinator import SatDataUpdateCoordinator, DeviceState
 from .entity import SatEntity
 from .errors import Errors, Error
-from .helpers import convert_time_str_to_seconds, is_state_stale, state_age_seconds
+from .helpers import convert_time_str_to_seconds, float_value, is_state_stale, state_age_seconds
 from .manufacturers.geminox import Geminox
 from .pwm import PWMState
 from .relative_modulation import RelativeModulation, RelativeModulationState
@@ -554,7 +554,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
                 return float(state.state)
 
             if weather.DOMAIN in entity_id:
-                return float(state.attributes.get("temperature"))
+                return float_value(state.attributes.get("temperature"))
 
         return None
 
@@ -636,11 +636,11 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             # If the thermostat does not support hvac action, we can assume the valves are
             # open if the current temperature is not at the target temperature
             if state.attributes.get("hvac_action") is None:
-                target_temperature = state.attributes.get("temperature")
-                current_temperature = state.attributes.get("current_temperature")
+                target_temperature = float_value(state.attributes.get("temperature"))
+                current_temperature = float_value(state.attributes.get("current_temperature"))
 
                 # If there is a current temperature, and it is not at the target temperature, we can assume the valves are open
-                if current_temperature is not None and float(target_temperature) >= float(current_temperature) + float(self._climate_valve_offset):
+                if current_temperature is not None and target_temperature is not None and target_temperature >= current_temperature + self._climate_valve_offset:
                     return True
 
         # If none of the thermostats have open valves, return False
