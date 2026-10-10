@@ -21,8 +21,6 @@ TICK = timedelta(seconds=30)
 
 PLATEAU_WINDOW = timedelta(minutes=5)
 PLATEAU_TOLERANCE = 0.5
-# 0.1 °C over the plateau window, the resolution the result is rounded to
-PLATEAU_SLOPE = 0.02
 MODULATION_TOLERANCE = 3
 MODULATION_STABILITY = 5
 SETPOINT_MARGIN = 2
@@ -195,11 +193,14 @@ class OvershootProtection:
             min(flows), max(flows), min(modulations), max(modulations), floor,
         )
 
-        if len(window) < 2 or max(flows) - min(flows) > PLATEAU_TOLERANCE:
+        # Whole-degree sensors flicker by one step around the plateau
+        step = 1 if all(flow.is_integer() for flow in flows) else 0.1
+        if len(window) < 2 or max(flows) - min(flows) > max(PLATEAU_TOLERANCE, step + 0.1):
             return None
 
-        minutes = [(timestamp - now).total_seconds() / 60 for timestamp, _, _ in window]
-        if abs(linear_regression(minutes, flows).slope) > PLATEAU_SLOPE:
+        # A drift of one sensor step across the window still counts as flat, 0.02 °C/min at 0.1 °C resolution
+        offsets = [(timestamp - now) / PLATEAU_WINDOW for timestamp, _, _ in window]
+        if abs(linear_regression(offsets, flows).slope) > step:
             return None
 
         plateau = round(fmean(flows), 1)
