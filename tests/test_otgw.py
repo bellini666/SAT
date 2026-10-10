@@ -1,9 +1,11 @@
 """Tests for the commands SAT sends to an OpenTherm Gateway over MQTT."""
 
 import asyncio
+from datetime import timedelta
 from unittest.mock import patch
 
 import pytest
+from freezegun.api import FrozenDateTimeFactory
 from homeassistant.components.climate import HVACMode
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import HomeAssistant
@@ -119,3 +121,24 @@ async def test_hands_control_back_after_a_running_control_loop(hass: HomeAssista
     assert commands(mqtt_mock)[-2:] == ["CS=0", "MM=T"]
     if turn_off:
         assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_control_is_handed_back_once_inputs_stay_missing(hass: HomeAssistant, mqtt_mock: MqttMockHAClient, freezer: FrozenDateTimeFactory) -> None:
+    entry = await setup_heating(hass, mqtt_mock)
+    climate = entry.runtime_data.climate
+
+    hass.states.async_set("sensor.test_inside_sensor", "unavailable")
+    await climate.async_control_heating_loop()
+    freezer.tick(timedelta(minutes=11))
+    await climate.async_control_heating_loop()
+    await climate.async_control_heating_loop()
+
+    control = [command for command in commands(mqtt_mock) if command.startswith(("CS=", "MM="))]
+    assert control[1:] == ["CS=0", "MM=T"]
+
+    mqtt_mock.async_publish.reset_mock()
+    hass.states.async_set("sensor.test_inside_sensor", "19.5")
+    await climate.async_control_heating_loop()
+
+    assert any(command.startswith("CS=") and command != "CS=0" for command in commands(mqtt_mock))
+    assert await hass.config_entries.async_unload(entry.entry_id)

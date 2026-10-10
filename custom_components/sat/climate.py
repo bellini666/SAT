@@ -59,6 +59,9 @@ ATTR_COEFFICIENT_DERIVATIVE = "coefficient_derivative"
 ATTR_PRE_CUSTOM_TEMPERATURE = "pre_custom_temperature"
 ATTR_PRE_ACTIVITY_TEMPERATURE = "pre_activity_temperature"
 
+# How long the last control setpoint is refreshed while inputs are missing, before the boiler goes back to the room thermostat
+INPUTS_MISSING_GRACE_PERIOD = timedelta(minutes=10)
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -154,6 +157,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
 
         self._control_heating_loop_unsub: Optional[Callable[[], None]] = None
         self._last_control_at = dt_util.utcnow()
+        self._inputs_missing_since: Optional[datetime] = None
         self.control_paused = False
         self.calibration: Optional[asyncio.Task] = None
         self._control_lock = asyncio.Lock()
@@ -1026,11 +1030,20 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
                 return
 
             if self.current_temperature is None or self.target_temperature is None or self.current_outside_temperature is None:
+                if self._inputs_missing_since is None:
+                    self._inputs_missing_since = dt_util.utcnow()
+
                 # The gateway hands the boiler back to the room thermostat when the override is not refreshed
-                if self._setpoint is not None:
+                if self._setpoint is not None and dt_util.utcnow() - self._inputs_missing_since < INPUTS_MISSING_GRACE_PERIOD:
                     await self._coordinator.async_set_control_setpoint(min(self._setpoint, self._coordinator.maximum_setpoint))
+                elif self._setpoint is not None:
+                    _LOGGER.warning("Inputs missing for %s, handing the boiler back to the room thermostat.", INPUTS_MISSING_GRACE_PERIOD)
+                    self._setpoint = None
+                    await self._coordinator.async_release_control()
 
                 return
+
+            self._inputs_missing_since = None
 
             # Control the heating through the coordinator
             await self._coordinator.async_control_heating_loop(climate=self, pwm_state=self.pwm.state)
