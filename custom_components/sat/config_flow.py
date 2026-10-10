@@ -437,18 +437,26 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
     async def async_step_overshoot_protection(self, _user_input: dict[str, Any] | None = None):
+        errors = {}
         if _user_input is not None:
-            self._enable_overshoot_protection(
-                _user_input[CONF_MINIMUM_SETPOINT]
-            )
+            options = self.config_entry.options if self.config_entry else {}
+            maximum_setpoint = float(options.get(CONF_MAXIMUM_SETPOINT, calculate_default_maximum_setpoint(self.data.get(CONF_HEATING_SYSTEM))))
 
-            if self.data[CONF_MODE] == MODE_SIMULATOR:
-                return await self.async_step_finish()
+            if _user_input[CONF_MINIMUM_SETPOINT] > maximum_setpoint:
+                errors[CONF_MINIMUM_SETPOINT] = "maximum_setpoint_below_overshoot_protection"
+            else:
+                self._enable_overshoot_protection(
+                    _user_input[CONF_MINIMUM_SETPOINT]
+                )
 
-            return await self.async_step_manufacturer()
+                if self.data[CONF_MODE] == MODE_SIMULATOR:
+                    return await self.async_step_finish()
+
+                return await self.async_step_manufacturer()
 
         return self.async_show_form(
             last_step=False,
+            errors=errors,
             step_id="overshoot_protection",
             data_schema=vol.Schema({
                 vol.Required(CONF_MINIMUM_SETPOINT, default=self.data.get(CONF_MINIMUM_SETPOINT, OPTIONS_DEFAULTS[CONF_MINIMUM_SETPOINT])): selector.NumberSelector(
@@ -564,8 +572,12 @@ class SatOptionsFlowHandler(OptionsFlowWithReload):
         )
 
     async def async_step_general(self, _user_input: dict[str, Any] | None = None):
+        errors = {}
         if _user_input is not None:
-            return await self.update_options(_user_input)
+            if _user_input[CONF_MAXIMUM_SETPOINT] < _user_input.get(CONF_MINIMUM_SETPOINT, MINIMUM_SETPOINT):
+                errors[CONF_MAXIMUM_SETPOINT] = "maximum_setpoint_below_overshoot_protection"
+            else:
+                return await self.update_options(_user_input)
 
         schema = {}
         options = await self.get_options()
@@ -648,7 +660,7 @@ class SatOptionsFlowHandler(OptionsFlowWithReload):
             )
         )
 
-        return self.async_show_form(step_id="general", data_schema=vol.Schema(schema))
+        return self.async_show_form(step_id="general", data_schema=vol.Schema(schema), errors=errors)
 
     async def async_step_presets(self, _user_input: dict[str, Any] | None = None):
         if _user_input is not None:

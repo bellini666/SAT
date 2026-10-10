@@ -304,3 +304,28 @@ async def test_reconfigure_offers_the_saved_manufacturer(hass: HomeAssistant) ->
     field = next(key for key in result["data_schema"].schema if key == "manufacturer")
     assert field.default() == "Ideal"
     hass.config_entries.flow.async_abort(result["flow_id"])
+
+
+async def test_options_reject_a_maximum_setpoint_below_the_overshoot_protection_value(hass: HomeAssistant) -> None:
+    entry = await setup_heating_entry(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(result["flow_id"], {"next_step_id": "general"})
+    result = await hass.config_entries.options.async_configure(result["flow_id"], {"maximum_setpoint": 40, "minimum_setpoint": 45})
+
+    assert result["type"] == "form"
+    assert result["errors"] == {"maximum_setpoint": "maximum_setpoint_below_overshoot_protection"}
+    assert "maximum_setpoint" not in entry.options
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_reconfigure_rejects_an_overshoot_protection_value_above_the_maximum_setpoint(hass: HomeAssistant) -> None:
+    entry = MockConfigEntry(domain=DOMAIN, version=SatFlowHandler.VERSION, data={**DEFAULT_USER_DATA, "minimum_setpoint": 45, "heating_system": "radiators"}, options={"maximum_setpoint": 50})
+    entry.add_to_hass(hass)
+
+    result = await reconfigure_to_menu(hass, entry, "overshoot_protection")
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"minimum_setpoint": 52})
+
+    assert result["step_id"] == "overshoot_protection"
+    assert result["errors"] == {"minimum_setpoint": "maximum_setpoint_below_overshoot_protection"}
+    hass.config_entries.flow.async_abort(result["flow_id"])

@@ -6,6 +6,7 @@
       "already_in_progress": "A calibration is already running."
     },
     "error": {
+      "maximum_setpoint_below_overshoot_protection": "The maximum setpoint can't be below the overshoot protection value.",
       "invalid_device": "This is an invalid device.",
       "connection": "Unable to connect to the gateway.",
       "mqtt_component": "The MQTT component is unavailable.",
@@ -153,6 +154,9 @@
     }
   },
   "options": {
+    "error": {
+      "maximum_setpoint_below_overshoot_protection": "The maximum setpoint can't be below the overshoot protection value."
+    },
     "step": {
       "general": {
         "data": {
