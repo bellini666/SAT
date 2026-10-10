@@ -173,4 +173,30 @@ async def test_pid_uses_the_configured_heating_system(hass: HomeAssistant) -> No
     climate.pid.update_reset(error=Error("sensor.test_inside_sensor", 0.0), heating_curve_value=30.0)
 
     assert climate.pid.kp == 13.5
+
+
+ROOM = "climate.room"
+
+
+async def setup_rooms(hass: HomeAssistant, data: dict | None = None, options: dict | None = None) -> MockConfigEntry:
+    hass.states.async_set("sensor.test_inside_sensor", "20.9")
+    hass.states.async_set("sensor.test_outside_sensor", "9.9")
+
+    entry = MockConfigEntry(domain=DOMAIN, data={**DEFAULT_USER_DATA, CONF_ROOMS: [ROOM], **(data or {})}, options=options or {})
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    return entry
+
+
+async def test_room_turned_off_adds_no_error(hass: HomeAssistant) -> None:
+    hass.states.async_set(ROOM, HVACMode.OFF, {"temperature": 23.0, "current_temperature": 19.0})
+    entry = await setup_rooms(hass)
+    climate = entry.runtime_data.climate
+
+    await climate.async_set_target_temperature(21.0)
+
+    assert len(climate.areas.errors) == 0
+    assert climate.max_error.entity_id == climate.entity_id
     assert await hass.config_entries.async_unload(entry.entry_id)
