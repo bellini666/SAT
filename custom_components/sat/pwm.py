@@ -61,7 +61,6 @@ class PWM:
         self._max_duty_cycle_percentage: float = 1 - self._min_duty_cycle_percentage
 
         # Initialize some helpers
-        self._setpoint: Optional[float] = None
         self._setpoint_adjuster = SetpointAdjuster()
         self._setpoint_offset: int = 0.5 if supports_relative_modulation_management else 1
 
@@ -79,6 +78,7 @@ class PWM:
     def reset(self) -> None:
         """Reset the PWM control."""
         self._enabled = False
+        self._setpoint: Optional[float] = None
         self._status: PWMStatus = PWMStatus.IDLE
         self._last_update: float = monotonic()
         self._duty_cycle: Tuple[int, int] | None = None
