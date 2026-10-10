@@ -366,8 +366,7 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
     async def async_step_calibrate(self, _user_input: dict[str, Any] | None = None):
-        started = self.calibration is None
-        if started:
+        if started := self.calibration is None:
             if self.config_entry is not None and self.config_entry.state is ConfigEntryState.LOADED:
                 if self.config_entry.runtime_data.climate.calibration is not None:
                     return self.async_abort(reason="already_in_progress")

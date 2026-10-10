@@ -14,9 +14,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry, async_
 from custom_components.sat.config_flow import SatFlowHandler
 from custom_components.sat.const import DOMAIN
 from custom_components.sat.coordinator import DeviceState
-from tests.const import DEFAULT_USER_DATA
-
-BUTTON = "button.mock_title_calibrate_overshoot_protection"
+from tests.const import BUTTON, DEFAULT_USER_DATA
 
 
 async def setup_heating_entry(hass: HomeAssistant) -> MockConfigEntry:

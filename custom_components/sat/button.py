@@ -37,9 +37,6 @@ class SatCalibrateButton(SatClimateEntity, ButtonEntity):
         return self._climate.calibration is None
 
     async def async_press(self) -> None:
-        if self._climate.calibration is not None:
-            return
-
         if not self._climate.valves_open:
             _LOGGER.warning("Calibrating while no valves report open, the measured value may come out too high")
 

@@ -20,3 +20,5 @@ DEFAULT_USER_DATA = {
     CONF_INSIDE_SENSOR_ENTITY_ID: "sensor.test_inside_sensor",
     CONF_OUTSIDE_SENSOR_ENTITY_ID: "sensor.test_outside_sensor",
 }
+
+BUTTON = "button.mock_title_calibrate_overshoot_protection"

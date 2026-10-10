@@ -11,7 +11,7 @@ from pytest_homeassistant_custom_component.typing import MqttMockHAClient
 
 from custom_components.sat.config_flow import SatFlowHandler
 from custom_components.sat.const import DOMAIN, MODE_FAKE, MODE_MQTT_OPENTHERM
-from tests.const import DEFAULT_USER_DATA
+from tests.const import BUTTON, DEFAULT_USER_DATA
 
 
 async def test_create_coordinator(hass):
@@ -246,7 +246,7 @@ async def test_manufacturer_step_without_mqtt(hass: HomeAssistant) -> None:
 
 async def test_calibration_refuses_while_another_runs(hass: HomeAssistant) -> None:
     entry = await setup_heating_entry(hass)
-    await hass.services.async_call("button", "press", {"entity_id": "button.mock_title_calibrate_overshoot_protection"}, blocking=True)
+    await hass.services.async_call("button", "press", {"entity_id": BUTTON}, blocking=True)
 
     result = await reconfigure_to_menu(hass, entry, "calibrate")
 
