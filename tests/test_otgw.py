@@ -12,7 +12,15 @@ from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_mqtt_message
 from pytest_homeassistant_custom_component.typing import MqttMockHAClient
 
-from custom_components.sat.const import CONF_DEVICE, CONF_MINIMUM_SETPOINT, CONF_MODE, CONF_MQTT_TOPIC, DOMAIN, MODE_MQTT_OPENTHERM
+from custom_components.sat.const import (
+    CONF_DEVICE,
+    CONF_MINIMUM_SETPOINT,
+    CONF_MODE,
+    CONF_MQTT_TOPIC,
+    CONF_PUSH_SETPOINT_TO_THERMOSTAT,
+    DOMAIN,
+    MODE_MQTT_OPENTHERM,
+)
 from tests.const import DEFAULT_USER_DATA
 
 COMMAND_TOPIC = "OTGW/set/otgw/command"
@@ -24,7 +32,7 @@ def commands(mqtt_mock: MqttMockHAClient) -> list[str]:
     return [call.args[1] for call in mqtt_mock.async_publish.call_args_list if call.args[0] == COMMAND_TOPIC]
 
 
-async def setup_heating(hass: HomeAssistant, mqtt_mock: MqttMockHAClient) -> MockConfigEntry:
+async def setup_heating(hass: HomeAssistant, mqtt_mock: MqttMockHAClient, options: dict | None = None) -> MockConfigEntry:
     hass.states.async_set("sensor.test_inside_sensor", "19.5")
     hass.states.async_set("sensor.test_outside_sensor", "5.0")
 
@@ -32,6 +40,7 @@ async def setup_heating(hass: HomeAssistant, mqtt_mock: MqttMockHAClient) -> Moc
         domain=DOMAIN,
         unique_id="otgw",
         data={**DEFAULT_USER_DATA, CONF_MODE: MODE_MQTT_OPENTHERM, CONF_DEVICE: "otgw", CONF_MQTT_TOPIC: "OTGW", CONF_MINIMUM_SETPOINT: 45},
+        options=options or {},
     )
     entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(entry.entry_id)
@@ -55,6 +64,24 @@ async def test_off_hands_control_back(hass: HomeAssistant, mqtt_mock: MqttMockHA
     await entry.runtime_data.climate.async_set_hvac_mode(HVACMode.OFF)
 
     assert {"CS=0", "MM=T"} <= set(commands(mqtt_mock))
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_off_cancels_the_thermostat_override(hass: HomeAssistant, mqtt_mock: MqttMockHAClient) -> None:
+    entry = await setup_heating(hass, mqtt_mock, {CONF_PUSH_SETPOINT_TO_THERMOSTAT: True})
+
+    await entry.runtime_data.climate.async_set_hvac_mode(HVACMode.OFF)
+
+    assert "TC=0" in commands(mqtt_mock)
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_off_leaves_the_thermostat_alone_without_an_override(hass: HomeAssistant, mqtt_mock: MqttMockHAClient) -> None:
+    entry = await setup_heating(hass, mqtt_mock)
+
+    await entry.runtime_data.climate.async_set_hvac_mode(HVACMode.OFF)
+
+    assert not any(command.startswith("TC=") for command in commands(mqtt_mock))
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 

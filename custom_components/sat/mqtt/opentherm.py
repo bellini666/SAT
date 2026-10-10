@@ -35,6 +35,8 @@ _LOGGER: logging.Logger = logging.getLogger(__name__)
 class SatOpenThermMqttCoordinator(SatMqttCoordinator):
     """Class to manage to fetch data from the OTGW Gateway using mqtt."""
 
+    _thermostat_setpoint: Optional[float] = None
+
     @property
     def device_type(self) -> str:
         return "OpenThermGateway (via mqtt)"
@@ -195,6 +197,7 @@ class SatOpenThermMqttCoordinator(SatMqttCoordinator):
 
     async def async_set_control_thermostat_setpoint(self, value: float) -> None:
         await self._publish_command(f"TC={value}")
+        self._thermostat_setpoint = value
 
         await super().async_set_control_thermostat_setpoint(value)
 
@@ -214,6 +217,11 @@ class SatOpenThermMqttCoordinator(SatMqttCoordinator):
     async def async_release_control(self) -> None:
         await self._publish_command("CS=0")
         await self._publish_command("MM=T")
+
+        # TC has no expiry on the gateway
+        if self._thermostat_setpoint is not None:
+            await self._publish_command("TC=0")
+            self._thermostat_setpoint = None
 
         await super().async_release_control()
 
