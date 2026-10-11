@@ -3,7 +3,7 @@ import logging
 from abc import abstractmethod
 from collections import deque
 from collections.abc import Callable, Mapping
-from typing import Any
+from typing import Any, override
 
 from homeassistant.components import mqtt
 from homeassistant.core import HomeAssistant, callback
@@ -42,14 +42,17 @@ class SatMqttCoordinator(SatDataUpdateCoordinator):
             hass, STORAGE_VERSION, snake_case(f"{self.__class__.__name__}_{device_id}")
         )
 
+    @override
     @property
     def device_id(self) -> str:
         return self._device_id
 
+    @override
     @property
     def messages(self) -> list[dict[str, str]]:
         return list(self._messages)
 
+    @override
     async def async_setup(self):
         await self._load_stored_data()
 
@@ -65,11 +68,13 @@ class SatMqttCoordinator(SatDataUpdateCoordinator):
                 )
             )
 
+    @override
     async def async_added_to_hass(self) -> None:
         await self.boot()
 
         await super().async_added_to_hass()
 
+    @override
     async def async_will_remove_from_hass(self) -> None:
         while self._subscriptions:
             self._subscriptions.pop()()

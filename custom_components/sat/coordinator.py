@@ -4,7 +4,7 @@ import logging
 from abc import abstractmethod
 from collections.abc import Callable, Mapping
 from time import monotonic
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, override
 
 from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import HassJob, HomeAssistant, callback
@@ -57,12 +57,14 @@ class DeviceState(str, Enum):
 class SatData(dict):
     _is_dirty: bool = False
 
+    @override
     def __setitem__(self, key, value):
         if self.get(key) != value:
             self._is_dirty = True
 
         super().__setitem__(key, value)
 
+    @override
     def update(self, other: dict, **kwargs):
         for key, value in other.items():
             if self.get(key) != value:
@@ -70,6 +72,7 @@ class SatData(dict):
 
             super().__setitem__(key, value)
 
+    @override
     def __delitem__(self, key):
         self._is_dirty = True
         super().__delitem__(key)
@@ -637,6 +640,7 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
         # Inform the listeners that we are updated
         self.async_update_listeners()
 
+    @override
     @callback
     def async_set_updated_data(self, data: dict) -> None:
         """Update the stored data and notify listeners if changes are detected."""

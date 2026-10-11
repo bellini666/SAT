@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from time import monotonic
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, override
 
 from homeassistant.core import HomeAssistant
 
@@ -40,63 +40,78 @@ class SatSimulatorCoordinator(SatDataUpdateCoordinator):
         self._maximum_setpoint = config_data.get(CONF_MAXIMUM_SETPOINT)
         self._warming_up = convert_time_str_to_seconds(config_data.get(CONF_SIMULATED_WARMING_UP))
 
+    @override
     @property
     def device_id(self) -> str:
         return "Simulator"
 
+    @override
     @property
     def device_type(self) -> str:
         return "Simulator"
 
+    @override
     @property
     def supports_setpoint_management(self) -> bool:
         return True
 
+    @override
     @property
     def supports_maximum_setpoint_management(self):
         return True
 
+    @override
     @property
     def supports_relative_modulation(self) -> float | None:
         return True
 
+    @override
     @property
     def setpoint(self) -> float:
         return self._setpoint
 
+    @override
     @property
     def boiler_temperature(self) -> float | None:
         return self._boiler_temperature
 
+    @override
     @property
     def device_active(self) -> bool:
         return self._device_state == DeviceState.ON
 
+    @override
     @property
     def flame_active(self) -> bool:
         return self.device_active and self.target > self._boiler_temperature
 
+    @override
     @property
     def relative_modulation_value(self) -> float | None:
         return 100 if self.flame_active else 0
 
+    @override
     @property
     def member_id(self) -> int | None:
         return -1
 
+    @override
     async def async_set_heater_state(self, state: DeviceState) -> None:
         self._device_state = state
 
         await super().async_set_heater_state(state)
 
+    @override
     async def async_set_control_setpoint(self, value: float) -> None:
         self._setpoint = value
         await super().async_set_control_setpoint(value)
 
+    @override
     async def async_set_control_max_setpoint(self, value: float) -> None:
         self._maximum_setpoint = value
         await super().async_set_control_max_setpoint(value)
 
+    @override
     async def async_control_heating_loop(
         self,
         climate: SatClimate | None = None,

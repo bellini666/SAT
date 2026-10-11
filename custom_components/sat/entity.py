@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import typing
+from typing import override
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.device_registry import DeviceInfo
@@ -25,6 +26,7 @@ class SatEntity(CoordinatorEntity):
         self._coordinator = coordinator
         self._config_entry = config_entry
 
+    @override
     @property
     def device_info(self):
         manufacturer = "Unknown"
@@ -45,6 +47,7 @@ class SatClimateEntity(SatEntity):
 
         self._climate = climate
 
+    @override
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
         self.async_on_remove(self._climate.async_add_state_listener(self.async_write_ha_state))

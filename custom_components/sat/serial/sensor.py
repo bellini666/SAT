@@ -1,3 +1,5 @@
+from typing import override
+
 """Sensor platform for SAT."""
 
 import logging
@@ -385,26 +387,31 @@ class SatSensor(SatEntity, sensor.SensorEntity):
 
         self._friendly_name = friendly_name_format.format(config_entry.data.get(CONF_NAME))
 
+    @override
     @property
     def name(self):
         """Return the friendly name of the sensor."""
         return self._friendly_name
 
+    @override
     @property
     def device_class(self):
         """Return the device class."""
         return self._device_class
 
+    @override
     @property
     def native_unit_of_measurement(self):
         """Return the unit of measurement."""
         return self._unit
 
+    @override
     @property
     def available(self):
         """Return availability of the sensor."""
         return self._coordinator.data[self._source].get(self._key) is not None
 
+    @override
     @property
     def native_value(self):
         """Return the state of the device."""
@@ -414,6 +421,7 @@ class SatSensor(SatEntity, sensor.SensorEntity):
 
         return value
 
+    @override
     @property
     def unique_id(self):
         """Return a unique ID to use for this entity."""

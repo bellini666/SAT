@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from typing import override
 
 from homeassistant.components import persistent_notification
 from homeassistant.components.button import ButtonEntity
@@ -37,14 +38,17 @@ class SatCalibrateButton(SatClimateEntity, ButtonEntity):
     _attr_translation_key = "calibrate_overshoot_protection"
     _attr_entity_category = EntityCategory.CONFIG
 
+    @override
     @property
     def unique_id(self) -> str:
         return f"{self._config_entry.entry_id}-calibrate-overshoot-protection"
 
+    @override
     @property
     def available(self) -> bool:
         return self._climate.calibration is None
 
+    @override
     async def async_press(self) -> None:
         if not self._climate.valves_open:
             _LOGGER.warning(

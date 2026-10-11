@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from typing import override
 
 from homeassistant.components.binary_sensor import (
     ENTITY_ID_FORMAT,
@@ -226,26 +227,31 @@ class SatBinarySensor(SatEntity, BinarySensorEntity):
 
         self._friendly_name = friendly_name_format.format(config_entry.data.get(CONF_NAME))
 
+    @override
     @property
     def name(self):
         """Return the friendly name of the sensor."""
         return self._friendly_name
 
+    @override
     @property
     def device_class(self):
         """Return the device class."""
         return self._device_class
 
+    @override
     @property
     def available(self):
         """Return availability of the sensor."""
         return self._coordinator.data[self._source].get(self._key) is not None
 
+    @override
     @property
     def is_on(self):
         """Return the state of the device."""
         return self._coordinator.data[self._source].get(self._key)
 
+    @override
     @property
     def unique_id(self):
         """Return a unique ID to use for this entity."""

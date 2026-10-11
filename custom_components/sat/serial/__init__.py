@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, override
 
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
@@ -64,38 +64,47 @@ class SatSerialCoordinator(SatDataUpdateCoordinator):
         self._publish_callback = _publish
         self._api.subscribe(self._publish_callback)
 
+    @override
     @property
     def device_id(self) -> str:
         return self._port
 
+    @override
     @property
     def device_type(self) -> str:
         return "OpenThermGateway (via serial)"
 
+    @override
     @property
     def device_active(self) -> bool:
         return bool(self.get(DATA_MASTER_CH_ENABLED) or False)
 
+    @override
     @property
     def hot_water_active(self) -> bool:
         return bool(self.get(DATA_SLAVE_DHW_ACTIVE) or False)
 
+    @override
     @property
     def supports_setpoint_management(self) -> bool:
         return True
 
+    @override
     @property
     def supports_hot_water_setpoint_management(self):
         return True
 
+    @override
     @property
     def supports_maximum_setpoint_management(self) -> bool:
         return True
 
+    @override
     @property
     def supports_relative_modulation(self) -> bool:
         return True
 
+    @override
     @property
     def setpoint(self) -> float | None:
         if (setpoint := self.get(DATA_CONTROL_SETPOINT)) is not None:
@@ -103,6 +112,7 @@ class SatSerialCoordinator(SatDataUpdateCoordinator):
 
         return None
 
+    @override
     @property
     def hot_water_setpoint(self) -> float | None:
         if (setpoint := self.get(DATA_DHW_SETPOINT)) is not None:
@@ -110,6 +120,7 @@ class SatSerialCoordinator(SatDataUpdateCoordinator):
 
         return super().hot_water_setpoint
 
+    @override
     @property
     def boiler_temperature(self) -> float | None:
         if (value := self.get(DATA_CH_WATER_TEMP)) is not None:
@@ -117,6 +128,7 @@ class SatSerialCoordinator(SatDataUpdateCoordinator):
 
         return super().boiler_temperature
 
+    @override
     @property
     def return_temperature(self) -> float | None:
         if (value := self.get(DATA_RETURN_WATER_TEMP)) is not None:
@@ -124,6 +136,7 @@ class SatSerialCoordinator(SatDataUpdateCoordinator):
 
         return super().return_temperature
 
+    @override
     @property
     def minimum_hot_water_setpoint(self) -> float:
         if (setpoint := self.get(DATA_SLAVE_DHW_MIN_SETP)) is not None:
@@ -131,6 +144,7 @@ class SatSerialCoordinator(SatDataUpdateCoordinator):
 
         return super().minimum_hot_water_setpoint
 
+    @override
     @property
     def maximum_hot_water_setpoint(self) -> float:
         if (setpoint := self.get(DATA_SLAVE_DHW_MAX_SETP)) is not None:
@@ -138,6 +152,7 @@ class SatSerialCoordinator(SatDataUpdateCoordinator):
 
         return super().maximum_hot_water_setpoint
 
+    @override
     @property
     def relative_modulation_value(self) -> float | None:
         if (value := self.get(DATA_REL_MOD_LEVEL)) is not None:
@@ -145,6 +160,7 @@ class SatSerialCoordinator(SatDataUpdateCoordinator):
 
         return super().relative_modulation_value
 
+    @override
     @property
     def boiler_capacity(self) -> float | None:
         if (value := self.get(DATA_SLAVE_MAX_CAPACITY)) is not None:
@@ -152,6 +168,7 @@ class SatSerialCoordinator(SatDataUpdateCoordinator):
 
         return super().boiler_capacity
 
+    @override
     @property
     def minimum_relative_modulation_value(self) -> float | None:
         if (value := self.get(DATA_SLAVE_MIN_MOD_LEVEL)) is not None:
@@ -159,6 +176,7 @@ class SatSerialCoordinator(SatDataUpdateCoordinator):
 
         return super().minimum_relative_modulation_value
 
+    @override
     @property
     def maximum_relative_modulation_value(self) -> float | None:
         if (value := self.get(DATA_SLAVE_MAX_RELATIVE_MOD)) is not None:
@@ -166,6 +184,7 @@ class SatSerialCoordinator(SatDataUpdateCoordinator):
 
         return super().maximum_relative_modulation_value
 
+    @override
     @property
     def member_id(self) -> int | None:
         if (value := self.get(DATA_SLAVE_MEMBERID)) is not None:
@@ -173,6 +192,7 @@ class SatSerialCoordinator(SatDataUpdateCoordinator):
 
         return None
 
+    @override
     @property
     def flame_active(self) -> bool:
         return bool(self.get(DATA_SLAVE_FLAME_ON))
@@ -191,9 +211,11 @@ class SatSerialCoordinator(SatDataUpdateCoordinator):
 
         return self
 
+    @override
     async def async_setup(self) -> None:
         await self.async_connect()
 
+    @override
     async def async_will_remove_from_hass(self) -> None:
         if self._publish_callback is not None:
             try:
@@ -207,30 +229,35 @@ class SatSerialCoordinator(SatDataUpdateCoordinator):
 
         await super().async_will_remove_from_hass()
 
+    @override
     async def async_set_control_setpoint(self, value: float) -> None:
         if not self._simulation:
             await self._api.set_control_setpoint(value)
 
         await super().async_set_control_setpoint(value)
 
+    @override
     async def async_set_control_hot_water_setpoint(self, value: float) -> None:
         if not self._simulation:
             await self._api.set_dhw_setpoint(value)
 
         await super().async_set_control_hot_water_setpoint(value)
 
+    @override
     async def async_set_control_thermostat_setpoint(self, value: float) -> None:
         if not self._simulation:
             await self._api.set_target_temp(value)
 
         await super().async_set_control_thermostat_setpoint(value)
 
+    @override
     async def async_set_heater_state(self, state: DeviceState) -> None:
         if not self._simulation:
             await self._api.set_ch_enable_bit(1 if state == DeviceState.ON else 0)
 
         await super().async_set_heater_state(state)
 
+    @override
     async def async_release_control(self) -> None:
         if not self._simulation:
             await self._api.set_control_setpoint(0)
@@ -238,12 +265,14 @@ class SatSerialCoordinator(SatDataUpdateCoordinator):
 
         await super().async_release_control()
 
+    @override
     async def async_set_control_max_relative_modulation(self, value: int) -> None:
         if not self._simulation:
             await self._api.set_max_relative_mod(value)
 
         await super().async_set_control_max_relative_modulation(value)
 
+    @override
     async def async_set_control_max_setpoint(self, value: float) -> None:
         if not self._simulation:
             await self._api.set_max_ch_setpoint(value)

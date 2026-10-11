@@ -1,3 +1,5 @@
+from typing import override
+
 """Adds config flow for SAT."""
 
 import asyncio
@@ -129,22 +131,26 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         self.config_entry = None
         self.calibration_error: CalibrationError | None = None
 
+    @override
     @staticmethod
     @callback
     def async_get_options_flow(config_entry: ConfigEntry):
         return SatOptionsFlowHandler()
 
+    @override
     @callback
     def async_remove(self) -> None:
         if self.calibration is not None:
             self.calibration.cancel()
 
+    @override
     async def async_step_user(self, _user_input: dict[str, Any] | None = None):
         """Handle user flow."""
         return self.async_show_menu(
             step_id="user", menu_options=["mosquitto", "esphome", "serial", "switch", "simulator"]
         )
 
+    @override
     async def async_step_dhcp(self, discovery_info: DhcpServiceInfo):
         """Handle dhcp discovery."""
         _LOGGER.debug("Discovered OTGW at [socket://%s]", discovery_info.hostname)
@@ -164,6 +170,7 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
         return await self.async_step_serial()
 
+    @override
     async def async_step_mqtt(self, discovery_info: MqttServiceInfo):
         """Handle mqtt discovery."""
         _LOGGER.debug("Discovered MQTT at [mqtt://%s]", discovery_info.topic)

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, override
 
 from homeassistant.components.input_boolean import DOMAIN as INPUT_BOOLEAN_DOMAIN
 from homeassistant.components.switch import DOMAIN as SWITCH_DOMAIN
@@ -28,22 +28,27 @@ class SatSwitchCoordinator(SatDataUpdateCoordinator):
 
         self._entity: RegistryEntry = entity_registry.async_get(hass).async_get(entity_id)
 
+    @override
     @property
     def device_id(self) -> str:
         return self._entity.name
 
+    @override
     @property
     def device_type(self) -> str:
         return "Switch"
 
+    @override
     @property
     def setpoint(self) -> float:
         return self.minimum_setpoint
 
+    @override
     @property
     def maximum_setpoint(self) -> float:
         return self.minimum_setpoint
 
+    @override
     @property
     def device_active(self) -> bool:
         if (state := self.hass.states.get(self._entity.id)) is None:
@@ -51,10 +56,12 @@ class SatSwitchCoordinator(SatDataUpdateCoordinator):
 
         return state.state == STATE_ON
 
+    @override
     @property
     def member_id(self) -> int | None:
         return -1
 
+    @override
     async def async_set_heater_state(self, state: DeviceState) -> None:
         if not self._simulation:
             domain_service = DOMAIN_SERVICE.get(self._entity.domain)

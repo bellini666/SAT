@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable, Mapping
-from typing import Any
+from typing import Any, override
 
 from homeassistant.components import binary_sensor, mqtt, number, sensor, switch
 from homeassistant.core import Event, EventStateChangedData, HomeAssistant
@@ -63,54 +63,67 @@ class SatEspHomeCoordinator(SatDataUpdateCoordinator, SatEntityCoordinator):
         )
         self._unsub_state_changes: Callable[[], None] | None = None
 
+    @override
     @property
     def device_id(self) -> str:
         return self._mac_address
 
+    @override
     @property
     def device_type(self) -> str:
         return "ESPHome"
 
+    @override
     @property
     def supports_setpoint_management(self):
         return True
 
+    @override
     @property
     def supports_hot_water_setpoint_management(self):
         return True
 
+    @override
     @property
     def supports_maximum_setpoint_management(self):
         return True
 
+    @override
     @property
     def supports_relative_modulation(self):
         return True
 
+    @override
     @property
     def device_active(self) -> bool:
         return self.get(switch.DOMAIN, DATA_CENTRAL_HEATING) == DeviceState.ON
 
+    @override
     @property
     def flame_active(self) -> bool:
         return self.get(binary_sensor.DOMAIN, DATA_FLAME_ACTIVE) == DeviceState.ON
 
+    @override
     @property
     def hot_water_active(self) -> bool:
         return self.get(binary_sensor.DOMAIN, DATA_DHW_ACTIVE) == DeviceState.ON
 
+    @override
     @property
     def setpoint(self) -> float | None:
         return float_value(self.get(number.DOMAIN, DATA_CONTROL_SETPOINT))
 
+    @override
     @property
     def maximum_setpoint_value(self) -> float | None:
         return float_value(self.get(number.DOMAIN, DATA_MAX_CH_SETPOINT))
 
+    @override
     @property
     def hot_water_setpoint(self) -> float | None:
         return float_value(self.get(number.DOMAIN, DATA_DHW_SETPOINT))
 
+    @override
     @property
     def minimum_hot_water_setpoint(self) -> float:
         return (
@@ -118,6 +131,7 @@ class SatEspHomeCoordinator(SatDataUpdateCoordinator, SatEntityCoordinator):
             or super().minimum_hot_water_setpoint
         )
 
+    @override
     @property
     def maximum_hot_water_setpoint(self) -> float:
         return (
@@ -125,34 +139,42 @@ class SatEspHomeCoordinator(SatDataUpdateCoordinator, SatEntityCoordinator):
             or super().maximum_hot_water_setpoint
         )
 
+    @override
     @property
     def boiler_temperature(self) -> float | None:
         return float_value(self.get(sensor.DOMAIN, DATA_BOILER_TEMPERATURE))
 
+    @override
     @property
     def return_temperature(self) -> float | None:
         return float_value(self.get(sensor.DOMAIN, DATA_RETURN_TEMPERATURE))
 
+    @override
     @property
     def relative_modulation_value(self) -> float | None:
         return float_value(self.get(sensor.DOMAIN, DATA_REL_MOD_LEVEL))
 
+    @override
     @property
     def boiler_capacity(self) -> float | None:
         return float_value(self.get(sensor.DOMAIN, DATA_BOILER_CAPACITY))
 
+    @override
     @property
     def minimum_relative_modulation_value(self) -> float | None:
         return float_value(self.get(sensor.DOMAIN, DATA_REL_MIN_MOD_LEVEL))
 
+    @override
     @property
     def maximum_relative_modulation_value(self) -> float | None:
         return float_value(self.get(number.DOMAIN, DATA_MAX_REL_MOD_LEVEL_SETTING))
 
+    @override
     @property
     def member_id(self) -> int | None:
         return int_value(self.get(sensor.DOMAIN, DATA_SLAVE_MEMBERID))
 
+    @override
     async def async_added_to_hass(self) -> None:
         await mqtt.async_wait_for_mqtt_client(self.hass)
 
@@ -185,6 +207,7 @@ class SatEspHomeCoordinator(SatDataUpdateCoordinator, SatEntityCoordinator):
 
         await super().async_added_to_hass()
 
+    @override
     async def async_will_remove_from_hass(self) -> None:
         if self._unsub_state_changes is not None:
             self._unsub_state_changes()
@@ -195,31 +218,37 @@ class SatEspHomeCoordinator(SatDataUpdateCoordinator, SatEntityCoordinator):
     async def async_state_change_event(self, _event: Event[EventStateChangedData]):
         await self.async_notify_listeners()
 
+    @override
     async def async_set_control_setpoint(self, value: float) -> None:
         await self._send_command_value(DATA_CONTROL_SETPOINT, value)
 
         await super().async_set_control_setpoint(value)
 
+    @override
     async def async_set_control_hot_water_setpoint(self, value: float) -> None:
         await self._send_command_value(DATA_DHW_SETPOINT, value)
 
         await super().async_set_control_hot_water_setpoint(value)
 
+    @override
     async def async_set_heater_state(self, state: DeviceState) -> None:
         await self._send_command_state(DATA_CENTRAL_HEATING, state == DeviceState.ON)
 
         await super().async_set_heater_state(state)
 
+    @override
     async def async_set_control_max_relative_modulation(self, value: int) -> None:
         await self._send_command_value(DATA_MAX_REL_MOD_LEVEL_SETTING, value)
 
         await super().async_set_control_max_relative_modulation(value)
 
+    @override
     async def async_set_control_max_setpoint(self, value: float) -> None:
         await self._send_command_value(DATA_MAX_CH_SETPOINT, value)
 
         await super().async_set_control_max_setpoint(value)
 
+    @override
     def _get_entity_id(self, domain: str, key: str):
         unique_id = f"{self._mac_address.upper()}-{domain}-{key}"
         _LOGGER.debug(f"Attempting to find the unique_id of {unique_id}")

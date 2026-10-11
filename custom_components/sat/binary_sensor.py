@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timedelta
 from time import monotonic
+from typing import override
 
 from homeassistant.components.binary_sensor import BinarySensorDeviceClass, BinarySensorEntity
 from homeassistant.components.climate import HVACAction, HVACMode
@@ -100,16 +101,19 @@ class SatControlSetpointSynchroSensor(SatSynchroSensor, SatClimateEntity, Binary
         SatSynchroSensor.__init__(self)
         SatClimateEntity.__init__(self, coordinator, _config_entry, climate)
 
+    @override
     @property
     def device_class(self):
         """Return the device class."""
         return BinarySensorDeviceClass.PROBLEM
 
+    @override
     @property
     def available(self):
         """Return availability of the sensor."""
         return self._climate.setpoint is not None and self._coordinator.setpoint is not None
 
+    @override
     @property
     def is_on(self):
         """Return the state of the sensor."""
@@ -117,6 +121,7 @@ class SatControlSetpointSynchroSensor(SatSynchroSensor, SatClimateEntity, Binary
             round(self._climate.setpoint, 1) != round(self._coordinator.setpoint, 1)
         )
 
+    @override
     @property
     def unique_id(self):
         """Return a unique ID to use for this entity."""
@@ -130,11 +135,13 @@ class SatRelativeModulationSynchroSensor(SatSynchroSensor, SatClimateEntity, Bin
         SatSynchroSensor.__init__(self)
         SatClimateEntity.__init__(self, coordinator, _config_entry, climate)
 
+    @override
     @property
     def device_class(self):
         """Return the device class."""
         return BinarySensorDeviceClass.PROBLEM
 
+    @override
     @property
     def available(self):
         """Return availability of the sensor."""
@@ -143,6 +150,7 @@ class SatRelativeModulationSynchroSensor(SatSynchroSensor, SatClimateEntity, Bin
             and self._coordinator.maximum_relative_modulation_value is not None
         )
 
+    @override
     @property
     def is_on(self):
         """Return the state of the sensor."""
@@ -151,6 +159,7 @@ class SatRelativeModulationSynchroSensor(SatSynchroSensor, SatClimateEntity, Bin
             != int(self._coordinator.maximum_relative_modulation_value)
         )
 
+    @override
     @property
     def unique_id(self):
         """Return a unique ID to use for this entity."""
@@ -164,16 +173,19 @@ class SatCentralHeatingSynchroSensor(SatSynchroSensor, SatClimateEntity, BinaryS
         SatSynchroSensor.__init__(self)
         SatClimateEntity.__init__(self, coordinator, _config_entry, climate)
 
+    @override
     @property
     def device_class(self) -> str:
         """Return the device class."""
         return BinarySensorDeviceClass.PROBLEM
 
+    @override
     @property
     def available(self) -> bool:
         """Return availability of the sensor."""
         return self.climate_added
 
+    @override
     @property
     def is_on(self) -> bool:
         """Return the state of the sensor."""
@@ -188,6 +200,7 @@ class SatCentralHeatingSynchroSensor(SatSynchroSensor, SatClimateEntity, BinaryS
             )
         )
 
+    @override
     @property
     def unique_id(self) -> str:
         """Return a unique ID to use for this entity."""
@@ -198,6 +211,7 @@ class SatHeatingControlSensor(SatClimateEntity, BinarySensorEntity):
     _attr_translation_key = "heating_control"
     _attr_device_class = BinarySensorDeviceClass.PROBLEM
 
+    @override
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
         self.async_on_remove(
@@ -208,18 +222,22 @@ class SatHeatingControlSensor(SatClimateEntity, BinarySensorEntity):
     def _async_refresh(self, _now: datetime) -> None:
         self.async_write_ha_state()
 
+    @override
     @property
     def available(self) -> bool:
         return self.climate_added
 
+    @override
     @property
     def is_on(self) -> bool:
         return len(self._climate.control_problems) > 0
 
+    @override
     @property
     def extra_state_attributes(self) -> dict:
         return {"problems": self._climate.control_problems}
 
+    @override
     @property
     def unique_id(self) -> str:
         return f"{self._config_entry.entry_id}-heating-control"
@@ -228,6 +246,7 @@ class SatHeatingControlSensor(SatClimateEntity, BinarySensorEntity):
 class SatBoilerHealthSensor(SatEntity, BinarySensorEntity):
     _attr_translation_key = "boiler_health"
 
+    @override
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
         self.async_on_remove(
@@ -238,11 +257,13 @@ class SatBoilerHealthSensor(SatEntity, BinarySensorEntity):
     def _async_refresh(self, _now: datetime) -> None:
         self.async_write_ha_state()
 
+    @override
     @property
     def device_class(self) -> str:
         """Return the device class."""
         return BinarySensorDeviceClass.PROBLEM
 
+    @override
     @property
     def is_on(self) -> bool:
         """Return the state of the sensor."""
@@ -254,6 +275,7 @@ class SatBoilerHealthSensor(SatEntity, BinarySensorEntity):
             and not self._coordinator.awaiting_boiler_data
         )
 
+    @override
     @property
     def unique_id(self) -> str:
         """Return a unique ID to use for this entity."""
@@ -263,16 +285,19 @@ class SatBoilerHealthSensor(SatEntity, BinarySensorEntity):
 class SatFlameHealthSensor(SatEntity, BinarySensorEntity):
     _attr_translation_key = "flame_health"
 
+    @override
     @property
     def device_class(self) -> str:
         """Return the device class."""
         return BinarySensorDeviceClass.PROBLEM
 
+    @override
     @property
     def available(self) -> bool:
         """Return availability of the sensor."""
         return self._coordinator.flame.health_status != FlameStatus.INSUFFICIENT_DATA
 
+    @override
     @property
     def is_on(self) -> bool:
         """Return the state of the sensor."""
@@ -281,6 +306,7 @@ class SatFlameHealthSensor(SatEntity, BinarySensorEntity):
             FlameStatus.IDLE_OK,
         )
 
+    @override
     @property
     def unique_id(self) -> str:
         """Return a unique ID to use for this entity."""
@@ -297,6 +323,7 @@ class SatWindowSensor(SatClimateEntity, BinarySensorGroup):
         self._entity_ids = self._config_entry.options.get(CONF_WINDOW_SENSORS)
         self._attr_extra_state_attributes = {ATTR_ENTITY_ID: self._entity_ids}
 
+    @override
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
         self.async_on_remove(
@@ -305,11 +332,13 @@ class SatWindowSensor(SatClimateEntity, BinarySensorGroup):
             )
         )
 
+    @override
     @property
     def device_class(self) -> str:
         """Return the device class."""
         return BinarySensorDeviceClass.WINDOW
 
+    @override
     @property
     def unique_id(self) -> str:
         """Return a unique ID to use for this entity."""
@@ -320,14 +349,17 @@ class SatBoilerFaultSensor(SatEntity, BinarySensorEntity):
     _attr_translation_key = "boiler_fault"
     _attr_device_class = BinarySensorDeviceClass.PROBLEM
 
+    @override
     @property
     def is_on(self) -> bool:
         return self._coordinator.fault_active
 
+    @override
     @property
     def extra_state_attributes(self) -> dict:
         return {"flags": self._coordinator.fault_flags}
 
+    @override
     @property
     def unique_id(self) -> str:
         return f"{self._config_entry.entry_id}-boiler-fault"

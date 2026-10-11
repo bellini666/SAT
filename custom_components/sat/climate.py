@@ -9,6 +9,7 @@ from collections.abc import AsyncIterator, Callable
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from time import time
+from typing import override
 
 from homeassistant.components import notify, sensor, weather
 from homeassistant.components.climate import (
@@ -133,6 +134,7 @@ class SatClimateExtraStoredData(ExtraStoredData):
     preset_mode: str | None
     pre_custom_temperature: float | None
 
+    @override
     def as_dict(self) -> dict:
         return asdict(self)
 
@@ -316,6 +318,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         self.schedule_control_heating_loop()
         self._last_boiler_temperature = self._coordinator.boiler_temperature
 
+    @override
     async def async_added_to_hass(self) -> None:
         """Run when entity about to be added."""
         await super().async_added_to_hass()
@@ -346,6 +349,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         self._state_listeners.append(listener)
         return lambda: self._state_listeners.remove(listener)
 
+    @override
     @callback
     def async_write_ha_state(self) -> None:
         super().async_write_ha_state()
@@ -353,6 +357,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         for listener in list(self._state_listeners):
             listener()
 
+    @override
     async def async_will_remove_from_hass(self) -> None:
         if self._control_heating_loop_unsub is not None:
             self._control_heating_loop_unsub()
@@ -540,11 +545,13 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         else:
             self.pwm.disable()
 
+    @override
     @property
     def unique_id(self):
         """Return a unique ID to use for this entity."""
         return self._attr_id
 
+    @override
     @property
     def extra_restore_state_data(self) -> SatClimateExtraStoredData:
         return SatClimateExtraStoredData(
@@ -554,6 +561,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             self._pre_custom_temperature,
         )
 
+    @override
     @property
     def extra_state_attributes(self):
         """Return device state attributes."""
@@ -602,6 +610,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             "pulse_width_modulation_duty_cycle": self.pwm.duty_cycle,
         }
 
+    @override
     @property
     def current_temperature(self) -> float | None:
         """Return the sensor temperature."""
@@ -615,6 +624,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
 
         return current_temperature
 
+    @override
     @property
     def current_humidity(self) -> float | None:
         """Return the sensor humidity."""
@@ -623,6 +633,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
 
         return self._get_entity_state_float(self.humidity_sensor_entity_id)
 
+    @override
     @property
     def target_temperature(self):
         """Return the temperature we try to reach."""
@@ -653,11 +664,13 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
 
         return None
 
+    @override
     @property
     def target_temperature_step(self):
         """Return the target temperature step to control the thermostat"""
         return self._target_temperature_step
 
+    @override
     @property
     def hvac_mode(self):
         """Get the current HVAC mode."""
@@ -666,6 +679,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
 
         return self._hvac_mode
 
+    @override
     @property
     def hvac_action(self):
         """Get the current HVAC action."""
@@ -1363,6 +1377,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
 
         await self._coordinator.async_set_heater_state(state)
 
+    @override
     async def async_set_temperature(self, **kwargs) -> None:
         """Set the target temperature."""
         if (temperature := kwargs.get(ATTR_TEMPERATURE)) is None:
@@ -1376,6 +1391,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         self._attr_preset_mode = PRESET_NONE
         return await self.async_set_target_temperature(temperature)
 
+    @override
     async def async_set_hvac_mode(self, hvac_mode: HVACMode, cascade: bool = True) -> None:
         """Set the heating/cooling mode for the devices and update the state."""
         # Only allow the hvac mode to be set to heat or off
@@ -1422,6 +1438,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         self.async_write_ha_state()
         self.schedule_control_heating_loop()
 
+    @override
     async def async_set_preset_mode(self, preset_mode: str) -> None:
         """Set the preset mode for the thermostat."""
         # Check if the given preset mode is valid

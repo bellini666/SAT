@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from typing import override
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
 from homeassistant.config_entries import ConfigEntry
@@ -65,21 +66,25 @@ async def async_setup_entry(
 class SatCurrentPowerSensor(SatEntity, SensorEntity):
     _attr_translation_key = "boiler_power"
 
+    @override
     @property
     def device_class(self):
         """Return the device class."""
         return SensorDeviceClass.POWER
 
+    @override
     @property
     def native_unit_of_measurement(self):
         """Return the unit of measurement."""
         return UnitOfPower.KILO_WATT
 
+    @override
     @property
     def available(self):
         """Return availability of the sensor."""
         return self._coordinator.boiler_power is not None
 
+    @override
     @property
     def native_value(self) -> float:
         """Return the state of the device in native units.
@@ -88,6 +93,7 @@ class SatCurrentPowerSensor(SatEntity, SensorEntity):
         """
         return self._coordinator.boiler_power
 
+    @override
     @property
     def unique_id(self) -> str:
         """Return a unique ID to use for this entity."""
@@ -103,21 +109,25 @@ class SatCurrentConsumptionSensor(SatEntity, SensorEntity):
         self._minimum_consumption = self._config_entry.options.get(CONF_MINIMUM_CONSUMPTION)
         self._maximum_consumption = self._config_entry.options.get(CONF_MAXIMUM_CONSUMPTION)
 
+    @override
     @property
     def device_class(self):
         """Return the device class."""
         return SensorDeviceClass.GAS
 
+    @override
     @property
     def native_unit_of_measurement(self):
         """Return the unit of measurement."""
         return UnitOfVolume.CUBIC_METERS
 
+    @override
     @property
     def available(self):
         """Return availability of the sensor."""
         return self._coordinator.relative_modulation_value is not None
 
+    @override
     @property
     def native_value(self) -> float:
         """Return the state of the device in native units.
@@ -139,6 +149,7 @@ class SatCurrentConsumptionSensor(SatEntity, SensorEntity):
             3,
         )
 
+    @override
     @property
     def unique_id(self) -> str:
         """Return a unique ID to use for this entity."""
@@ -148,21 +159,25 @@ class SatCurrentConsumptionSensor(SatEntity, SensorEntity):
 class SatHeatingCurveSensor(SatClimateEntity, SensorEntity):
     _attr_translation_key = "heating_curve"
 
+    @override
     @property
     def device_class(self):
         """Return the device class."""
         return SensorDeviceClass.TEMPERATURE
 
+    @override
     @property
     def native_unit_of_measurement(self):
         """Return the unit of measurement."""
         return UnitOfTemperature.CELSIUS
 
+    @override
     @property
     def available(self):
         """Return availability of the sensor."""
         return self.climate_added and self._climate.heating_curve.value is not None
 
+    @override
     @property
     def native_value(self) -> float:
         """Return the state of the device in native units.
@@ -171,6 +186,7 @@ class SatHeatingCurveSensor(SatClimateEntity, SensorEntity):
         """
         return self._climate.heating_curve.value
 
+    @override
     @property
     def unique_id(self) -> str:
         """Return a unique ID to use for this entity."""
@@ -180,21 +196,25 @@ class SatHeatingCurveSensor(SatClimateEntity, SensorEntity):
 class SatErrorValueSensor(SatClimateEntity, SensorEntity):
     _attr_translation_key = "error_value"
 
+    @override
     @property
     def device_class(self):
         """Return the device class."""
         return SensorDeviceClass.TEMPERATURE
 
+    @override
     @property
     def native_unit_of_measurement(self):
         """Return the unit of measurement."""
         return UnitOfTemperature.CELSIUS
 
+    @override
     @property
     def available(self):
         """Return availability of the sensor."""
         return self.climate_added
 
+    @override
     @property
     def native_value(self) -> float:
         """Return the state of the device in native units.
@@ -203,6 +223,7 @@ class SatErrorValueSensor(SatClimateEntity, SensorEntity):
         """
         return self._climate.max_error.value
 
+    @override
     @property
     def unique_id(self) -> str:
         """Return a unique ID to use for this entity."""
@@ -212,15 +233,18 @@ class SatErrorValueSensor(SatClimateEntity, SensorEntity):
 class SatManufacturerSensor(SatEntity, SensorEntity):
     _attr_translation_key = "boiler_manufacturer"
 
+    @override
     @property
     def native_value(self) -> str:
         manufacturer = self._coordinator.manufacturer
         return manufacturer.friendly_name if manufacturer is not None else None
 
+    @override
     @property
     def available(self) -> bool:
         return self._coordinator.manufacturer is not None
 
+    @override
     @property
     def unique_id(self) -> str:
         return f"{self._config_entry.entry_id}-manufacturer"
@@ -229,14 +253,17 @@ class SatManufacturerSensor(SatEntity, SensorEntity):
 class SatFlameSensor(SatEntity, SensorEntity):
     _attr_translation_key = "flame_status"
 
+    @override
     @property
     def native_value(self) -> str:
         return self._coordinator.flame.health_status.name
 
+    @override
     @property
     def available(self) -> bool:
         return self._coordinator.flame.health_status is not None
 
+    @override
     @property
     def unique_id(self) -> str:
         return f"{self._config_entry.entry_id}-flame-status"
@@ -245,14 +272,17 @@ class SatFlameSensor(SatEntity, SensorEntity):
 class SatBoilerSensor(SatEntity, SensorEntity):
     _attr_translation_key = "boiler_status"
 
+    @override
     @property
     def native_value(self) -> str:
         return self._coordinator.device_status.name
 
+    @override
     @property
     def available(self) -> bool:
         return self._coordinator.device_status is not None
 
+    @override
     @property
     def unique_id(self) -> str:
         return f"{self._config_entry.entry_id}-boiler-status"
@@ -261,14 +291,17 @@ class SatBoilerSensor(SatEntity, SensorEntity):
 class SatBoilerFaultCodeSensor(SatEntity, SensorEntity):
     _attr_translation_key = "boiler_fault_code"
 
+    @override
     @property
     def native_value(self) -> int | None:
         return self._coordinator.fault_code
 
+    @override
     @property
     def available(self) -> bool:
         return self._coordinator.fault_code is not None
 
+    @override
     @property
     def unique_id(self) -> str:
         return f"{self._config_entry.entry_id}-boiler-fault-code"

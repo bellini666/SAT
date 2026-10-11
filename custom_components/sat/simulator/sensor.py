@@ -1,3 +1,5 @@
+from typing import override
+
 from homeassistant.components import sensor
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -36,31 +38,37 @@ class SatSetpointSensor(SatEntity, sensor.SensorEntity):
             hass=coordinator.hass,
         )
 
+    @override
     @property
     def name(self) -> str:
         """Return the friendly name of the sensor."""
         return f"Current Setpoint {self._config_entry.data.get(CONF_NAME)} (Boiler)"
 
+    @override
     @property
     def device_class(self):
         """Return the device class."""
         return sensor.SensorDeviceClass.TEMPERATURE
 
+    @override
     @property
     def native_unit_of_measurement(self):
         """Return the unit of measurement in native units."""
         return "°C"
 
+    @override
     @property
     def available(self):
         """Return availability of the sensor."""
         return self._coordinator.setpoint is not None
 
+    @override
     @property
     def native_value(self):
         """Return the state of the device."""
         return self._coordinator.setpoint
 
+    @override
     @property
     def unique_id(self):
         """Return a unique ID to use for this entity."""
@@ -80,31 +88,37 @@ class SatBoilerTemperatureSensor(SatEntity, sensor.SensorEntity):
             hass=coordinator.hass,
         )
 
+    @override
     @property
     def name(self) -> str:
         """Return the friendly name of the sensor."""
         return f"Current Temperature {self._config_entry.data.get(CONF_NAME)} (Boiler)"
 
+    @override
     @property
     def device_class(self):
         """Return the device class."""
         return sensor.SensorDeviceClass.TEMPERATURE
 
+    @override
     @property
     def native_unit_of_measurement(self):
         """Return the unit of measurement in native units."""
         return "°C"
 
+    @override
     @property
     def available(self):
         """Return availability of the sensor."""
         return self._coordinator.boiler_temperature is not None
 
+    @override
     @property
     def native_value(self):
         """Return the state of the device."""
         return self._coordinator.boiler_temperature
 
+    @override
     @property
     def unique_id(self):
         """Return a unique ID to use for this entity."""
