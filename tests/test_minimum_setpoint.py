@@ -85,3 +85,24 @@ async def test_the_base_return_temperature_is_restored(
     minimum_setpoint.calculate(boiler_state(return_temperature=45.0), PWMStatus.IDLE)
 
     assert minimum_setpoint.current == 46.0
+
+
+async def test_removing_the_entry_deletes_its_storage(
+    hass: HomeAssistant, hass_storage: dict[str, Any]
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN, entry_id="sat", data={**DEFAULT_USER_DATA, "minimum_setpoint": 45}
+    )
+    hass_storage[f"{DOMAIN}.sat.minimum_setpoint"] = {
+        "version": 1,
+        "key": f"{DOMAIN}.sat.minimum_setpoint",
+        "data": {"base_return_temperature": 40.0},
+    }
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    await hass.config_entries.async_remove(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert f"{DOMAIN}.sat.minimum_setpoint" not in hass_storage
