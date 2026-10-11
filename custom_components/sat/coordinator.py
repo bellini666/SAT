@@ -175,7 +175,8 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
                 if self._boiler_temperature_tracker.active:
                     return BoilerStatus.HEATING_UP
 
-                return BoilerStatus.OVERSHOOT_HANDLING
+                # Settled below the setpoint: the boiler is at its own limit, not overshooting
+                return BoilerStatus.BELOW_SETPOINT
             else:
                 return BoilerStatus.WAITING_FOR_FLAME
 

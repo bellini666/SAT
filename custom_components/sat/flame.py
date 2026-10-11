@@ -69,6 +69,7 @@ class Flame:
         BoilerStatus.NEAR_SETPOINT,
         BoilerStatus.AT_SETPOINT,
         BoilerStatus.COOLING_DOWN,
+        BoilerStatus.BELOW_SETPOINT,
         BoilerStatus.OVERSHOOT_HANDLING,
         BoilerStatus.OVERSHOOT_STABILIZED,
     )

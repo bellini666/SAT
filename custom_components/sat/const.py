@@ -206,6 +206,7 @@ class BoilerStatus(str, Enum):
     NEAR_SETPOINT = "near_setpoint"
     PUMP_STARTING = "pump_starting"
     WAITING_FOR_FLAME = "waiting_for_flame"
+    BELOW_SETPOINT = "below_setpoint"
     OVERSHOOT_HANDLING = "overshoot_handling"
     OVERSHOOT_STABILIZED = "overshoot_stabilized"
 

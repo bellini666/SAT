@@ -138,6 +138,21 @@ async def test_overshoot_handling_enables_pwm_only_for_dynamic_minimum_setpoint_
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
+async def test_a_flow_settled_below_the_setpoint_does_not_enable_pwm(hass: HomeAssistant) -> None:
+    entry, climate, coordinator = await setup_climate(hass, {CONF_DYNAMIC_MINIMUM_SETPOINT: True, CONF_DYNAMIC_MINIMUM_SETPOINT_VERSION: 2, CONF_MINIMUM_SETPOINT: 30})
+    await climate.async_set_target_temperature(21.0)
+    await climate.async_set_hvac_mode(HVACMode.HEAT)
+    await coordinator.async_set_control_setpoint(60)
+    await coordinator.async_set_heater_state(DeviceState.ON)
+    await coordinator.async_set_boiler_temperature(50)
+    assert coordinator.device_status == BoilerStatus.BELOW_SETPOINT
+
+    await climate.async_control_heating_loop()
+
+    assert not climate.pulse_width_modulation_enabled
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
 async def test_closed_valves_hold_the_minimum_setpoint(hass: HomeAssistant, caplog: pytest.LogCaptureFixture) -> None:
     hass.states.async_set("climate.radiator", HVACMode.HEAT, {"hvac_action": "idle", "temperature": 21.0, "current_temperature": 20.8})
     entry = MockConfigEntry(

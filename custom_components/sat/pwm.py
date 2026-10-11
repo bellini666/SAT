@@ -134,7 +134,7 @@ class PWM:
                 _LOGGER.debug("Updated last boiler temperature to %.1f°C", boiler.flow_temperature)
 
         # Control the adjusted setpoint
-        if flame.is_active and boiler.status not in (BoilerStatus.PUMP_STARTING, BoilerStatus.OVERSHOOT_HANDLING) and flame.latest_on_time_seconds is not None and flame.latest_on_time_seconds > 6:
+        if flame.is_active and boiler.status not in (BoilerStatus.PUMP_STARTING, BoilerStatus.BELOW_SETPOINT, BoilerStatus.OVERSHOOT_HANDLING) and flame.latest_on_time_seconds is not None and flame.latest_on_time_seconds > 6:
             target = boiler.flow_temperature - 3
             self._setpoint = self._setpoint_adjuster.adjust(target_setpoint=target)
             _LOGGER.debug("Adjusting setpoint for active flame - Flow temp: %.1f°C, Target: %.1f°C, New setpoint: %.1f°C", boiler.flow_temperature, target, self._setpoint)
