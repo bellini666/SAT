@@ -4,7 +4,16 @@ from typing import TYPE_CHECKING, Any, override
 
 from homeassistant.components.input_boolean import DOMAIN as INPUT_BOOLEAN_DOMAIN
 from homeassistant.components.switch import DOMAIN as SWITCH_DOMAIN
-from homeassistant.const import ATTR_ENTITY_ID, SERVICE_TURN_OFF, SERVICE_TURN_ON, STATE_ON
+from homeassistant.components.valve import DOMAIN as VALVE_DOMAIN
+from homeassistant.components.valve import ValveState
+from homeassistant.const import (
+    ATTR_ENTITY_ID,
+    SERVICE_CLOSE_VALVE,
+    SERVICE_OPEN_VALVE,
+    SERVICE_TURN_OFF,
+    SERVICE_TURN_ON,
+    STATE_ON,
+)
 from homeassistant.core import split_entity_id
 
 from ..coordinator import DeviceState, SatDataUpdateCoordinator
@@ -14,7 +23,11 @@ if TYPE_CHECKING:
 
     from homeassistant.core import HomeAssistant
 
-DOMAIN_SERVICE = {SWITCH_DOMAIN: SWITCH_DOMAIN, INPUT_BOOLEAN_DOMAIN: INPUT_BOOLEAN_DOMAIN}
+DOMAIN_SERVICES = {
+    SWITCH_DOMAIN: (SERVICE_TURN_ON, SERVICE_TURN_OFF),
+    INPUT_BOOLEAN_DOMAIN: (SERVICE_TURN_ON, SERVICE_TURN_OFF),
+    VALVE_DOMAIN: (SERVICE_OPEN_VALVE, SERVICE_CLOSE_VALVE),
+}
 
 
 class SatSwitchCoordinator(SatDataUpdateCoordinator):
@@ -56,7 +69,7 @@ class SatSwitchCoordinator(SatDataUpdateCoordinator):
         if (state := self.hass.states.get(self._entity_id)) is None:
             return False
 
-        return state.state == STATE_ON
+        return state.state in (STATE_ON, ValveState.OPEN)
 
     @override
     @property
@@ -66,13 +79,12 @@ class SatSwitchCoordinator(SatDataUpdateCoordinator):
     @override
     async def async_set_heater_state(self, state: DeviceState) -> None:
         if not self._simulation:
-            domain_service = DOMAIN_SERVICE.get(split_entity_id(self._entity_id)[0])
-            state_service = SERVICE_TURN_ON if state == DeviceState.ON else SERVICE_TURN_OFF
+            domain = split_entity_id(self._entity_id)[0]
 
-            if domain_service is not None:
+            if (services := DOMAIN_SERVICES.get(domain)) is not None:
                 await self.hass.services.async_call(
-                    domain_service,
-                    state_service,
+                    domain,
+                    services[0] if state == DeviceState.ON else services[1],
                     {ATTR_ENTITY_ID: self._entity_id},
                     blocking=True,
                 )
