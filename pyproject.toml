@@ -1,0 +1,24 @@
+[project]
+name = "sat"
+version = "4.2.1+fork.1"
+requires-python = ">=3.14.2"
+dependencies = ["pyotgw>=2.2.3"]
+
+[dependency-groups]
+dev = [
+  "pytest-homeassistant-custom-component>=0.13.371",
+  "aiohttp-cors>=0.8.1",
+  "aiodiscover>=3.3.2",
+  "aiodhcpwatcher>=1.2.7",
+  "scapy>=2.8.0",
+  "janus>=2.0.0",
+  "ruff>=0.17.0",
+  "ty>=0.0.86",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
