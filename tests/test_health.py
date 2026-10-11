@@ -272,3 +272,26 @@ async def test_synchro_sensors_ignore_the_room_thermostat_while_off(
     assert state is not None
     assert state.state == STATE_OFF
     assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_central_heating_synchro_follows_the_boiler_between_climate_writes(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    entry = await setup_heating(hass)
+    climate = entry.runtime_data.climate
+    coordinator = entry.runtime_data.coordinator
+
+    await climate.async_set_hvac_mode(HVACMode.HEAT)
+    await coordinator.async_set_heater_state(DeviceState.OFF)
+    await climate.async_control_heating_loop()
+    assert climate.setpoint is not None
+
+    await coordinator.async_set_heater_state(DeviceState.ON)
+    coordinator.async_update_listeners()
+    freezer.tick(timedelta(seconds=61))
+    coordinator.async_update_listeners()
+
+    state = hass.states.get("binary_sensor.mock_title_central_heating_synchro")
+    assert state is not None
+    assert state.state == STATE_OFF
+    assert await hass.config_entries.async_unload(entry.entry_id)

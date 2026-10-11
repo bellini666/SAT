@@ -102,6 +102,7 @@ async def test_enabled_attribute_matches_the_effective_state(hass: HomeAssistant
     await climate.async_control_heating_loop()
 
     assert climate.pulse_width_modulation_enabled
+    assert climate.extra_state_attributes is not None
     assert climate.extra_state_attributes["pulse_width_modulation_enabled"] is True
     assert await hass.config_entries.async_unload(entry.entry_id)
 

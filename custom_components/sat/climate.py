@@ -218,13 +218,12 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         self._calculated_setpoint: float | None = None
         self._last_boiler_temperature: float | None = None
 
-        self._hvac_mode: HVACMode | None = None
         self._window_sensor_handle: asyncio.Task[None] | None = None
         self._pre_custom_temperature: float | None = None
         self._pre_activity_temperature: float | None = None
 
         self._attr_temperature_unit = unit
-        self._attr_hvac_mode = HVACMode.OFF
+        self._attr_hvac_mode = None
         self._attr_preset_mode = PRESET_NONE
         self._attr_hvac_modes = [HVACMode.OFF, HVACMode.HEAT]
         self._attr_preset_modes = [PRESET_NONE, *self._presets.keys()]
@@ -360,6 +359,16 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
     @override
     @callback
     def _async_write_ha_state(self) -> None:
+        self._async_update_sensor_values()
+
+        if self.hvac_mode == HVACMode.OFF:
+            self._attr_hvac_action = HVACAction.OFF
+        elif not self._coordinator.device_active:
+            self._attr_hvac_action = HVACAction.IDLE
+        else:
+            self._attr_hvac_action = HVACAction.HEATING
+
+        self._attr_extra_state_attributes = self._compute_extra_state_attributes()
         super()._async_write_ha_state()
 
         for listener in list(self._state_listeners):
@@ -443,7 +452,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             restored = SatClimateExtraStoredData.from_dict(extra_data.as_dict())
 
             if restored.hvac_mode in self.hvac_modes:
-                self._hvac_mode = HVACMode(restored.hvac_mode)
+                self._attr_hvac_mode = HVACMode(restored.hvac_mode)
 
             if restored.target_temperature is not None:
                 self._attr_target_temperature = float(restored.target_temperature)
@@ -471,8 +480,8 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
                 else:
                     self._attr_target_temperature = float(old_state.attributes[ATTR_TEMPERATURE])
 
-            if self._hvac_mode is None:
-                self._hvac_mode = HVACMode(old_state.state)
+            if self.hvac_mode is None:
+                self._attr_hvac_mode = HVACMode(old_state.state)
 
             if old_state.attributes.get(ATTR_SETPOINT):
                 self._setpoint = old_state.attributes.get(ATTR_SETPOINT)
@@ -509,8 +518,8 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
                     self.target_temperature,
                 )
 
-            if self._hvac_mode is None:
-                self._hvac_mode = self._default_hvac_mode
+            if self.hvac_mode is None:
+                self._attr_hvac_mode = self._default_hvac_mode
 
         if self._attr_preset_mode != PRESET_NONE and self._pre_custom_temperature is None:
             self._pre_custom_temperature = self.target_temperature
@@ -557,16 +566,13 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
     @property
     def extra_restore_state_data(self) -> SatClimateExtraStoredData:
         return SatClimateExtraStoredData(
-            self._hvac_mode,
+            self.hvac_mode,
             self.target_temperature,
             self._attr_preset_mode,
             self._pre_custom_temperature,
         )
 
-    @override
-    @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        """Return device state attributes."""
+    def _compute_extra_state_attributes(self) -> dict[str, Any]:
         return {
             "error": self.max_error.value,
             "error_pid": self.pid.last_error,
@@ -612,28 +618,24 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             "pulse_width_modulation_duty_cycle": self.pwm.duty_cycle,
         }
 
-    @override
-    @property
-    def current_temperature(self) -> float | None:
-        """Return the sensor temperature."""
-        if (
-            current_temperature := self._get_entity_state_float(self.inside_sensor_entity_id)
-        ) is None:
-            return None
+    @callback
+    def _async_update_sensor_values(self) -> None:
+        """Read the inside temperature and humidity from their sensors.
 
-        if self._thermal_comfort:
-            return SummerSimmer.index(current_temperature, self.current_humidity)
-
-        return current_temperature
-
-    @override
-    @property
-    def current_humidity(self) -> float | None:
-        """Return the sensor humidity."""
+        Sensors go stale by age without firing a state change, so readers refresh first.
+        """
         if self.humidity_sensor_entity_id is None:
-            return None
+            self._attr_current_humidity = None
+        else:
+            self._attr_current_humidity = self._get_entity_state_float(
+                self.humidity_sensor_entity_id
+            )
 
-        return self._get_entity_state_float(self.humidity_sensor_entity_id)
+        current_temperature = self._get_entity_state_float(self.inside_sensor_entity_id)
+        if current_temperature is not None and self._thermal_comfort:
+            current_temperature = SummerSimmer.index(current_temperature, self.current_humidity)
+
+        self._attr_current_temperature = current_temperature
 
     @property
     def error(self) -> float:
@@ -659,27 +661,6 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
                 return float_value(state.attributes.get("temperature"))
 
         return None
-
-    @override
-    @property
-    def hvac_mode(self) -> HVACMode | None:
-        """Get the current HVAC mode."""
-        if self._hvac_mode in [STATE_UNKNOWN, STATE_UNAVAILABLE]:
-            return HVACMode.OFF
-
-        return self._hvac_mode
-
-    @override
-    @property
-    def hvac_action(self) -> HVACAction:
-        """Get the current HVAC action."""
-        if self._hvac_mode == HVACMode.OFF:
-            return HVACAction.OFF
-
-        if not self._coordinator.device_active:
-            return HVACAction.IDLE
-
-        return HVACAction.HEATING
 
     @property
     def errors(self) -> Errors:
@@ -858,6 +839,8 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
 
     async def _async_inside_sensor_changed(self, event: Event[EventStateChangedData]) -> None:
         """Handle changes to the inside temperature sensor."""
+        self._async_update_sensor_values()
+
         new_state = event.data.get("new_state")
         if new_state is None or new_state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
             return
@@ -881,6 +864,8 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
 
     async def _async_humidity_sensor_changed(self, event: Event[EventStateChangedData]) -> None:
         """Handle changes to the inside temperature sensor."""
+        self._async_update_sensor_values()
+
         new_state = event.data.get("new_state")
         if new_state is None or new_state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
             return
@@ -1008,6 +993,8 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
 
     def _async_control_pid(self, *, reset: bool = False) -> None:
         """Control the PID controller."""
+        self._async_update_sensor_values()
+
         # We can't continue if we don't have a valid outside temperature
         if self.current_outside_temperature is None:
             return
@@ -1206,6 +1193,8 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             self._control_heating_loop_unsub = None
 
         async with self._control_lock:
+            self._async_update_sensor_values()
+
             # No need to do anything if we are not on, or while something else drives the boiler
             if (
                 self.hvac_mode != HVACMode.HEAT
@@ -1396,14 +1385,14 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         """Set the heating/cooling mode for the devices and update the state."""
         # Only allow the hvac mode to be set to heat or off
         if hvac_mode == HVACMode.HEAT:
-            if self._hvac_mode != HVACMode.HEAT:
+            if self.hvac_mode != HVACMode.HEAT:
                 self._last_control_at = dt_util.utcnow()
 
-            self._hvac_mode = HVACMode.HEAT
+            self._attr_hvac_mode = HVACMode.HEAT
         elif hvac_mode == HVACMode.OFF:
             await self.async_cancel_calibration()
             async with self._control_lock:
-                self._hvac_mode = HVACMode.OFF
+                self._attr_hvac_mode = HVACMode.OFF
                 await self.async_set_heater_state(DeviceState.OFF)
                 await self._coordinator.async_release_control()
         else:

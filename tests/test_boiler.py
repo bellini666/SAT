@@ -35,6 +35,8 @@ async def test_boiler_temperature_derivative_keeps_slow_changes(
     freezer.tick(timedelta(seconds=30))
     await coordinator.async_set_boiler_temperature(50.1)
     await coordinator.async_control_heating_loop()
+    coordinator.async_update_listeners()
+    await hass.async_block_till_done()
 
     assert abs(coordinator.boiler_temperature_derivative - 0.1 / 30) < 1e-6
     assert (
