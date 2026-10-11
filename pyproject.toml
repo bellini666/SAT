@@ -1,0 +1,54 @@
+[project]
+name = "sat"
+version = "4.2.1+fork.1"
+requires-python = ">=3.14.2"
+dependencies = ["pyotgw>=2.2.3"]
+
+[dependency-groups]
+dev = [
+  "pytest-homeassistant-custom-component>=0.13.371",
+  "aiohttp-cors>=0.8.1",
+  "aiodiscover>=3.3.2",
+  "aiodhcpwatcher>=1.2.7",
+  "scapy>=2.8.0",
+  "janus>=2.0.0",
+  "ruff>=0.17.0",
+  "ty>=0.0.86",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+required-version = ">=0.17.0"
+target-version = "py314"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+  # Docstrings are optional; existing ones still follow PEP 257
+  "D100", "D101", "D102", "D103", "D104", "D105", "D106", "D107",
+  "D203", "D213",
+  "C901", "PLR0911", "PLR0912", "PLR0913", "PLR0915", "PLR0917",
+  # Conflicts with the formatter
+  "COM812",
+  "CPY001",
+  # Home Assistant custom components import siblings relatively
+  "TID252",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "PLR2004", "SLF001", "FBT"]
+# Config entry migrations compare against literal schema versions
+"custom_components/sat/__init__.py" = ["PLR2004"]
+
+[tool.ty.rules]
+all = "error"
+
+[tool.ty.terminal]
+error-on-warning = true

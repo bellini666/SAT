@@ -23,13 +23,18 @@ def test_autotune_first_sample_has_no_derivative() -> None:
     assert heating_curve.optimal_coefficient == 2.6
 
 
-@pytest.mark.parametrize(("setpoint", "derivative", "optimal_coefficient"), [
-    (45.2, 1.0, 3.0),
-    (35.2, -1.0, 2.2),
-    (41.7, 0.3, 2.7),
-    (38.7, -0.3, 2.5),
-])
-def test_autotune_moves_against_the_derivative(setpoint: float, derivative: float, optimal_coefficient: float) -> None:
+@pytest.mark.parametrize(
+    ("setpoint", "derivative", "optimal_coefficient"),
+    [
+        (45.2, 1.0, 3.0),
+        (35.2, -1.0, 2.2),
+        (41.7, 0.3, 2.7),
+        (38.7, -0.3, 2.5),
+    ],
+)
+def test_autotune_moves_against_the_derivative(
+    setpoint: float, derivative: float, optimal_coefficient: float
+) -> None:
     heating_curve = HeatingCurve(heating_system=HEATING_SYSTEM_RADIATORS, coefficient=1.8)
     heating_curve.autotune(setpoint=40.0, target_temperature=20.0, outside_temperature=0.0)
 

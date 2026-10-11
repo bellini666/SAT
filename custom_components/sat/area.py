@@ -1,31 +1,45 @@
-from types import MappingProxyType
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.climate import HVACMode
-from homeassistant.const import STATE_UNKNOWN, STATE_UNAVAILABLE
-from homeassistant.core import HomeAssistant, State
+from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
 
 from .const import CONF_ROOMS
-from .errors import Errors, Error
-from .heating_curve import HeatingCurve
+from .errors import Error, Errors
 from .helpers import float_value
-from .pid import PID
 from .util import (
-    create_pid_controller,
     create_heating_curve_controller,
+    create_pid_controller,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
+    from datetime import datetime
+
+    from homeassistant.core import HomeAssistant, State
+
+    from .heating_curve import HeatingCurve
+    from .pid import PID
 
 SENSOR_TEMPERATURE_ID = "sensor_temperature_id"
 
 
 class Area:
-    def __init__(self, config_data: MappingProxyType[str, Any], config_options: MappingProxyType[str, Any], entity_id: str):
+    def __init__(
+        self,
+        config_data: Mapping[str, Any],
+        config_options: Mapping[str, Any],
+        entity_id: str,
+    ) -> None:
         self._entity_id: str = entity_id
         self._hass: HomeAssistant | None = None
 
         # Create controllers with the given configuration options
         self.pid: PID = create_pid_controller(config_data, config_options)
-        self.heating_curve: HeatingCurve = create_heating_curve_controller(config_data, config_options)
+        self.heating_curve: HeatingCurve = create_heating_curve_controller(
+            config_data, config_options
+        )
 
     @property
     def id(self) -> str:
@@ -37,7 +51,9 @@ class Area:
         if (self._hass is None) or (state := self._hass.states.get(self._entity_id)) is None:
             return None
 
-        return state if state.state not in [STATE_UNKNOWN, STATE_UNAVAILABLE, HVACMode.OFF] else None
+        return (
+            state if state.state not in [STATE_UNKNOWN, STATE_UNAVAILABLE, HVACMode.OFF] else None
+        )
 
     @property
     def target_temperature(self) -> float | None:
@@ -56,7 +72,11 @@ class Area:
         # Check if there is an overridden sensor temperature
         if sensor_temperature_id := state.attributes.get(SENSOR_TEMPERATURE_ID):
             sensor_state = self._hass.states.get(sensor_temperature_id)
-            if sensor_state and sensor_state.state not in [STATE_UNKNOWN, STATE_UNAVAILABLE, HVACMode.OFF]:
+            if sensor_state and sensor_state.state not in [
+                STATE_UNKNOWN,
+                STATE_UNAVAILABLE,
+                HVACMode.OFF,
+            ]:
                 return float_value(sensor_state.state)
 
         return float_value(state.attributes.get("current_temperature") or self.target_temperature)
@@ -74,8 +94,8 @@ class Area:
 
     @property
     def weight(self) -> float | None:
-        """
-        Room heating demand weight (0-2 range).
+        """Room heating demand weight (0-2 range).
+
         Based on the difference between target and current temperature.
         """
         target_temperature = self.target_temperature
@@ -90,10 +110,10 @@ class Area:
 
         return round(max(0.0, min(raw_weight, 2.0)), 3)
 
-    async def async_added_to_hass(self, hass: HomeAssistant):
+    async def async_added_to_hass(self, hass: HomeAssistant) -> None:
         self._hass = hass
 
-    async def async_control_heating_loop(self, _time=None) -> None:
+    async def async_control_heating_loop(self, _time: datetime | None = None) -> None:
         """Asynchronously control the heating loop."""
         if self.error is None or self.heating_curve.value is None:
             return
@@ -103,10 +123,12 @@ class Area:
 
 
 class Areas:
-    def __init__(self, config_data: MappingProxyType[str, Any], config_options: MappingProxyType[str, Any]):
+    def __init__(self, config_data: Mapping[str, Any], config_options: Mapping[str, Any]) -> None:
         """Initialize Areas with multiple Area instances using shared config data and options."""
         self._entity_ids: list[str] = config_data.get(CONF_ROOMS) or []
-        self._areas: list[Area] = [Area(config_data, config_options, entity_id) for entity_id in self._entity_ids]
+        self._areas: list[Area] = [
+            Area(config_data, config_options, entity_id) for entity_id in self._entity_ids
+        ]
 
     @property
     def errors(self) -> Errors:
@@ -114,29 +136,29 @@ class Areas:
         return Errors([area.error for area in self._areas if area.error is not None])
 
     @property
-    def heating_curves(self):
+    def heating_curves(self) -> Areas._HeatingCurves:
         """Return an interface to update heating curves for all areas."""
         return Areas._HeatingCurves(self._areas)
 
     @property
-    def pids(self):
+    def pids(self) -> Areas._PIDs:
         """Return an interface to reset PID controllers for all areas."""
         return Areas._PIDs(self._areas)
 
     def items(self) -> list[str]:
         return self._entity_ids
 
-    async def async_added_to_hass(self, hass: HomeAssistant):
+    async def async_added_to_hass(self, hass: HomeAssistant) -> None:
         for area in self._areas:
             await area.async_added_to_hass(hass)
 
-    async def async_control_heating_loops(self, _time=None) -> None:
+    async def async_control_heating_loops(self, _time: datetime | None = None) -> None:
         """Asynchronously control heating loop for all areas."""
         for area in self._areas:
             await area.async_control_heating_loop(_time)
 
     class _HeatingCurves:
-        def __init__(self, areas: list[Area]):
+        def __init__(self, areas: list[Area]) -> None:
             self.areas = areas
 
         def update(self, current_outside_temperature: float) -> None:
@@ -148,7 +170,7 @@ class Areas:
                 area.heating_curve.update(area.target_temperature, current_outside_temperature)
 
     class _PIDs:
-        def __init__(self, areas: list[Area]):
+        def __init__(self, areas: list[Area]) -> None:
             self.areas = areas
 
         def update(self, boiler_temperature: float) -> None:

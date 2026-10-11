@@ -5,13 +5,15 @@ from collections import deque
 from dataclasses import dataclass
 from statistics import median
 from time import monotonic
-from typing import Deque, Optional, Tuple, Iterable, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from .const import CONTROL_LOOP_STALL_TIME, BoilerStatus, FlameStatus, PWMStatus
 
 if TYPE_CHECKING:
-    from .pwm import PWMState
+    from collections.abc import Iterable
+
     from .boiler import BoilerState
+    from .pwm import PWMState
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -20,19 +22,19 @@ _LOGGER = logging.getLogger(__name__)
 class FlameState:
     is_active: bool
     is_inactive: bool
-    health_status: str
+    health_status: FlameStatus
 
-    latest_on_time_seconds: Optional[float]
-    average_on_time_seconds: Optional[float]
-    last_cycle_duration_seconds: Optional[float]
+    latest_on_time_seconds: float | None
+    average_on_time_seconds: float | None
+    last_cycle_duration_seconds: float | None
 
     sample_count_4h: int
     cycles_last_hour: float
     duty_ratio_last_15m: float
-    median_on_duration_seconds_4h: Optional[float]
+    median_on_duration_seconds_4h: float | None
 
-    last_cut_short_peak_flow: Optional[float]
-    last_cut_short_setpoint: Optional[float]
+    last_cut_short_peak_flow: float | None
+    last_cut_short_setpoint: float | None
 
 
 class Flame:
@@ -41,6 +43,8 @@ class Flame:
     # Thresholds
     MAX_CYCLES_PER_HOUR_PWM: float = 8.0
     MAX_CYCLES_PER_HOUR_NON_PWM: float = 3.0
+    MAX_CYCLES_PER_HOUR_MODULATING_STEADY: float = 2.0
+    PWM_SHORT_BURNS_THRESHOLD: int = 2
 
     STUCK_OFF_SECONDS: float = 300.0
     STUCK_ON_WITHOUT_DEMAND_SECONDS: float = 120.0
@@ -76,42 +80,43 @@ class Flame:
 
     def __init__(self, smoothing_alpha: float = 0.2) -> None:
         if not (0.0 <= smoothing_alpha <= 1.0):
-            raise ValueError("smoothing_alpha must be within [0.0, 1.0].")
+            msg = "smoothing_alpha must be within [0.0, 1.0]."
+            raise ValueError(msg)
 
         self._smoothing_alpha: float = smoothing_alpha
 
         # Timing internals
         self._latest_on_time_seconds: float = 0.0
-        self._average_on_time_seconds: Optional[float] = None
-        self._last_cycle_duration_seconds: Optional[float] = None
+        self._average_on_time_seconds: float | None = None
+        self._last_cycle_duration_seconds: float | None = None
 
         self._has_completed_first_cycle: bool = False
-        self._flame_on_monotonic: Optional[float] = None
-        self._flame_off_monotonic: Optional[float] = None
-        self._demand_since_monotonic: Optional[float] = None
-        self._pwm_planned_on_seconds: Optional[float] = None
-        self._burn_peak_flow: Optional[float] = None
-        self._burn_setpoint: Optional[float] = None
-        self._last_cut_short_peak_flow: Optional[float] = None
-        self._last_cut_short_setpoint: Optional[float] = None
+        self._flame_on_monotonic: float | None = None
+        self._flame_off_monotonic: float | None = None
+        self._demand_since_monotonic: float | None = None
+        self._pwm_planned_on_seconds: float | None = None
+        self._burn_peak_flow: float | None = None
+        self._burn_setpoint: float | None = None
+        self._last_cut_short_peak_flow: float | None = None
+        self._last_cut_short_setpoint: float | None = None
 
         # Stored states
-        self._last_boiler_state: Optional[BoilerState] = None
-        self._last_pulse_width_modulation_state: Optional[PWMState] = None
-        self._pwm_state_updated_monotonic: Optional[float] = None
+        self._last_boiler_state: BoilerState | None = None
+        self._last_pulse_width_modulation_state: PWMState | None = None
+        self._pwm_state_updated_monotonic: float | None = None
 
         # Rolling windows
-        self._last_update_monotonic: Optional[float] = None
-        self._cycle_end_times_window: Deque[float] = deque()
-        self._on_deltas_window: Deque[Tuple[float, float]] = deque()
-        self._on_durations_window: Deque[Tuple[float, float]] = deque()
-        self._pwm_burns_cut_short: Deque[Tuple[float, bool]] = deque(maxlen=3)
+        self._last_update_monotonic: float | None = None
+        self._cycle_end_times_window: deque[float] = deque()
+        self._on_deltas_window: deque[tuple[float, float]] = deque()
+        self._on_durations_window: deque[tuple[float, float]] = deque()
+        self._pwm_burns_cut_short: deque[tuple[float, bool]] = deque(maxlen=3)
 
         # Health
-        self._health_status: str = FlameStatus.INSUFFICIENT_DATA
+        self._health_status: FlameStatus = FlameStatus.INSUFFICIENT_DATA
 
     @property
-    def health_status(self) -> str:
+    def health_status(self) -> FlameStatus:
         return self._health_status
 
     @property
@@ -123,40 +128,40 @@ class Flame:
         return not self._is_flame_active_internal()
 
     @property
-    def on_since(self) -> Optional[float]:
+    def on_since(self) -> float | None:
         if self._is_flame_active_internal() and self._flame_on_monotonic is not None:
             return self._flame_on_monotonic
 
         return None
 
     @property
-    def off_since(self) -> Optional[float]:
+    def off_since(self) -> float | None:
         if not self._is_flame_active_internal() and self._flame_off_monotonic is not None:
             return self._flame_off_monotonic
 
         return None
 
     @property
-    def latest_on_time_seconds(self) -> Optional[float]:
+    def latest_on_time_seconds(self) -> float | None:
         if self._is_flame_active_internal() and self._flame_on_monotonic is not None:
             return self._latest_on_time_seconds
 
         return None
 
     @property
-    def average_on_time_seconds(self) -> Optional[float]:
+    def average_on_time_seconds(self) -> float | None:
         return self._average_on_time_seconds if self._has_completed_first_cycle else None
 
     @property
-    def last_cycle_duration_seconds(self) -> Optional[float]:
+    def last_cycle_duration_seconds(self) -> float | None:
         return self._last_cycle_duration_seconds
 
     @property
-    def last_cut_short_peak_flow(self) -> Optional[float]:
+    def last_cut_short_peak_flow(self) -> float | None:
         return self._last_cut_short_peak_flow
 
     @property
-    def last_cut_short_setpoint(self) -> Optional[float]:
+    def last_cut_short_setpoint(self) -> float | None:
         return self._last_cut_short_setpoint
 
     @property
@@ -168,7 +173,7 @@ class Flame:
         return self._duty_ratio_last_window(monotonic())
 
     @property
-    def median_on_duration_seconds_4h(self) -> Optional[float]:
+    def median_on_duration_seconds_4h(self) -> float | None:
         median_value, _ = self._median_on_duration(monotonic())
         return median_value
 
@@ -177,7 +182,7 @@ class Flame:
         _, count = self._median_on_duration(monotonic())
         return count
 
-    def update(self, boiler_state: BoilerState, pwm_state: Optional[PWMState] = None) -> None:
+    def update(self, boiler_state: BoilerState, pwm_state: PWMState | None = None) -> None:
 
         now = monotonic()
 
@@ -204,7 +209,12 @@ class Flame:
         # OFF -> ON
         if currently_active and not previously_active:
             pwm = self._fresh_pulse_width_modulation_state(now)
-            pwm_burn = pwm is not None and pwm.status == PWMStatus.ON and pwm.duty_cycle and not boiler_state.hot_water_active
+            pwm_burn = (
+                pwm is not None
+                and pwm.status == PWMStatus.ON
+                and pwm.duty_cycle is not None
+                and not boiler_state.hot_water_active
+            )
             self._pwm_planned_on_seconds = pwm.duty_cycle[0] if pwm_burn else None
             self._flame_on_monotonic = now
             self._flame_off_monotonic = None
@@ -224,7 +234,10 @@ class Flame:
             if boiler_state.hot_water_active:
                 self._pwm_planned_on_seconds = None
             if boiler_state.flow_temperature is not None:
-                self._burn_peak_flow = max(self._burn_peak_flow or boiler_state.flow_temperature, boiler_state.flow_temperature)
+                self._burn_peak_flow = max(
+                    self._burn_peak_flow or boiler_state.flow_temperature,
+                    boiler_state.flow_temperature,
+                )
 
             self._last_update_monotonic = now
             self._recompute_health(now)
@@ -232,7 +245,9 @@ class Flame:
 
         # ON -> OFF
         if not currently_active and previously_active:
-            duration = (now - self._flame_on_monotonic) if self._flame_on_monotonic is not None else 0.0
+            duration = (
+                (now - self._flame_on_monotonic) if self._flame_on_monotonic is not None else 0.0
+            )
 
             self._flame_on_monotonic = None
             self._flame_off_monotonic = now
@@ -240,7 +255,8 @@ class Flame:
             self._average_on_time_seconds = (
                 duration
                 if self._average_on_time_seconds is None
-                else (1.0 - self._smoothing_alpha) * self._average_on_time_seconds + self._smoothing_alpha * duration
+                else (1.0 - self._smoothing_alpha) * self._average_on_time_seconds
+                + self._smoothing_alpha * duration
             )
 
             self._prune_cycles_window(now)
@@ -254,12 +270,20 @@ class Flame:
                 cut_short = pwm.status == PWMStatus.ON and duration < self._pwm_planned_on_seconds
                 self._pwm_burns_cut_short.append((now, cut_short))
 
-                if cut_short and self._burn_peak_flow is not None and self._burn_setpoint is not None and self._burn_peak_flow > self._burn_setpoint + self.IGNITION_OVERSHOOT_MARGIN:
+                if (
+                    cut_short
+                    and self._burn_peak_flow is not None
+                    and self._burn_setpoint is not None
+                    and self._burn_peak_flow > self._burn_setpoint + self.IGNITION_OVERSHOOT_MARGIN
+                ):
                     self._last_cut_short_peak_flow = self._burn_peak_flow
                     self._last_cut_short_setpoint = self._burn_setpoint
                     _LOGGER.warning(
-                        "The boiler stopped a PWM burn after %.0fs with the flow at %.1f°C against a %.1f°C setpoint; raise the overshoot protection value",
-                        duration, self._burn_peak_flow, self._burn_setpoint,
+                        "The boiler stopped a PWM burn after %.0fs with the flow at %.1f°C "
+                        "against a %.1f°C setpoint; raise the overshoot protection value",
+                        duration,
+                        self._burn_peak_flow,
+                        self._burn_setpoint,
                     )
 
             self._pwm_planned_on_seconds = None
@@ -301,14 +325,24 @@ class Flame:
             self._demand_since_monotonic = now
 
         # The flame can only be late since the demand started, not since it last went out
-        last_on_seconds = self._latest_on_time_seconds if (state.flame_active and self._flame_on_monotonic) else 0.0
-        last_off_seconds = (now - max(self._flame_off_monotonic, self._demand_since_monotonic or 0.0)) if (not state.flame_active and self._flame_off_monotonic) else 0.0
+        last_on_seconds = (
+            self._latest_on_time_seconds
+            if (state.flame_active and self._flame_on_monotonic is not None)
+            else 0.0
+        )
+        last_off_seconds = (
+            (now - max(self._flame_off_monotonic, self._demand_since_monotonic or 0.0))
+            if (not state.flame_active and self._flame_off_monotonic is not None)
+            else 0.0
+        )
 
         cycles_per_hour = self._cycles_per_hour(now)
         duty_ratio = self._duty_ratio_last_window(now)
         median_on_seconds, sample_count = self._median_on_duration(now)
 
-        modulating_boiler = (state.relative_modulation_level is not None and isinstance(state.relative_modulation_level, (int, float)))
+        modulating_boiler = state.relative_modulation_level is not None and isinstance(
+            state.relative_modulation_level, (int, float)
+        )
 
         # Thin history: still allow stuck checks, avoid cycling judgments
         if sample_count < self.MIN_ON_SAMPLES_FOR_HEALTH:
@@ -320,8 +354,16 @@ class Flame:
 
                 return
 
-            timeout = self.MAX_DOMESTIC_HOT_WATER_IDLE_OFF_SECONDS if domestic_hot_water_active else self.STUCK_OFF_SECONDS
-            if (not state.flame_active) and last_off_seconds > timeout and state.status not in self._TRANSIENT_STATUSES:
+            timeout = (
+                self.MAX_DOMESTIC_HOT_WATER_IDLE_OFF_SECONDS
+                if domestic_hot_water_active
+                else self.STUCK_OFF_SECONDS
+            )
+            if (
+                (not state.flame_active)
+                and last_off_seconds > timeout
+                and state.status not in self._TRANSIENT_STATUSES
+            ):
                 self._health_status = FlameStatus.STUCK_OFF
             else:
                 self._health_status = FlameStatus.HEALTHY
@@ -337,9 +379,14 @@ class Flame:
 
             return
 
-        # Domestic hot water: allow continuous flame; only stuck-off if off too long (and not transient)
+        # Domestic hot water: allow continuous flame;
+        # only stuck-off if off too long (and not transient)
         if domestic_hot_water_active:
-            if (not state.flame_active) and last_off_seconds > self.MAX_DOMESTIC_HOT_WATER_IDLE_OFF_SECONDS and state.status not in self._TRANSIENT_STATUSES:
+            if (
+                (not state.flame_active)
+                and last_off_seconds > self.MAX_DOMESTIC_HOT_WATER_IDLE_OFF_SECONDS
+                and state.status not in self._TRANSIENT_STATUSES
+            ):
                 self._health_status = FlameStatus.STUCK_OFF
             else:
                 self._health_status = FlameStatus.HEALTHY
@@ -347,17 +394,30 @@ class Flame:
             return
 
         # Space heating demand
-        if (not state.flame_active) and last_off_seconds > self.STUCK_OFF_SECONDS and state.status not in self._TRANSIENT_STATUSES:
+        if (
+            (not state.flame_active)
+            and last_off_seconds > self.STUCK_OFF_SECONDS
+            and state.status not in self._TRANSIENT_STATUSES
+        ):
             self._health_status = FlameStatus.STUCK_OFF
             return
 
         # PWM-driven demand
-        if (pwm := self._fresh_pulse_width_modulation_state(now)) is not None and pwm.status == PWMStatus.ON:
+        if (
+            pwm := self._fresh_pulse_width_modulation_state(now)
+        ) is not None and pwm.status == PWMStatus.ON:
             if cycles_per_hour > self.MAX_CYCLES_PER_HOUR_PWM:
                 self._health_status = FlameStatus.SHORT_CYCLING
                 return
 
-            if sum(cut_short for ended, cut_short in self._pwm_burns_cut_short if ended >= now - self.MEDIAN_WINDOW_SECONDS) >= 2:
+            if (
+                sum(
+                    cut_short
+                    for ended, cut_short in self._pwm_burns_cut_short
+                    if ended >= now - self.MEDIAN_WINDOW_SECONDS
+                )
+                >= self.PWM_SHORT_BURNS_THRESHOLD
+            ):
                 self._health_status = FlameStatus.PWM_SHORT
                 return
 
@@ -366,11 +426,18 @@ class Flame:
 
         # Non-PWM: internal regulation; do not require continuous flame
         if modulating_boiler:
-            if cycles_per_hour <= 2.0 and duty_ratio >= 0.8 * self.EXPECTED_MODULATING_DUTY_RATIO_WHEN_HEATING:
+            if (
+                cycles_per_hour <= self.MAX_CYCLES_PER_HOUR_MODULATING_STEADY
+                and duty_ratio >= 0.8 * self.EXPECTED_MODULATING_DUTY_RATIO_WHEN_HEATING
+            ):
                 self._health_status = FlameStatus.HEALTHY
                 return
 
-            if median_on_seconds is not None and median_on_seconds < self.MEDIAN_TOLERANCE * 180 and cycles_per_hour > self.MAX_CYCLES_PER_HOUR_NON_PWM:
+            if (
+                median_on_seconds is not None
+                and median_on_seconds < self.MEDIAN_TOLERANCE * 180
+                and cycles_per_hour > self.MAX_CYCLES_PER_HOUR_NON_PWM
+            ):
                 self._health_status = FlameStatus.SHORT_CYCLING
                 return
 
@@ -378,15 +445,23 @@ class Flame:
             return
 
         # Non-modulating boiler
-        if median_on_seconds is not None and median_on_seconds < self.MEDIAN_TOLERANCE * 180 and cycles_per_hour > self.MAX_CYCLES_PER_HOUR_NON_PWM:
+        if (
+            median_on_seconds is not None
+            and median_on_seconds < self.MEDIAN_TOLERANCE * 180
+            and cycles_per_hour > self.MAX_CYCLES_PER_HOUR_NON_PWM
+        ):
             self._health_status = FlameStatus.SHORT_CYCLING
             return
 
         self._health_status = FlameStatus.HEALTHY
 
-    def _fresh_pulse_width_modulation_state(self, now: float) -> Optional[PWMState]:
-        # Only the control loop sends the PWM state, so it goes stale while SAT is off, paused or offline
-        if self._pwm_state_updated_monotonic is None or now - self._pwm_state_updated_monotonic > CONTROL_LOOP_STALL_TIME.total_seconds():
+    def _fresh_pulse_width_modulation_state(self, now: float) -> PWMState | None:
+        # Only the control loop sends the PWM state,
+        # so it goes stale while SAT is off, paused or offline
+        if (
+            self._pwm_state_updated_monotonic is None
+            or now - self._pwm_state_updated_monotonic > CONTROL_LOOP_STALL_TIME.total_seconds()
+        ):
             return None
 
         return self._last_pulse_width_modulation_state
@@ -415,7 +490,7 @@ class Flame:
         self._prune_cycles_window(now)
         return float(len(self._cycle_end_times_window))
 
-    def _median_on_duration(self, now: float) -> Tuple[Optional[float], int]:
+    def _median_on_duration(self, now: float) -> tuple[float | None, int]:
         self._prune_median_window(now)
         if not self._on_durations_window:
             return None, 0

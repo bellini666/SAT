@@ -1,32 +1,35 @@
 from dataclasses import dataclass
-from typing import Optional, Iterable, Iterator
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Iterator
 
 
 class Errors:
     """A collection of ErrorInfo objects with utility methods."""
 
-    def __init__(self, errors: Optional[Iterable["Error"]] = None) -> None:
-        self._errors: list["Error"] = list(errors) if errors else []
+    def __init__(self, errors: Iterable[Error] | None = None) -> None:
+        self._errors: list[Error] = list(errors) if errors else []
 
-    def __iter__(self) -> Iterator["Error"]:
+    def __iter__(self) -> Iterator[Error]:
         return iter(self._errors)
 
     def __len__(self) -> int:
         return len(self._errors)
 
-    def __getitem__(self, index: int) -> "Error":
+    def __getitem__(self, index: int) -> Error:
         return self._errors[index]
 
-    def __add__(self, other: "Errors") -> "Errors":
+    def __add__(self, other: Errors) -> Errors:
         return self.merge(other)
 
-    def add(self, error: "Error") -> None:
+    def add(self, error: Error) -> None:
         self._errors.append(error)
 
-    def merge(self, other: "Errors") -> "Errors":
+    def merge(self, other: Errors) -> Errors:
         return Errors(self._errors + other._errors)
 
-    def max(self) -> Optional["Error"]:
+    def max(self) -> Error | None:
         if not self._errors:
             return None
 
@@ -36,5 +39,6 @@ class Errors:
 @dataclass(frozen=True, slots=True)
 class Error:
     """Represents an error value associated with an entity or area."""
+
     entity_id: str
     value: float

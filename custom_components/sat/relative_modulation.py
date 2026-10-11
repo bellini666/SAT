@@ -1,14 +1,19 @@
+from __future__ import annotations
+
 import logging
-from enum import Enum
+from enum import StrEnum
+from typing import TYPE_CHECKING
 
 from .const import MINIMUM_SETPOINT
-from .coordinator import SatDataUpdateCoordinator
+
+if TYPE_CHECKING:
+    from .coordinator import SatDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
 
 # Enum to represent different states of relative modulation
-class RelativeModulationState(str, Enum):
+class RelativeModulationState(StrEnum):
     OFF = "off"
     COLD = "cold"
     HOT_WATER = "hot_water"
@@ -16,21 +21,21 @@ class RelativeModulationState(str, Enum):
 
 
 class RelativeModulation:
-    def __init__(self, coordinator: SatDataUpdateCoordinator, heating_system: str):
-        """Initialize instance variables"""
+    def __init__(self, coordinator: SatDataUpdateCoordinator, heating_system: str) -> None:
+        """Initialize instance variables."""
         self._heating_system: str = heating_system
         self._pulse_width_modulation_enabled: bool = False
         self._coordinator: SatDataUpdateCoordinator = coordinator
 
         _LOGGER.debug("Relative Modulation initialized for heating system: %s", heating_system)
 
-    async def update(self, pulse_width_modulation_enabled: bool) -> None:
-        """Update internal state with new internal data"""
+    async def update(self, *, pulse_width_modulation_enabled: bool) -> None:
+        """Update internal state with new internal data."""
         self._pulse_width_modulation_enabled = pulse_width_modulation_enabled
 
     @property
     def state(self) -> RelativeModulationState:
-        """Determine the current state of relative modulation based on coordinator and internal data"""
+        """Determine the current relative modulation state from coordinator and internal data."""
         if self._coordinator.hot_water_active:
             return RelativeModulationState.HOT_WATER
 
@@ -44,5 +49,5 @@ class RelativeModulation:
 
     @property
     def enabled(self) -> bool:
-        """Check if the relative modulation is enabled based on its current state"""
+        """Check if the relative modulation is enabled based on its current state."""
         return self.state != RelativeModulationState.OFF

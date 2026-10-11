@@ -1,12 +1,14 @@
 """Tests for the PID controller."""
 
 from datetime import timedelta
-
-from freezegun.api import FrozenDateTimeFactory
+from typing import TYPE_CHECKING
 
 from custom_components.sat.const import HEATING_SYSTEM_RADIATORS
 from custom_components.sat.errors import Error
 from custom_components.sat.pid import PID
+
+if TYPE_CHECKING:
+    from freezegun.api import FrozenDateTimeFactory
 
 SENSOR = "sensor.test_inside_sensor"
 
@@ -17,7 +19,9 @@ def create_pid(kp: float = 0.0, ki: float = 0.0, kd: float = 0.0) -> PID:
         automatic_gain_value=1.0,
         heating_curve_coefficient=1.0,
         derivative_time_weight=1.0,
-        kp=kp, ki=ki, kd=kd,
+        kp=kp,
+        ki=ki,
+        kd=kd,
     )
 
 
@@ -42,7 +46,9 @@ def test_derivative_decays_inside_the_deadband(freezer: FrozenDateTimeFactory) -
     assert abs(pid.derivative) < 0.05 * abs(entry_derivative)
 
 
-def test_integral_stops_on_the_sample_that_leaves_the_deadband(freezer: FrozenDateTimeFactory) -> None:
+def test_integral_stops_on_the_sample_that_leaves_the_deadband(
+    freezer: FrozenDateTimeFactory,
+) -> None:
     pid = create_pid(ki=0.001)
 
     for error in (0.3, 0.05, 0.08):
@@ -55,7 +61,9 @@ def test_integral_stops_on_the_sample_that_leaves_the_deadband(freezer: FrozenDa
     assert pid.integral == 0.0
 
 
-def test_derivative_decays_on_a_steady_error_inside_the_deadband(freezer: FrozenDateTimeFactory) -> None:
+def test_derivative_decays_on_a_steady_error_inside_the_deadband(
+    freezer: FrozenDateTimeFactory,
+) -> None:
     pid = create_pid(kd=1000.0)
 
     for error in (1.0, 0.6, 0.3, 0.05):

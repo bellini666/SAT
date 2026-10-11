@@ -2,7 +2,8 @@
 from __future__ import annotations
 
 from datetime import timedelta
-from enum import Enum
+from enum import StrEnum
+from typing import Any
 
 NAME = "Smart Autotune Thermostat"
 DOMAIN = "sat"
@@ -103,11 +104,10 @@ HEATING_SYSTEM_UNDERFLOOR = "underfloor"
 HEATING_MODE_ECO = "eco"
 HEATING_MODE_COMFORT = "comfort"
 
-OPTIONS_DEFAULTS = {
+OPTIONS_DEFAULTS: dict[str, Any] = {
     CONF_PROPORTIONAL: "45",
     CONF_INTEGRAL: "0",
     CONF_DERIVATIVE: "6000",
-
     CONF_CYCLES_PER_HOUR: 4,
     CONF_AUTOMATIC_GAINS: True,
     CONF_AUTOMATIC_DUTY_CYCLE: True,
@@ -116,10 +116,8 @@ OPTIONS_DEFAULTS = {
     CONF_OVERSHOOT_PROTECTION: False,
     CONF_DYNAMIC_MINIMUM_SETPOINT: False,
     CONF_MINIMUM_SETPOINT_ADJUSTMENT_FACTOR: 0.2,
-
     CONF_RADIATORS: [],
     CONF_ROOMS: [],
-
     CONF_SIMULATION: False,
     CONF_WINDOW_SENSORS: [],
     CONF_THERMAL_COMFORT: False,
@@ -127,17 +125,13 @@ OPTIONS_DEFAULTS = {
     CONF_PUSH_SETPOINT_TO_THERMOSTAT: False,
     CONF_SYNC_CLIMATES_WITH_MODE: True,
     CONF_SYNC_CLIMATES_WITH_PRESET: False,
-
     CONF_SIMULATED_HEATING: 20,
     CONF_SIMULATED_COOLING: 5,
-
     CONF_MINIMUM_SETPOINT: 10,
     CONF_MAXIMUM_RELATIVE_MODULATION: 100,
     CONF_FORCE_PULSE_WIDTH_MODULATION: False,
-
     CONF_MINIMUM_CONSUMPTION: 0,
     CONF_MAXIMUM_CONSUMPTION: 0,
-
     CONF_DUTY_CYCLE: "00:13:00",
     CONF_SAMPLE_TIME: "00:01:00",
     CONF_CLIMATE_VALVE_OFFSET: 0,
@@ -148,17 +142,14 @@ OPTIONS_DEFAULTS = {
     CONF_CALIBRATION_PLATEAU_TIMEOUT: "00:40:00",
     CONF_SIMULATED_WARMING_UP: "00:00:15",
     CONF_WINDOW_MINIMUM_OPEN_TIME: "00:00:15",
-
     CONF_ACTIVITY_TEMPERATURE: 10,
     CONF_AWAY_TEMPERATURE: 10,
     CONF_HOME_TEMPERATURE: 18,
     CONF_SLEEP_TEMPERATURE: 15,
     CONF_COMFORT_TEMPERATURE: 20,
-
     CONF_HEATING_CURVE_COEFFICIENT: 2.0,
     CONF_HEATING_MODE: HEATING_MODE_COMFORT,
     CONF_HEATING_SYSTEM: HEATING_SYSTEM_RADIATORS,
-
     CONF_PID_CONTROLLER_VERSION: 3,
     CONF_DYNAMIC_MINIMUM_SETPOINT_VERSION: 1,
 }
@@ -186,7 +177,7 @@ STEP_SETUP_SENSORS = "sensors"
 
 
 # Enumerations
-class FlameStatus(str, Enum):
+class FlameStatus(StrEnum):
     HEALTHY = "healthy"
     IDLE_OK = "idle_ok"
     STUCK_ON = "stuck_on"
@@ -196,7 +187,7 @@ class FlameStatus(str, Enum):
     INSUFFICIENT_DATA = "insufficient_data"
 
 
-class BoilerStatus(str, Enum):
+class BoilerStatus(StrEnum):
     HOT_WATER = "hot_water"
     PREHEATING = "preheating"
     HEATING_UP = "heating_up"
@@ -214,8 +205,14 @@ class BoilerStatus(str, Enum):
     INSUFFICIENT_DATA = "insufficient_data"
 
 
-class PWMStatus(str, Enum):
-    """The current state of Pulse Width Modulation"""
+class PWMStatus(StrEnum):
+    """The current state of Pulse Width Modulation."""
+
     ON = "on"
     OFF = "off"
     IDLE = "idle"
+
+
+# Dynamic minimum setpoint versions
+DYNAMIC_MINIMUM_SETPOINT_VERSION_1 = 1
+DYNAMIC_MINIMUM_SETPOINT_VERSION_2 = 2

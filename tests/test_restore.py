@@ -1,10 +1,15 @@
 """Tests for restoring the climate state."""
 
+from typing import Any
+
 import pytest
 from homeassistant.components.climate import HVACMode
 from homeassistant.const import STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant, State
-from pytest_homeassistant_custom_component.common import MockConfigEntry, mock_restore_cache_with_extra_data
+from pytest_homeassistant_custom_component.common import (
+    MockConfigEntry,
+    mock_restore_cache_with_extra_data,
+)
 
 from custom_components.sat.const import DOMAIN
 from tests.const import DEFAULT_USER_DATA
@@ -23,75 +28,121 @@ async def setup_entry(hass: HomeAssistant) -> MockConfigEntry:
 
 
 async def test_restores_extra_data_when_last_state_is_unavailable(hass: HomeAssistant) -> None:
-    mock_restore_cache_with_extra_data(hass, [(
-        State(ENTITY_ID, STATE_UNAVAILABLE, {"restored": True}),
-        {"hvac_mode": HVACMode.HEAT, "target_temperature": 21.0, "preset_mode": "home"},
-    )])
+    mock_restore_cache_with_extra_data(
+        hass,
+        [
+            (
+                State(ENTITY_ID, STATE_UNAVAILABLE, {"restored": True}),
+                {"hvac_mode": HVACMode.HEAT, "target_temperature": 21.0, "preset_mode": "home"},
+            )
+        ],
+    )
 
     await setup_entry(hass)
 
     state = hass.states.get(ENTITY_ID)
+    assert state is not None
     assert state.state == HVACMode.HEAT
     assert state.attributes["temperature"] == 21.0
     assert state.attributes["preset_mode"] == "home"
 
 
 async def test_restores_last_state_without_extra_data(hass: HomeAssistant) -> None:
-    mock_restore_cache_with_extra_data(hass, [(
-        State(ENTITY_ID, HVACMode.HEAT, {"temperature": 20.5, "preset_mode": "none"}),
-        {},
-    )])
+    mock_restore_cache_with_extra_data(
+        hass,
+        [
+            (
+                State(ENTITY_ID, HVACMode.HEAT, {"temperature": 20.5, "preset_mode": "none"}),
+                {},
+            )
+        ],
+    )
 
     await setup_entry(hass)
 
     state = hass.states.get(ENTITY_ID)
+    assert state is not None
     assert state.state == HVACMode.HEAT
     assert state.attributes["temperature"] == 20.5
 
 
 async def test_reload_keeps_mode_and_target(hass: HomeAssistant) -> None:
     entry = await setup_entry(hass)
-    await hass.services.async_call("climate", "set_temperature", {"entity_id": ENTITY_ID, "temperature": 21.5}, blocking=True)
-    await hass.services.async_call("climate", "set_hvac_mode", {"entity_id": ENTITY_ID, "hvac_mode": HVACMode.HEAT}, blocking=True)
+    await hass.services.async_call(
+        "climate", "set_temperature", {"entity_id": ENTITY_ID, "temperature": 21.5}, blocking=True
+    )
+    await hass.services.async_call(
+        "climate",
+        "set_hvac_mode",
+        {"entity_id": ENTITY_ID, "hvac_mode": HVACMode.HEAT},
+        blocking=True,
+    )
 
     assert await hass.config_entries.async_reload(entry.entry_id)
     await hass.async_block_till_done()
 
     state = hass.states.get(ENTITY_ID)
+    assert state is not None
     assert state.state == HVACMode.HEAT
     assert state.attributes["temperature"] == 21.5
 
 
-async def test_defaults_to_heat_at_the_home_temperature(hass: HomeAssistant, caplog: pytest.LogCaptureFixture) -> None:
+async def test_defaults_to_heat_at_the_home_temperature(
+    hass: HomeAssistant, caplog: pytest.LogCaptureFixture
+) -> None:
     await setup_entry(hass)
 
     state = hass.states.get(ENTITY_ID)
+    assert state is not None
     assert state.state == HVACMode.HEAT
     assert state.attributes["temperature"] == 18
     assert "No previously saved temperature" not in caplog.text
 
 
 async def test_default_hvac_mode_option(hass: HomeAssistant) -> None:
-    entry = MockConfigEntry(domain=DOMAIN, data=DEFAULT_USER_DATA, options={"default_hvac_mode": HVACMode.OFF})
+    entry = MockConfigEntry(
+        domain=DOMAIN, data=DEFAULT_USER_DATA, options={"default_hvac_mode": HVACMode.OFF}
+    )
     entry.add_to_hass(hass)
 
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
 
-    assert hass.states.get(ENTITY_ID).state == HVACMode.OFF
+    state = hass.states.get(ENTITY_ID)
+    assert state is not None
+    assert state.state == HVACMode.OFF
 
 
-@pytest.mark.parametrize(("extra_data", "temperature"), [
-    ({"pre_custom_temperature": 20.5}, 20.5),
-    ({}, 21.0),
-])
-async def test_preset_none_after_restore_returns_to_the_custom_temperature(hass: HomeAssistant, extra_data: dict, temperature: float) -> None:
-    mock_restore_cache_with_extra_data(hass, [(
-        State(ENTITY_ID, STATE_UNAVAILABLE),
-        {"hvac_mode": HVACMode.HEAT, "target_temperature": 21.0, "preset_mode": "comfort", **extra_data},
-    )])
+@pytest.mark.parametrize(
+    ("extra_data", "temperature"),
+    [
+        ({"pre_custom_temperature": 20.5}, 20.5),
+        ({}, 21.0),
+    ],
+)
+async def test_preset_none_after_restore_returns_to_the_custom_temperature(
+    hass: HomeAssistant, extra_data: dict[str, Any], temperature: float
+) -> None:
+    mock_restore_cache_with_extra_data(
+        hass,
+        [
+            (
+                State(ENTITY_ID, STATE_UNAVAILABLE),
+                {
+                    "hvac_mode": HVACMode.HEAT,
+                    "target_temperature": 21.0,
+                    "preset_mode": "comfort",
+                    **extra_data,
+                },
+            )
+        ],
+    )
 
     await setup_entry(hass)
-    await hass.services.async_call("climate", "set_preset_mode", {"entity_id": ENTITY_ID, "preset_mode": "none"}, blocking=True)
+    await hass.services.async_call(
+        "climate", "set_preset_mode", {"entity_id": ENTITY_ID, "preset_mode": "none"}, blocking=True
+    )
 
-    assert hass.states.get(ENTITY_ID).attributes["temperature"] == temperature
+    state = hass.states.get(ENTITY_ID)
+    assert state is not None
+    assert state.attributes["temperature"] == temperature

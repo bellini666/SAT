@@ -2,13 +2,13 @@
 
 import asyncio
 from datetime import timedelta
+from typing import TYPE_CHECKING
 from unittest.mock import patch
 
-from freezegun.api import FrozenDateTimeFactory
+import pytest
 from homeassistant.components import persistent_notification
 from homeassistant.components.climate import HVACMode
 from homeassistant.const import STATE_UNAVAILABLE
-from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed
 
 from custom_components.sat.config_flow import SatFlowHandler
@@ -16,12 +16,20 @@ from custom_components.sat.const import DOMAIN
 from custom_components.sat.coordinator import DeviceState
 from tests.const import BUTTON, DEFAULT_USER_DATA
 
+if TYPE_CHECKING:
+    from freezegun.api import FrozenDateTimeFactory
+    from homeassistant.core import HomeAssistant
+
 
 async def setup_heating_entry(hass: HomeAssistant) -> MockConfigEntry:
     hass.states.async_set("sensor.test_inside_sensor", "19.5")
     hass.states.async_set("sensor.test_outside_sensor", "5.0")
 
-    entry = MockConfigEntry(domain=DOMAIN, version=SatFlowHandler.VERSION, data={**DEFAULT_USER_DATA, "minimum_setpoint": 45, "heating_system": "radiators"})
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=SatFlowHandler.VERSION,
+        data={**DEFAULT_USER_DATA, "minimum_setpoint": 45, "heating_system": "radiators"},
+    )
     entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
@@ -37,12 +45,16 @@ async def tick(hass: HomeAssistant, freezer: FrozenDateTimeFactory, count: int) 
         await hass.async_block_till_done()
 
 
-async def test_button_calibrates_and_stores_the_value(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+async def test_button_calibrates_and_stores_the_value(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
     entry = await setup_heating_entry(hass)
     await entry.runtime_data.coordinator.async_set_boiler_temperature(40)
 
     await hass.services.async_call("button", "press", {"entity_id": BUTTON}, blocking=True)
-    assert hass.states.get(BUTTON).state == STATE_UNAVAILABLE
+    state = hass.states.get(BUTTON)
+    assert state is not None
+    assert state.state == STATE_UNAVAILABLE
     assert entry.runtime_data.climate.control_paused
 
     await tick(hass, freezer, 14)
@@ -51,13 +63,19 @@ async def test_button_calibrates_and_stores_the_value(hass: HomeAssistant, freez
     assert entry.runtime_data.coordinator.minimum_setpoint == 40.0
     assert entry.runtime_data.climate.hvac_mode == HVACMode.HEAT
     assert not entry.runtime_data.climate.control_paused
-    assert hass.states.get(BUTTON).state != STATE_UNAVAILABLE
-    notification = persistent_notification._async_get_or_create_notifications(hass)[f"sat_calibration_{entry.entry_id}"]
+    state = hass.states.get(BUTTON)
+    assert state is not None
+    assert state.state != STATE_UNAVAILABLE
+    notification = persistent_notification._async_get_or_create_notifications(hass)[
+        f"sat_calibration_{entry.entry_id}"
+    ]
     assert "40.0" in notification["message"]
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
-async def test_unload_cancels_a_running_calibration(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+async def test_unload_cancels_a_running_calibration(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
     entry = await setup_heating_entry(hass)
 
     coordinator = entry.runtime_data.coordinator
@@ -74,7 +92,10 @@ async def test_unload_cancels_a_running_calibration(hass: HomeAssistant, freezer
     await hass.services.async_call("button", "press", {"entity_id": BUTTON}, blocking=True)
     await tick(hass, freezer, 2)
 
-    with patch.object(coordinator, "async_release_control", release_control), patch.object(coordinator, "async_will_remove_from_hass", remove_from_hass):
+    with (
+        patch.object(coordinator, "async_release_control", release_control),
+        patch.object(coordinator, "async_will_remove_from_hass", remove_from_hass),
+    ):
         assert await hass.config_entries.async_unload(entry.entry_id)
         await hass.async_block_till_done()
 
@@ -82,9 +103,13 @@ async def test_unload_cancels_a_running_calibration(hass: HomeAssistant, freezer
     assert entry.options.get("minimum_setpoint") is None
 
 
-async def test_calibration_timeouts_come_from_the_options(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+async def test_calibration_timeouts_come_from_the_options(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
     entry = await setup_heating_entry(hass)
-    hass.config_entries.async_update_entry(entry, options={**entry.options, "calibration_plateau_timeout": "00:05:00"})
+    hass.config_entries.async_update_entry(
+        entry, options={**entry.options, "calibration_plateau_timeout": "00:05:00"}
+    )
     coordinator = entry.runtime_data.coordinator
 
     await hass.services.async_call("button", "press", {"entity_id": BUTTON}, blocking=True)
@@ -92,28 +117,41 @@ async def test_calibration_timeouts_come_from_the_options(hass: HomeAssistant, f
         await coordinator.async_set_boiler_temperature(30 + step)
         await tick(hass, freezer, 1)
 
-    notification = persistent_notification._async_get_or_create_notifications(hass)[f"sat_calibration_{entry.entry_id}"]
+    notification = persistent_notification._async_get_or_create_notifications(hass)[
+        f"sat_calibration_{entry.entry_id}"
+    ]
     assert "timeout" in notification["message"]
     assert "reached 40.0 °C at minimum modulation" in notification["message"]
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
-async def test_gateway_error_frees_the_button(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+@pytest.mark.usefixtures("freezer")
+async def test_gateway_error_frees_the_button(hass: HomeAssistant) -> None:
     entry = await setup_heating_entry(hass)
     coordinator = entry.runtime_data.coordinator
 
-    with patch.object(coordinator, "async_set_control_max_relative_modulation", side_effect=RuntimeError("gateway")):
+    with patch.object(
+        coordinator,
+        "async_set_control_max_relative_modulation",
+        side_effect=RuntimeError("gateway"),
+    ):
         await hass.services.async_call("button", "press", {"entity_id": BUTTON}, blocking=True)
         await hass.async_block_till_done()
 
-    assert hass.states.get(BUTTON).state != STATE_UNAVAILABLE
+    state = hass.states.get(BUTTON)
+    assert state is not None
+    assert state.state != STATE_UNAVAILABLE
     assert not entry.runtime_data.climate.control_paused
-    notification = persistent_notification._async_get_or_create_notifications(hass)[f"sat_calibration_{entry.entry_id}"]
+    notification = persistent_notification._async_get_or_create_notifications(hass)[
+        f"sat_calibration_{entry.entry_id}"
+    ]
     assert "gateway" in notification["message"]
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
-async def test_turning_off_stops_the_calibration(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+async def test_turning_off_stops_the_calibration(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
     entry = await setup_heating_entry(hass)
     climate = entry.runtime_data.climate
 
@@ -125,11 +163,15 @@ async def test_turning_off_stops_the_calibration(hass: HomeAssistant, freezer: F
         await tick(hass, freezer, 2)
 
     assert DeviceState.ON not in [call.args[0] for call in heater.call_args_list]
-    assert hass.states.get(BUTTON).state != STATE_UNAVAILABLE
+    state = hass.states.get(BUTTON)
+    assert state is not None
+    assert state.state != STATE_UNAVAILABLE
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
-async def test_turning_off_while_the_calibration_waits_for_the_control_loop(hass: HomeAssistant) -> None:
+async def test_turning_off_while_the_calibration_waits_for_the_control_loop(
+    hass: HomeAssistant,
+) -> None:
     entry = await setup_heating_entry(hass)
     climate = entry.runtime_data.climate
     coordinator = entry.runtime_data.coordinator
@@ -152,5 +194,29 @@ async def test_turning_off_while_the_calibration_waits_for_the_control_loop(hass
         await turn_off
 
     assert climate.calibration is None
-    assert hass.states.get(BUTTON).state != STATE_UNAVAILABLE
+    state = hass.states.get(BUTTON)
+    assert state is not None
+    assert state.state != STATE_UNAVAILABLE
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_missing_heating_system_reports_the_failure(hass: HomeAssistant) -> None:
+    hass.states.async_set("sensor.test_inside_sensor", "19.5")
+    hass.states.async_set("sensor.test_outside_sensor", "5.0")
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=SatFlowHandler.VERSION,
+        data={**DEFAULT_USER_DATA, "minimum_setpoint": 45},
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    await entry.runtime_data.climate.async_set_hvac_mode(HVACMode.HEAT)
+
+    await hass.services.async_call("button", "press", {"entity_id": BUTTON}, blocking=True)
+    await hass.async_block_till_done()
+
+    assert f"sat_calibration_{entry.entry_id}" in (
+        persistent_notification._async_get_or_create_notifications(hass)
+    )
     assert await hass.config_entries.async_unload(entry.entry_id)

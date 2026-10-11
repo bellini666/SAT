@@ -6,15 +6,25 @@ import math
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from statistics import fmean, linear_regression
-from typing import Any, Mapping
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.util import dt as dt_util
 
-from .const import CONF_CALIBRATION_FLAME_TIMEOUT, CONF_CALIBRATION_PLATEAU_TIMEOUT, MINIMUM_RELATIVE_MODULATION, MINIMUM_SETPOINT, OPTIONS_DEFAULTS, OVERSHOOT_PROTECTION_SETPOINT
+from .const import (
+    CONF_CALIBRATION_FLAME_TIMEOUT,
+    CONF_CALIBRATION_PLATEAU_TIMEOUT,
+    MINIMUM_RELATIVE_MODULATION,
+    MINIMUM_SETPOINT,
+    OPTIONS_DEFAULTS,
+    OVERSHOOT_PROTECTION_SETPOINT,
+)
 from .coordinator import DeviceState, SatDataUpdateCoordinator
 from .helpers import convert_time_str_to_seconds
 from .manufacturers.geminox import Geminox
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -27,6 +37,14 @@ MODULATION_TOLERANCE = 3
 MODULATION_STABILITY = 5
 SETPOINT_MARGIN = 2
 MAXIMUM_FLAME_LOSSES = 3
+MINIMUM_PLATEAU_SAMPLES = 2
+
+DEFAULT_FLAME_TIMEOUT = timedelta(
+    seconds=convert_time_str_to_seconds(OPTIONS_DEFAULTS[CONF_CALIBRATION_FLAME_TIMEOUT])
+)
+DEFAULT_PLATEAU_TIMEOUT = timedelta(
+    seconds=convert_time_str_to_seconds(OPTIONS_DEFAULTS[CONF_CALIBRATION_PLATEAU_TIMEOUT])
+)
 
 
 class CalibrationError(Exception):
@@ -42,7 +60,12 @@ class CalibrationResult:
     method: str
 
 
-def create_overshoot_protection(coordinator: SatDataUpdateCoordinator, heating_system: str, maximum_setpoint: float, options: Mapping[str, Any]) -> OvershootProtection:
+def create_overshoot_protection(
+    coordinator: SatDataUpdateCoordinator,
+    heating_system: str,
+    maximum_setpoint: float,
+    options: Mapping[str, Any],
+) -> OvershootProtection:
     """Create the calibration with the timeouts from the options."""
     options = {**OPTIONS_DEFAULTS, **options}
 
@@ -50,21 +73,25 @@ def create_overshoot_protection(coordinator: SatDataUpdateCoordinator, heating_s
         coordinator,
         heating_system,
         maximum_setpoint,
-        flame_timeout=timedelta(seconds=convert_time_str_to_seconds(options[CONF_CALIBRATION_FLAME_TIMEOUT])),
-        plateau_timeout=timedelta(seconds=convert_time_str_to_seconds(options[CONF_CALIBRATION_PLATEAU_TIMEOUT])),
+        flame_timeout=timedelta(
+            seconds=convert_time_str_to_seconds(options[CONF_CALIBRATION_FLAME_TIMEOUT])
+        ),
+        plateau_timeout=timedelta(
+            seconds=convert_time_str_to_seconds(options[CONF_CALIBRATION_PLATEAU_TIMEOUT])
+        ),
     )
 
 
 class OvershootProtection:
-    """Find the overshoot protection value by heating at a fixed setpoint until the flow temperature settles."""
+    """Find the overshoot protection value by heating at a fixed setpoint until the flow settles."""
 
     def __init__(
-            self,
-            coordinator: SatDataUpdateCoordinator,
-            heating_system: str,
-            maximum_setpoint: float,
-            flame_timeout: timedelta = timedelta(seconds=convert_time_str_to_seconds(OPTIONS_DEFAULTS[CONF_CALIBRATION_FLAME_TIMEOUT])),
-            plateau_timeout: timedelta = timedelta(seconds=convert_time_str_to_seconds(OPTIONS_DEFAULTS[CONF_CALIBRATION_PLATEAU_TIMEOUT])),
+        self,
+        coordinator: SatDataUpdateCoordinator,
+        heating_system: str,
+        maximum_setpoint: float,
+        flame_timeout: timedelta = DEFAULT_FLAME_TIMEOUT,
+        plateau_timeout: timedelta = DEFAULT_PLATEAU_TIMEOUT,
     ) -> None:
         self._coordinator = coordinator
         self._flame_timeout = flame_timeout
@@ -73,7 +100,12 @@ class OvershootProtection:
         system_setpoint = OVERSHOOT_PROTECTION_SETPOINT[heating_system]
         self.setpoint = min(system_setpoint, maximum_setpoint)
         if self.setpoint < system_setpoint:
-            _LOGGER.info("Calibrating at the maximum setpoint %.1f°C instead of %.1f°C for %s", self.setpoint, system_setpoint, heating_system)
+            _LOGGER.info(
+                "Calibrating at the maximum setpoint %.1f°C instead of %.1f°C for %s",
+                self.setpoint,
+                system_setpoint,
+                heating_system,
+            )
 
         self.phase = "waiting_for_flame"
         self._samples: list[tuple[datetime, float, float]] = []
@@ -98,11 +130,14 @@ class OvershootProtection:
         try:
             await self._async_tick(self._last_tick)
             result = await self._result
-            _LOGGER.info("Overshoot protection value %.1f°C, determined by %s", result.value, result.method)
-            return result
+            _LOGGER.info(
+                "Overshoot protection value %.1f°C, determined by %s", result.value, result.method
+            )
         except CalibrationError as error:
             _LOGGER.warning("Overshoot protection calibration failed: %s", error.reason)
             raise
+        else:
+            return result
         finally:
             unsubscribe()
             if not self._result.done():
@@ -122,14 +157,17 @@ class OvershootProtection:
             try:
                 if (result := await self._async_step(now)) is not None:
                     self._result.set_result(result)
+            except CalibrationError as error:
+                self._result.set_exception(error)
             except Exception as error:
+                _LOGGER.exception("Calibration step failed")
                 self._result.set_exception(error)
 
     async def _async_step(self, now: datetime) -> CalibrationResult | None:
         elapsed = now - self._last_tick
         self._last_tick = now
         if now > self._deadline:
-            raise CalibrationError("timeout", self._minimum_modulation_flow(now))
+            raise CalibrationError(reason="timeout", value=self._minimum_modulation_flow(now))
 
         coordinator = self._coordinator
         if coordinator.hot_water_active:
@@ -142,7 +180,11 @@ class OvershootProtection:
             return None
 
         # Geminox boilers need at least 10 % maximum relative modulation
-        modulation = max(10, MINIMUM_RELATIVE_MODULATION) if isinstance(coordinator.manufacturer, Geminox) else MINIMUM_RELATIVE_MODULATION
+        modulation = (
+            max(10, MINIMUM_RELATIVE_MODULATION)
+            if isinstance(coordinator.manufacturer, Geminox)
+            else MINIMUM_RELATIVE_MODULATION
+        )
 
         await coordinator.async_set_heater_state(DeviceState.ON)
         await coordinator.async_set_control_setpoint(self.setpoint)
@@ -151,8 +193,12 @@ class OvershootProtection:
 
         _LOGGER.debug(
             "Calibration %s: sent CH=on CS=%.1f MM=%d, flame=%s flow=%s modulation=%s",
-            self.phase, self.setpoint, modulation, coordinator.flame_active,
-            coordinator.boiler_temperature, coordinator.relative_modulation_value,
+            self.phase,
+            self.setpoint,
+            modulation,
+            coordinator.flame_active,
+            coordinator.boiler_temperature,
+            coordinator.relative_modulation_value,
         )
 
         if self.phase == "paused":
@@ -163,15 +209,19 @@ class OvershootProtection:
             if self.phase == "heating":
                 self._flame_losses += 1
                 self._samples.clear()
-                _LOGGER.info("Calibration lost the flame (%d of %d allowed)", self._flame_losses, MAXIMUM_FLAME_LOSSES)
+                _LOGGER.info(
+                    "Calibration lost the flame (%d of %d allowed)",
+                    self._flame_losses,
+                    MAXIMUM_FLAME_LOSSES,
+                )
 
                 if self._flame_losses > MAXIMUM_FLAME_LOSSES:
-                    raise CalibrationError("flame_lost")
+                    raise CalibrationError(reason="flame_lost")
 
             self.phase = "waiting_for_flame"
             self._waited += elapsed
             if self._waited > self._flame_timeout:
-                raise CalibrationError("no_flame")
+                raise CalibrationError(reason="no_flame")
 
             return None
 
@@ -181,31 +231,48 @@ class OvershootProtection:
             self._waited = timedelta()
 
         self._heated += elapsed
-        if coordinator.boiler_temperature is not None and coordinator.relative_modulation_value is not None:
-            self._samples.append((now, float(coordinator.boiler_temperature), float(coordinator.relative_modulation_value)))
-            self._lowest_modulation = min(self._lowest_modulation, float(coordinator.relative_modulation_value))
+        if (
+            coordinator.boiler_temperature is not None
+            and coordinator.relative_modulation_value is not None
+        ):
+            self._samples.append(
+                (
+                    now,
+                    float(coordinator.boiler_temperature),
+                    float(coordinator.relative_modulation_value),
+                )
+            )
+            self._lowest_modulation = min(
+                self._lowest_modulation, float(coordinator.relative_modulation_value)
+            )
 
             if (result := self._plateau(now)) is not None:
                 return result
         elif coordinator.relative_modulation_value is None and self._heated > PLATEAU_WINDOW:
-            raise CalibrationError("no_modulation")
+            raise CalibrationError(reason="no_modulation")
 
         if self._heated > self._plateau_timeout:
-            raise CalibrationError("timeout", self._minimum_modulation_flow(now))
+            raise CalibrationError(reason="timeout", value=self._minimum_modulation_flow(now))
 
         return None
 
     def _modulation_floor(self) -> float:
-        # ID 17 is 0 at minimum modulation on spec boilers, others report ID 15's scale (% of maximum capacity)
-        return min(self._lowest_modulation, self._coordinator.minimum_relative_modulation_value or 100)
+        # ID 17 is 0 at minimum modulation on spec boilers,
+        # others report ID 15's scale (% of maximum capacity)
+        return min(
+            self._lowest_modulation, self._coordinator.minimum_relative_modulation_value or 100
+        )
 
     def _minimum_modulation_flow(self, now: datetime) -> float | None:
-        """Return the highest recent flow, rounded up, when the boiler held minimum modulation without settling."""
+        """Return the highest recent flow, rounded up, if minimum modulation held unsettled."""
         if not self._samples or self._samples[0][0] > now - PLATEAU_WINDOW:
             return None
 
         window = [sample for sample in self._samples if sample[0] >= now - PLATEAU_WINDOW]
-        if fmean(modulation for _, _, modulation in window) > self._modulation_floor() + MODULATION_TOLERANCE:
+        if (
+            fmean(modulation for _, _, modulation in window)
+            > self._modulation_floor() + MODULATION_TOLERANCE
+        ):
             return None
 
         return float(min(math.ceil(max(flow for _, flow, _ in window)), self.setpoint))
@@ -221,15 +288,22 @@ class OvershootProtection:
 
         _LOGGER.debug(
             "Calibration window: flow %.1f-%.1f°C, modulation %.0f-%.0f%%, modulation floor %.0f%%",
-            min(flows), max(flows), min(modulations), max(modulations), floor,
+            min(flows),
+            max(flows),
+            min(modulations),
+            max(modulations),
+            floor,
         )
 
         # Whole-degree sensors flicker by one step around the plateau
         step = 1 if all(flow.is_integer() for flow in flows) else 0.1
-        if len(window) < 2 or max(flows) - min(flows) > max(PLATEAU_TOLERANCE, step + 0.1):
+        if len(window) < MINIMUM_PLATEAU_SAMPLES or max(flows) - min(flows) > max(
+            PLATEAU_TOLERANCE, step + 0.1
+        ):
             return None
 
-        # A drift of one sensor step across the window still counts as flat, 0.02 °C/min at 0.1 °C resolution
+        # A drift of one sensor step across the window still counts as flat,
+        # 0.02 °C/min at 0.1 °C resolution
         offsets = [(timestamp - now) / PLATEAU_WINDOW for timestamp, _, _ in window]
         if abs(linear_regression(offsets, flows).slope) > step:
             return None
@@ -239,9 +313,11 @@ class OvershootProtection:
 
         if modulation <= floor + MODULATION_TOLERANCE:
             if plateau >= self.setpoint - SETPOINT_MARGIN:
-                raise CalibrationError("setpoint_reached", self.setpoint)
+                raise CalibrationError(reason="setpoint_reached", value=self.setpoint)
 
-            return CalibrationResult(plateau, "zero_modulation" if max(modulations) == 0 else "minimum_modulation")
+            return CalibrationResult(
+                plateau, "zero_modulation" if max(modulations) == 0 else "minimum_modulation"
+            )
 
         if max(modulations) - min(modulations) > MODULATION_STABILITY:
             return None

@@ -1,16 +1,18 @@
 import math
 from re import sub
 from time import monotonic
-from typing import Optional, Union
+from typing import TYPE_CHECKING
 
-from homeassistant.core import State
 from homeassistant.util import dt
 
 from .const import HEATING_SYSTEM_UNDERFLOOR
 
+if TYPE_CHECKING:
+    from homeassistant.core import State
+
 
 def seconds_since(start_time: float | None) -> float:
-    """Calculate the elapsed time in seconds since a given start time, returns zero if time is not valid."""
+    """Calculate the elapsed seconds since a given start time, or zero if it is not valid."""
     if start_time is None:
         return 0.0
 
@@ -22,7 +24,7 @@ def state_age_seconds(state: State) -> float:
     return (dt.utcnow() - state.last_reported).total_seconds()
 
 
-def is_state_stale(state: Optional[State], max_age_seconds: float) -> bool:
+def is_state_stale(state: State | None, max_age_seconds: float) -> bool:
     """Return True when the state is older than max_age_seconds."""
     if state is None or max_age_seconds <= 0:
         return False
@@ -32,18 +34,15 @@ def is_state_stale(state: Optional[State], max_age_seconds: float) -> bool:
 
 def convert_time_str_to_seconds(time_str: str) -> int:
     """Convert a time string in the format 'HH:MM:SS' to seconds."""
-    try:
-        # Parse the input into a valid date time object
-        date_time = dt.parse_time(time_str)
+    if (date_time := dt.parse_time(time_str)) is None:
+        msg = f"Invalid time format. Expected 'HH:MM:SS', got '{time_str}'"
+        raise ValueError(msg)
 
-        # Calculate the number of seconds
-        return round((date_time.hour * 3600) + (date_time.minute * 60) + date_time.second, 0)
-    except ValueError as e:
-        raise ValueError(f"Invalid time format. Expected 'HH:MM:SS', got '{time_str}'") from e
+    return round((date_time.hour * 3600) + (date_time.minute * 60) + date_time.second, 0)
 
 
-def calculate_derivative_per_hour(temperature_error: float, time_taken_seconds: float):
-    """Calculates the derivative per hour based on the temperature error and time taken."""
+def calculate_derivative_per_hour(temperature_error: float, time_taken_seconds: float) -> float:
+    """Calculate the derivative per hour based on the temperature error and time taken."""
     # Convert time taken from seconds to hours
     time_taken_hours = time_taken_seconds / 3600
 
@@ -65,13 +64,12 @@ def calculate_default_maximum_setpoint(heating_system: str) -> int:
 
 def snake_case(value: str) -> str:
     """Transform a string from CamelCase or kebab-case to snake_case."""
-    return '_'.join(
-        sub('([A-Z][a-z]+)', r' \1',
-            sub('([A-Z]+)', r' \1',
-                value.replace('-', ' '))).split()).lower()
+    return "_".join(
+        sub("([A-Z][a-z]+)", r" \1", sub("([A-Z]+)", r" \1", value.replace("-", " "))).split()
+    ).lower()
 
 
-def float_value(value: Union[int, float, str, None]) -> Optional[float]:
+def float_value(value: float | str | None) -> float | None:
     """Safely convert a value to a finite float, returning None if the conversion fails."""
     if value is None:
         return None
@@ -79,29 +77,29 @@ def float_value(value: Union[int, float, str, None]) -> Optional[float]:
     try:
         result = float(value)
         return result if math.isfinite(result) else None
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
 
 
-def to_float(value: Union[int, float, str, None], default: float = 0.0) -> float:
+def to_float(value: float | str | None, default: float = 0.0) -> float:
     """Convert to float, returning default if the conversion fails or the result is None."""
     result = float_value(value)
     return float(result) if result is not None else float(default)
 
 
-def int_value(value: Union[int, float, str, None]) -> Optional[int]:
+def int_value(value: float | str | None) -> int | None:
     """Safely convert a value to an int, returning None if the conversion fails."""
     result = float_value(value)
     return int(result) if result is not None else None
 
 
-def to_int(value: Union[int, float, str, None], default: int = 0) -> int:
+def to_int(value: float | str | None, default: int = 0) -> int:
     """Convert to int, returning default if the conversion fails or the result is None."""
     result = int_value(value)
     return int(result) if result is not None else int(default)
 
 
-def clamp(value: float, low: float, high: Optional[float] = None) -> float:
+def clamp(value: float, low: float, high: float | None = None) -> float:
     """Clamp to [low, high] if high is given, else to [low, +inf]."""
     if high is None:
         return max(low, value)

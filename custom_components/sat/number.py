@@ -1,13 +1,26 @@
-from homeassistant.components.number import NumberEntity, NumberDeviceClass
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from __future__ import annotations
 
-from .const import *
-from .coordinator import SatDataUpdateCoordinator
+from typing import TYPE_CHECKING, override
+
+from homeassistant.components.number import NumberDeviceClass, NumberEntity
+from homeassistant.const import UnitOfTemperature
+
 from .entity import SatEntity
 
+if TYPE_CHECKING:
+    from homeassistant.config_entries import ConfigEntry
+    from homeassistant.core import HomeAssistant
+    from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, async_add_entities):
+    from . import SatConfigEntry
+    from .coordinator import SatDataUpdateCoordinator
+
+
+async def async_setup_entry(
+    _hass: HomeAssistant,
+    config_entry: SatConfigEntry,
+    async_add_entities: AddConfigEntryEntitiesCallback,
+) -> None:
     coordinator = config_entry.runtime_data.coordinator
 
     if coordinator.supports_hot_water_setpoint_management:
@@ -16,47 +29,28 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
 
 class SatHotWaterSetpointEntity(SatEntity, NumberEntity):
     _attr_translation_key = "hot_water_setpoint"
+    _attr_device_class = NumberDeviceClass.TEMPERATURE
+    _attr_icon = "mdi:thermometer"
+    _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
 
+    def __init__(self, coordinator: SatDataUpdateCoordinator, config_entry: ConfigEntry) -> None:
+        super().__init__(coordinator, config_entry)
 
+        self._attr_unique_id = f"{config_entry.entry_id}-boiler-dhw-setpoint"
+
+    @override
     @property
-    def device_class(self):
-        """Return the device class."""
-        return NumberDeviceClass.TEMPERATURE
-
-    @property
-    def unique_id(self) -> str:
-        """Return a unique ID to use for this entity."""
-        return f"{self._config_entry.entry_id}-boiler-dhw-setpoint"
-
-    @property
-    def icon(self) -> str | None:
-        return "mdi:thermometer"
-
-    @property
-    def available(self):
+    def available(self) -> bool:
         """Return availability of the sensor."""
         return self._coordinator.hot_water_setpoint is not None
 
-    @property
-    def native_unit_of_measurement(self):
-        """Return the unit of measurement in native units."""
-        return "°C"
+    @override
+    def _update_attrs(self) -> None:
+        self._attr_native_value = self._coordinator.hot_water_setpoint
+        self._attr_native_min_value = self._coordinator.minimum_hot_water_setpoint
+        self._attr_native_max_value = self._coordinator.maximum_hot_water_setpoint
 
-    @property
-    def native_value(self):
-        """Return the state of the device in native units."""
-        return self._coordinator.hot_water_setpoint
-
-    @property
-    def native_min_value(self) -> float:
-        """Return the minimum accepted temperature."""
-        return self._coordinator.minimum_hot_water_setpoint
-
-    @property
-    def native_max_value(self) -> float:
-        """Return the maximum accepted temperature."""
-        return self._coordinator.maximum_hot_water_setpoint
-
+    @override
     async def async_set_native_value(self, value: float) -> None:
         """Update the setpoint."""
         await self._coordinator.async_set_control_hot_water_setpoint(value)

@@ -1,5 +1,4 @@
 import logging
-from typing import Optional
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -8,16 +7,16 @@ INCREASE_STEP = 1.0
 
 
 class SetpointAdjuster:
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the SetpointAdjuster with no current setpoint."""
         self._current = None
 
     @property
-    def current(self) -> Optional[float]:
+    def current(self) -> float | None:
         """Return the current setpoint."""
         return self._current
 
-    def reset(self):
+    def reset(self) -> None:
         """Reset the setpoint."""
         self._current = None
 
@@ -41,7 +40,9 @@ class SetpointAdjuster:
 
         _LOGGER.info(
             "Setpoint updated: %.1f°C -> %.1f°C (Target: %.1f°C)",
-            previous_setpoint, self._current, target_setpoint
+            previous_setpoint,
+            self._current,
+            target_setpoint,
         )
 
         return self._current

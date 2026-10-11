@@ -1,18 +1,23 @@
 from __future__ import annotations
 
 from dataclasses import asdict
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.diagnostics import REDACTED, async_redact_data
-from homeassistant.core import HomeAssistant
 
-from . import SatConfigEntry
 from .const import CONF_DEVICE
+
+if TYPE_CHECKING:
+    from homeassistant.core import HomeAssistant
+
+    from . import SatConfigEntry
 
 TO_REDACT = {CONF_DEVICE}
 
 
-async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: SatConfigEntry) -> dict[str, Any]:
+async def async_get_config_entry_diagnostics(
+    _hass: HomeAssistant, entry: SatConfigEntry
+) -> dict[str, Any]:
     climate = entry.runtime_data.climate
     coordinator = entry.runtime_data.coordinator
 
@@ -28,7 +33,7 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: SatConf
             "setpoint": climate.setpoint,
             "control_problems": climate.control_problems,
             "errors": [asdict(error) for error in climate.errors],
-            "attributes": climate.extra_state_attributes,
+            "attributes": climate.compute_extra_state_attributes(),
         },
         "coordinator": {
             "device_type": coordinator.device_type,
@@ -37,7 +42,13 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: SatConf
             "flame": asdict(coordinator.flame),
             "data": dict(coordinator.data),
             "messages": [
-                {**message, "topic": "/".join(REDACTED if part == entry.data[CONF_DEVICE] else part for part in message["topic"].split("/"))}
+                {
+                    **message,
+                    "topic": "/".join(
+                        REDACTED if part == entry.data[CONF_DEVICE] else part
+                        for part in message["topic"].split("/")
+                    ),
+                }
                 for message in coordinator.messages
             ],
         },
