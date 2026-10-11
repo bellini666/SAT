@@ -1,13 +1,15 @@
 """Tests for the climate attributes that follow other entities."""
 
+from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.climate import ATTR_HVAC_ACTION, HVACAction, HVACMode
 from homeassistant.const import ATTR_TEMPERATURE, STATE_UNAVAILABLE
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed
 
 from custom_components.sat.const import (
     CONF_HUMIDITY_SENSOR_ENTITY_ID,
+    CONF_SENSOR_MAX_VALUE_AGE,
     CONF_THERMAL_COMFORT,
     DOMAIN,
 )
@@ -15,6 +17,7 @@ from custom_components.sat.summer_simmer import SummerSimmer
 from tests.const import DEFAULT_USER_DATA
 
 if TYPE_CHECKING:
+    from freezegun.api import FrozenDateTimeFactory
     from homeassistant.core import HomeAssistant
 
 INSIDE = "sensor.test_inside_sensor"
@@ -105,4 +108,22 @@ async def test_hvac_mode_change_publishes_hvac_action(hass: HomeAssistant) -> No
     assert state.state == HVACMode.HEAT
     assert state.attributes[ATTR_TEMPERATURE] == 21.0
     assert state.attributes[ATTR_HVAC_ACTION] == HVACAction.IDLE
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_stale_inside_sensor_clears_current_temperature(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    entry = await setup_climate(hass, options={CONF_SENSOR_MAX_VALUE_AGE: "00:10:00"})
+    climate = entry.runtime_data.climate
+    assert climate.current_temperature == 20.9
+
+    freezer.tick(timedelta(minutes=11))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+
+    assert climate.current_temperature is None
+    state = hass.states.get(climate.entity_id)
+    assert state is not None
+    assert state.attributes["current_temperature"] is None
     assert await hass.config_entries.async_unload(entry.entry_id)

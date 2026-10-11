@@ -242,6 +242,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             self._attr_supported_features |= ClimateEntityFeature.TURN_OFF
 
         self._control_heating_loop_unsub: Callable[[], None] | None = None
+        self._sensor_stale_unsub: Callable[[], None] | None = None
         self._last_control_at = dt_util.utcnow()
         self._inputs_missing_since: datetime | None = None
         self._inputs_missing_released = False
@@ -379,6 +380,10 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         if self._control_heating_loop_unsub is not None:
             self._control_heating_loop_unsub()
             self._control_heating_loop_unsub = None
+
+        if self._sensor_stale_unsub is not None:
+            self._sensor_stale_unsub()
+            self._sensor_stale_unsub = None
 
         if self._window_sensor_handle is not None:
             self._window_sensor_handle.cancel()
@@ -636,6 +641,27 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             current_temperature = SummerSimmer.index(current_temperature, self.current_humidity)
 
         self._attr_current_temperature = current_temperature
+
+        if self._sensor_stale_unsub is not None:
+            self._sensor_stale_unsub()
+            self._sensor_stale_unsub = None
+
+        if self._sensor_max_value_age <= 0:
+            return
+
+        ages = [
+            state_age_seconds(state)
+            for entity_id in (self.inside_sensor_entity_id, self.humidity_sensor_entity_id)
+            if entity_id is not None
+            and (state := self.hass.states.get(entity_id)) is not None
+            and not is_state_stale(state, self._sensor_max_value_age)
+        ]
+        if ages:
+            self._sensor_stale_unsub = async_call_later(
+                self.hass,
+                self._sensor_max_value_age - max(ages) + 1,
+                HassJob(callback(lambda _now: self.async_write_ha_state())),
+            )
 
     @property
     def error(self) -> float:
