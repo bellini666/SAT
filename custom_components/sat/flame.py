@@ -135,13 +135,6 @@ class Flame:
         return None
 
     @property
-    def off_since(self) -> float | None:
-        if not self._is_flame_active_internal() and self._flame_off_monotonic is not None:
-            return self._flame_off_monotonic
-
-        return None
-
-    @property
     def latest_on_time_seconds(self) -> float | None:
         if self._is_flame_active_internal() and self._flame_on_monotonic is not None:
             return self._latest_on_time_seconds

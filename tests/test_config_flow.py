@@ -1,6 +1,7 @@
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
+import probatio as vol
 import pytest
 from homeassistant.components.climate import HVACMode
 from homeassistant.config_entries import SOURCE_RECONFIGURE, SOURCE_USER
@@ -491,6 +492,21 @@ async def test_manufacturer_step_preselects_the_detected_manufacturer(
     hass.config_entries.flow.async_abort(result["flow_id"])
 
 
+async def test_manufacturer_step_has_no_default_without_a_member_id(hass: HomeAssistant) -> None:
+    entry = unloaded_mqtt_entry(hass)
+
+    result = await reconfigure_to_menu(hass, entry, "overshoot_protection")
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"minimum_setpoint": 52}
+    )
+
+    schema = result["data_schema"]
+    assert schema is not None
+    field = next(key for key in schema.schema if key == "manufacturer")
+    assert field.default is vol.UNDEFINED
+    hass.config_entries.flow.async_abort(result["flow_id"])
+
+
 async def test_calibration_refuses_while_another_runs(hass: HomeAssistant) -> None:
     entry = await setup_heating_entry(hass)
     await hass.services.async_call("button", "press", {"entity_id": BUTTON}, blocking=True)
@@ -617,3 +633,43 @@ async def test_setup_flow_applies_the_manual_pid_gains(hass: HomeAssistant) -> N
     pid = result["result"].runtime_data.climate.pid
     assert (pid.kp, pid.ki, pid.kd) == (10.0, 0.2, 300.0)
     assert await hass.config_entries.async_unload(result["result"].entry_id)
+
+
+async def test_simulators_with_different_names_can_both_be_set_up(hass: HomeAssistant) -> None:
+    hass.states.async_set("sensor.test_inside_sensor", "19.5")
+    hass.states.async_set("sensor.test_outside_sensor", "5.0")
+
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_USER})
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"next_step_id": "simulator"}
+    )
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"name": "First"})
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            "inside_sensor_entity_id": "sensor.test_inside_sensor",
+            "outside_sensor_entity_id": ["sensor.test_outside_sensor"],
+        },
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"heating_system": "radiators"}
+    )
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"next_step_id": "pid_controller"}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"proportional": "10", "integral": "0.2", "derivative": "300"}
+    )
+    await hass.async_block_till_done()
+    first = result["result"]
+
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_USER})
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"next_step_id": "simulator"}
+    )
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"name": "Second"})
+
+    assert result.get("step_id") == "sensors"
+    hass.config_entries.flow.async_abort(result["flow_id"])
+    assert await hass.config_entries.async_unload(first.entry_id)

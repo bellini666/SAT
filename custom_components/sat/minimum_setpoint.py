@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 from homeassistant.helpers.storage import Store
 from homeassistant.util import utcnow
 
-from .const import PWMStatus
+from .const import DOMAIN, PWMStatus
 from .helpers import clamp, to_int
 from .state import State, update_state
 
@@ -21,10 +21,11 @@ _LOGGER = logging.getLogger(__name__)
 MODULATION_STABLE_SECONDS = 180
 
 
-class MinimumSetpoint:
-    _STORAGE_VERSION = 1
-    _STORAGE_KEY = "minimum_setpoint"
+def minimum_setpoint_store(hass: HomeAssistant, entry_id: str) -> Store[dict[str, float | None]]:
+    return Store(hass, 1, f"{DOMAIN}.{entry_id}.minimum_setpoint")
 
+
+class MinimumSetpoint:
     def __init__(self, adjustment_factor: float, configured_minimum_setpoint: float) -> None:
         self._store: Store[dict[str, float | None]] | None = None
         self._base_return_temperature: State = State()
@@ -34,8 +35,8 @@ class MinimumSetpoint:
         self._adjustment_factor: float = adjustment_factor
         self._configured_minimum_setpoint: float = configured_minimum_setpoint
 
-    async def async_initialize(self, hass: HomeAssistant) -> None:
-        self._store = Store(hass, self._STORAGE_VERSION, self._STORAGE_KEY)
+    async def async_initialize(self, hass: HomeAssistant, entry_id: str) -> None:
+        self._store = minimum_setpoint_store(hass, entry_id)
 
         data = await self._store.async_load()
         if data is not None and "base_return_temperature" in data:

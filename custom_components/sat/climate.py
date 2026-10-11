@@ -7,10 +7,9 @@ import contextlib
 import logging
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
-from time import time
 from typing import TYPE_CHECKING, Any, override
 
-from homeassistant.components import notify, sensor, weather
+from homeassistant.components import sensor, weather
 from homeassistant.components.climate import (
     ATTR_HVAC_MODE,
     ATTR_PRESET_MODE,
@@ -156,22 +155,6 @@ class SatClimateExtraStoredData(ExtraStoredData):
         )
 
 
-class SatWarmingUp:
-    def __init__(
-        self,
-        error: float,
-        boiler_temperature: float | None = None,
-        started: int | None = None,
-    ) -> None:
-        self.error = error
-        self.boiler_temperature = boiler_temperature
-        self.started = started if started is not None else int(time())
-
-    @property
-    def elapsed(self) -> int:
-        return int(time()) - self.started
-
-
 class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
     _enable_turn_on_off_backwards_compatibility = False
 
@@ -305,12 +288,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         )
 
         # Create a PWM controller with given configuration options
-        self.pwm = create_pwm_controller(
-            self.heating_curve,
-            config_entry.data,
-            config_options,
-            supports_relative_modulation_management=coordinator.supports_relative_modulation_management,
-        )
+        self.pwm = create_pwm_controller(self.heating_curve, config_entry.data, config_options)
 
         if self._simulation:
             _LOGGER.warning("Simulation mode!")
@@ -340,6 +318,8 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             self.heating_curve.update(self.target_temperature, self.current_outside_temperature)
 
         self.async_on_remove(async_at_started(self.hass, self._async_started))
+
+        await self.minimum_setpoint.async_initialize(self.hass, self._config_entry.entry_id)
 
         # Initialize the area system
         await self.areas.async_added_to_hass(self.hass)
@@ -447,7 +427,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         if self.humidity_sensor_entity_id is not None:
             self.async_on_remove(
                 async_track_state_change_event(
-                    self.hass, [self.humidity_sensor_entity_id], self._async_humidity_sensor_changed
+                    self.hass, [self.humidity_sensor_entity_id], self._async_inside_sensor_changed
                 )
             )
 
@@ -600,6 +580,8 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         )
 
     def compute_extra_state_attributes(self) -> dict[str, Any]:
+        inside_temperature = self._get_entity_state_float(self.inside_sensor_entity_id)
+
         return {
             "error": self.max_error.value,
             "error_pid": self.pid.last_error,
@@ -624,11 +606,9 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             "rooms": self._rooms,
             "setpoint": self._setpoint,
             "current_humidity": self.current_humidity,
-            "summer_simmer_index": SummerSimmer.index(
-                self.current_temperature, self.current_humidity
-            ),
+            "summer_simmer_index": SummerSimmer.index(inside_temperature, self.current_humidity),
             "summer_simmer_perception": SummerSimmer.perception(
-                self.current_temperature, self.current_humidity
+                inside_temperature, self.current_humidity
             ),
             "valves_open": self.valves_open,
             "heating_curve": self.heating_curve.value,
@@ -681,8 +661,8 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             if state is None or state.state in [STATE_UNKNOWN, STATE_UNAVAILABLE]:
                 continue
 
-            if sensor.DOMAIN in entity_id:
-                return float(state.state)
+            if sensor.DOMAIN in entity_id and (value := float_value(state.state)) is not None:
+                return value
 
             if weather.DOMAIN in entity_id:
                 return float_value(state.attributes.get("temperature"))
@@ -865,7 +845,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             await self.async_set_target_temperature(temperature, cascade=False)
 
     async def _async_inside_sensor_changed(self, event: Event[EventStateChangedData]) -> None:
-        """Handle changes to the inside temperature sensor."""
+        """Handle changes to the inside temperature or humidity sensor."""
         self._async_update_sensor_values()
 
         new_state = event.data.get("new_state")
@@ -884,20 +864,6 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             return
 
         _LOGGER.debug("Outside Sensor Changed.")
-        self.async_write_ha_state()
-
-        self._async_control_pid()
-        self.schedule_control_heating_loop()
-
-    async def _async_humidity_sensor_changed(self, event: Event[EventStateChangedData]) -> None:
-        """Handle changes to the inside temperature sensor."""
-        self._async_update_sensor_values()
-
-        new_state = event.data.get("new_state")
-        if new_state is None or new_state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
-            return
-
-        _LOGGER.debug("Humidity Sensor Changed.")
         self.async_write_ha_state()
 
         self._async_control_pid()
@@ -991,7 +957,9 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         _LOGGER.debug("Window Sensor Changed to %s.", new_state.state)
 
         if new_state.state == STATE_ON:
-            if self.preset_mode == PRESET_ACTIVITY:
+            if self.preset_mode == PRESET_ACTIVITY or (
+                self._window_sensor_handle is not None and not self._window_sensor_handle.done()
+            ):
                 return
 
             try:
@@ -1057,15 +1025,11 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
                 )
 
             # Update our PID controllers if we have valid values
-            if self._coordinator.boiler_temperature_filtered is not None:
-                self.areas.pids.update(self._coordinator.boiler_temperature_filtered)
+            if self._coordinator.boiler_temperature is not None:
+                self.areas.pids.update()
 
                 if self.heating_curve.value is not None:
-                    self.pid.update(
-                        max_error,
-                        self.heating_curve.value,
-                        self._coordinator.boiler_temperature_filtered,
-                    )
+                    self.pid.update(max_error, self.heating_curve.value)
 
         elif max_error.value != self.pid.last_error:
             _LOGGER.info(
@@ -1336,16 +1300,12 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
 
             # Apply an error change that arrived inside the sample time,
             # then control the integral (if exceeded the time limit)
-            if self._coordinator.boiler_temperature_filtered is not None:
-                self.areas.pids.update(self._coordinator.boiler_temperature_filtered)
+            if self._coordinator.boiler_temperature is not None:
+                self.areas.pids.update()
 
             if self.heating_curve.value is not None:
-                if self._coordinator.boiler_temperature_filtered is not None:
-                    self.pid.update(
-                        self.max_error,
-                        self.heating_curve.value,
-                        self._coordinator.boiler_temperature_filtered,
-                    )
+                if self._coordinator.boiler_temperature is not None:
+                    self.pid.update(self.max_error, self.heating_curve.value)
 
                 self.pid.update_integral(self.max_error, self.heating_curve.value)
 
@@ -1534,13 +1494,6 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         # Control the heating based on the new temperature setpoint
         self.schedule_control_heating_loop(force=True)
 
-    async def async_send_notification(
-        self, title: str, message: str, service: str = notify.SERVICE_PERSISTENT_NOTIFICATION
-    ) -> None:
-        """Send a notification to the user."""
-        data = {"title": title, "message": message}
-        await self.hass.services.async_call(notify.DOMAIN, service, data)
-
     def _get_entity_state_float(self, entity_id: str) -> float | None:
         """Return state if available and valid."""
         if (entity := self.hass.states.get(entity_id)) is None:
@@ -1561,4 +1514,4 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         if entity.state in [STATE_UNKNOWN, STATE_UNAVAILABLE]:
             return None
 
-        return float(entity.state)
+        return float_value(entity.state)

@@ -13,6 +13,8 @@ from homeassistant.const import (
     STATE_OFF,
     STATE_ON,
 )
+from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
     async_fire_mqtt_message,
@@ -588,4 +590,59 @@ async def test_minimum_modulation_falls_back_to_the_legacy_topic(
     await hass.async_block_till_done()
 
     assert entry.runtime_data.coordinator.minimum_relative_modulation_value == 20.0
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+@pytest.mark.usefixtures("mqtt_mock")
+async def test_an_empty_payload_reads_as_no_value(hass: HomeAssistant) -> None:
+    entry = otgw_entry(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    coordinator = entry.runtime_data.coordinator
+
+    async_fire_mqtt_message(hass, "OTGW/value/otgw/Tboiler", "")
+    await hass.async_block_till_done()
+
+    assert coordinator.boiler_temperature is None
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_hot_water_setpoint_stays_settable_while_its_value_is_stale(
+    hass: HomeAssistant, mqtt_mock: MqttMockHAClient, hass_storage: dict[str, Any]
+) -> None:
+    hass_storage[STORAGE_KEY] = {"version": 1, "key": STORAGE_KEY, "data": {"TdhwSet": "60.0"}}
+    entry = otgw_entry(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    entity_id = er.async_get(hass).async_get_entity_id(
+        "number", DOMAIN, f"{entry.entry_id}-boiler-dhw-setpoint"
+    )
+    assert entity_id is not None
+
+    state = hass.states.get(entity_id)
+    assert state is not None
+    assert state.state == "60.0"
+
+    await hass.services.async_call(
+        "number", "set_value", {"entity_id": entity_id, "value": 55}, blocking=True
+    )
+
+    assert "SW=55.0" in commands(mqtt_mock)
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_a_failed_hot_water_setpoint_publish_is_not_shown(
+    hass: HomeAssistant, mqtt_mock: MqttMockHAClient, hass_storage: dict[str, Any]
+) -> None:
+    hass_storage[STORAGE_KEY] = {"version": 1, "key": STORAGE_KEY, "data": {"TdhwSet": "60.0"}}
+    entry = otgw_entry(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    coordinator = entry.runtime_data.coordinator
+    mqtt_mock.async_publish.side_effect = HomeAssistantError
+
+    await coordinator.async_set_control_hot_water_setpoint(55.0)
+
+    assert coordinator.hot_water_setpoint == 60.0
+    mqtt_mock.async_publish.side_effect = None
     assert await hass.config_entries.async_unload(entry.entry_id)

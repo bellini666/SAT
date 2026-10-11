@@ -107,7 +107,11 @@ from .const import (
     OPTIONS_DEFAULTS,
 )
 from .coordinator_factory import SatDataUpdateCoordinatorFactory
-from .helpers import calculate_default_maximum_setpoint, convert_time_str_to_seconds
+from .helpers import (
+    configured_maximum_setpoint,
+    convert_time_str_to_seconds,
+    snake_case,
+)
 from .manufacturer import MANUFACTURERS, ManufacturerFactory
 from .overshoot_protection import PLATEAU_WINDOW, CalibrationError, create_overshoot_protection
 from .pid import AUTOMATIC_GAINS_VERSION_3
@@ -374,7 +378,7 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         if _user_input is not None:
             self.data.update(_user_input)
             self.data[CONF_MODE] = MODE_SIMULATOR
-            self.data[CONF_DEVICE] = "%s_%s"
+            self.data[CONF_DEVICE] = f"{MODE_SIMULATOR}_{snake_case(self.data[CONF_NAME])}"
 
             return await self.async_step_sensors()
 
@@ -617,9 +621,7 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
         heating_system = self.data[CONF_HEATING_SYSTEM]
         options = self.config_entry.options if self.config_entry else {}
-        maximum_setpoint = float(
-            options.get(CONF_MAXIMUM_SETPOINT, calculate_default_maximum_setpoint(heating_system))
-        )
+        maximum_setpoint = configured_maximum_setpoint(options, heating_system)
 
         climates = self.data.get(CONF_RADIATORS, []) + self.data.get(CONF_ROOMS, [])
         hvac_modes = {
@@ -693,13 +695,8 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
         if _user_input is not None:
             options = self.config_entry.options if self.config_entry else {}
-            maximum_setpoint = float(
-                options.get(
-                    CONF_MAXIMUM_SETPOINT,
-                    calculate_default_maximum_setpoint(
-                        self.data.get(CONF_HEATING_SYSTEM, OPTIONS_DEFAULTS[CONF_HEATING_SYSTEM])
-                    ),
-                )
+            maximum_setpoint = configured_maximum_setpoint(
+                options, self.data.get(CONF_HEATING_SYSTEM, OPTIONS_DEFAULTS[CONF_HEATING_SYSTEM])
             )
 
             if _user_input[CONF_MINIMUM_SETPOINT] > maximum_setpoint:
@@ -791,7 +788,9 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 if coordinator.member_id is not None
                 else []
             )
-            default_manufacturer = type(manufacturers[0]).__name__ if len(manufacturers) > 0 else -1
+            default_manufacturer = (
+                type(manufacturers[0]).__name__ if manufacturers else vol.UNDEFINED
+            )
         finally:
             await coordinator.async_will_remove_from_hass()
 
@@ -887,10 +886,10 @@ class SatOptionsFlowHandler(OptionsFlowWithReload):
         schema = {}
         options = await self.get_options()
 
-        default_maximum_setpoint = calculate_default_maximum_setpoint(
-            self.config_entry.data.get(CONF_HEATING_SYSTEM, OPTIONS_DEFAULTS[CONF_HEATING_SYSTEM])
+        maximum_setpoint = configured_maximum_setpoint(
+            options,
+            self.config_entry.data.get(CONF_HEATING_SYSTEM, OPTIONS_DEFAULTS[CONF_HEATING_SYSTEM]),
         )
-        maximum_setpoint = float(options.get(CONF_MAXIMUM_SETPOINT, default_maximum_setpoint))
 
         schema[
             vol.Required(

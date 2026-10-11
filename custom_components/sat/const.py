@@ -5,9 +5,7 @@ from datetime import timedelta
 from enum import StrEnum
 from typing import Any
 
-NAME = "Smart Autotune Thermostat"
 DOMAIN = "sat"
-CONFIG_STORE = "config_store"
 
 MODE_FAKE = "fake"
 MODE_MQTT_EMS = "mqtt_ems"
@@ -29,7 +27,6 @@ CONTROL_LOOP_STALL_TIME = timedelta(minutes=2)
 SETUP_FAILED_ISSUE_DELAY = timedelta(minutes=5)
 MAXIMUM_SETPOINT = 65
 MINIMUM_RELATIVE_MODULATION = 0
-MAXIMUM_RELATIVE_MODULATION = 100
 
 MAX_BOILER_TEMPERATURE_AGE = 60
 
@@ -155,25 +152,15 @@ OPTIONS_DEFAULTS: dict[str, Any] = {
 }
 
 # Overshoot protection
-OVERSHOOT_PROTECTION_REQUIRED_DATASET = 40
 OVERSHOOT_PROTECTION_SETPOINT = {
     HEATING_SYSTEM_HEAT_PUMP: 40,
     HEATING_SYSTEM_RADIATORS: 62,
     HEATING_SYSTEM_UNDERFLOOR: 45,
 }
 
-# Storage
-STORAGE_OVERSHOOT_PROTECTION_VALUE = "overshoot_protection_value"
-
 # Services
 SERVICE_RESET_INTEGRAL = "reset_integral"
 SERVICE_PULSE_WIDTH_MODULATION = "pulse_width_modulation"
-SERVICE_SET_OVERSHOOT_PROTECTION_VALUE = "set_overshoot_protection_value"
-SERVICE_START_OVERSHOOT_PROTECTION_CALCULATION = "start_overshoot_protection_calculation"
-
-# Config steps
-STEP_SETUP_GATEWAY = "gateway"
-STEP_SETUP_SENSORS = "sensors"
 
 
 # Enumerations

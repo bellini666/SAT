@@ -8,7 +8,6 @@
       "maximum_setpoint_below_overshoot_protection": "The maximum setpoint can't be below the overshoot protection value.",
       "invalid_device": "Toto je neplatné zariadenie.",
       "connection": "Nedá sa pripojiť k gateway.",
-      "mqtt_component": "MQTT komponent je nedostupný.",
       "unable_to_calibrate": "V procese kalibrácie sa vyskytol problém a nebolo možné ho úspešne dokončiť. Uistite sa, že váš vykurovací systém funguje správne a že všetky požadované senzory sú pripojené a fungujú správne.\n\nAk budete mať aj naďalej problémy s kalibráciou, zvážte kontaktovanie nás so žiadosťou o ďalšiu pomoc. Ospravedlňujeme sa za spôsobené nepríjemnosti."
     },
     "progress": {

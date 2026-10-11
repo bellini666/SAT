@@ -386,3 +386,16 @@ async def test_inside_sensor_outage_resets_the_integral(
 
     assert climate.pid.integral == 0
     assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_a_non_numeric_outside_sensor_falls_back_to_the_next_entity(
+    hass: HomeAssistant,
+) -> None:
+    hass.states.async_set("sensor.outdoor", "-")
+    hass.states.async_set("weather.home", "sunny", {"temperature": 4.0})
+    entry = await setup_rooms(
+        hass, {CONF_OUTSIDE_SENSOR_ENTITY_ID: ["sensor.outdoor", "weather.home"]}
+    )
+
+    assert entry.runtime_data.climate.current_outside_temperature == 4.0
+    assert await hass.config_entries.async_unload(entry.entry_id)

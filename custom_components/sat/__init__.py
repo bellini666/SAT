@@ -33,6 +33,7 @@ from .const import (
     SETUP_FAILED_ISSUE_DELAY,
 )
 from .coordinator_factory import SatDataUpdateCoordinatorFactory
+from .minimum_setpoint import minimum_setpoint_store
 from .services import async_setup_services
 
 if TYPE_CHECKING:
@@ -141,6 +142,7 @@ async def async_release_control(entry: SatConfigEntry) -> None:
 async def async_remove_entry(hass: HomeAssistant, entry: SatConfigEntry) -> None:
     hass.data.get(DOMAIN, {}).pop(f"setup_failed_{entry.entry_id}", None)
     ir.async_delete_issue(hass, DOMAIN, f"setup_failed_{entry.entry_id}")
+    await minimum_setpoint_store(hass, entry.entry_id).async_remove()
 
 
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -167,20 +169,20 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             else:
                 new_data["heating_system"] = "radiators"
 
-            if not entry.data.get("maximum_setpoint"):
-                new_data["maximum_setpoint"] = 55
+            if not entry.data.get("maximum_setpoint") and "maximum_setpoint" not in new_options:
+                new_options["maximum_setpoint"] = 55
 
                 if entry.options.get("heating_system") == "underfloor":
-                    new_data["maximum_setpoint"] = 50
+                    new_options["maximum_setpoint"] = 50
 
                 if entry.options.get("heating_system") == "radiator_low_temperatures":
-                    new_data["maximum_setpoint"] = 55
+                    new_options["maximum_setpoint"] = 55
 
                 if entry.options.get("heating_system") == "radiator_medium_temperatures":
-                    new_data["maximum_setpoint"] = 65
+                    new_options["maximum_setpoint"] = 65
 
                 if entry.options.get("heating_system") == "radiator_high_temperatures":
-                    new_data["maximum_setpoint"] = 75
+                    new_options["maximum_setpoint"] = 75
 
         if entry.version < 3:
             if main_climates := entry.options.get("main_climates"):
@@ -195,9 +197,8 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 new_data["sync_with_thermostat"] = sync_with_thermostat
                 new_options.pop("sync_with_thermostat")
 
-        if entry.version < 4 and entry.data.get("window_sensor") is not None:
-            new_data["window_sensors"] = [entry.data.get("window_sensor")]
-            del new_options["window_sensor"]
+        if entry.version < 4 and (window_sensor := new_options.pop("window_sensor", None)):
+            new_options["window_sensors"] = [window_sensor]
 
         if entry.version < 5 and entry.options.get("overshoot_protection") is not None:
             new_data["overshoot_protection"] = entry.options.get("overshoot_protection")
@@ -214,10 +215,10 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             new_options["heating_curve_version"] = 3
 
         if entry.version < 9:
-            if entry.data.get("heating_system") == "heat_pump":
+            if new_data.get("heating_system") == "heat_pump":
                 new_options["cycles_per_hour"] = 2
 
-            if entry.data.get("heating_system") == "radiators":
+            if new_data.get("heating_system") == "radiators":
                 new_options["cycles_per_hour"] = 3
 
         if entry.version < 10 and entry.data.get("mode") == "mqtt":
@@ -231,8 +232,8 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             new_data["mode"] = "mqtt_opentherm"
             new_data["device"] = next(iter(device.identifiers))[1]
 
-        if entry.version < 11 and entry.data.get("sync_with_thermostat") is not None:
-            new_data["push_setpoint_to_thermostat"] = entry.data.get("sync_with_thermostat")
+        if entry.version < 11 and new_data.get("sync_with_thermostat") is not None:
+            new_data["push_setpoint_to_thermostat"] = new_data.get("sync_with_thermostat")
 
         if entry.version < 12:
             if "push_setpoint_to_thermostat" in new_data:

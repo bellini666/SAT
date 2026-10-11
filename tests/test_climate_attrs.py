@@ -90,9 +90,7 @@ async def test_humidity_change_updates_thermal_comfort_temperature(hass: HomeAss
     state = hass.states.get(climate.entity_id)
     assert state is not None
     assert state.attributes["current_humidity"] == 80.0
-    assert state.attributes["summer_simmer_index"] == SummerSimmer.index(
-        climate.current_temperature, 80.0
-    )
+    assert state.attributes["summer_simmer_index"] == SummerSimmer.index(20.9, 80.0)
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 

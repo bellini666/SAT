@@ -7,7 +7,6 @@
     "error": {
       "maximum_setpoint_below_overshoot_protection": "The maximum setpoint can't be below the overshoot protection value.",
       "connection": "Impossibile connettersi al gateway.",
-      "mqtt_component": "Il componente MQTT non è disponibile.",
       "unable_to_calibrate": "Il processo di calibrazione ha incontrato un problema e non è stato completato con successo. Si prega di assicurarsi che il sistema di riscaldamento funzioni correttamente e che tutti i sensori richiesti siano connessi e funzionanti correttamente.\n\nSe continui a riscontrare problemi con la calibrazione, considera di contattarci per ulteriore assistenza. Ci scusiamo per eventuali inconvenienti causati."
     },
     "progress": {

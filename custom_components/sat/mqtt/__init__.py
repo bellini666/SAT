@@ -164,8 +164,8 @@ class SatMqttCoordinator(SatDataUpdateCoordinator):
 
         self.async_set_updated_data({key: value})
 
-    async def _publish_command(self, payload: str, wait_time: float = 1.0) -> None:
-        """Publish a command to the MQTT topic."""
+    async def _publish_command(self, payload: str, wait_time: float = 1.0) -> bool:
+        """Publish a command to the MQTT topic and return whether it was sent."""
         topic = self._get_topic_for_publishing()
 
         _LOGGER.debug(
@@ -176,7 +176,7 @@ class SatMqttCoordinator(SatDataUpdateCoordinator):
         )
 
         if self._simulation:
-            return
+            return True
 
         try:
             await mqtt.async_publish(hass=self.hass, topic=topic, payload=payload, qos=1)
@@ -185,3 +185,6 @@ class SatMqttCoordinator(SatDataUpdateCoordinator):
             await asyncio.sleep(wait_time)
         except Exception:
             _LOGGER.exception("Failed to publish MQTT command")
+            return False
+
+        return True

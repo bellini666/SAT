@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 from abc import abstractmethod
 from enum import StrEnum
-from itertools import pairwise
 from time import monotonic
 from typing import TYPE_CHECKING, Any, TypedDict, override
 
@@ -17,7 +16,6 @@ from .const import (
     BOILER_DEADBAND,
     CONF_HEATING_SYSTEM,
     CONF_MANUFACTURER,
-    CONF_MAXIMUM_SETPOINT,
     CONF_MINIMUM_SETPOINT,
     CONF_SIMULATION,
     CONTROL_LOOP_STALL_TIME,
@@ -28,7 +26,7 @@ from .const import (
     BoilerStatus,
 )
 from .flame import Flame, FlameState
-from .helpers import calculate_default_maximum_setpoint, seconds_since
+from .helpers import configured_maximum_setpoint, seconds_since
 from .manufacturer import Manufacturer, ManufacturerFactory
 from .manufacturers.geminox import Geminox
 from .manufacturers.ideal import Ideal
@@ -259,10 +257,6 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
         return self.device_active
 
     @property
-    def heater_on_since(self) -> float | None:
-        return self._device_on_since
-
-    @property
     def hot_water_active(self) -> bool:
         return False
 
@@ -285,20 +279,6 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
     @property
     def return_temperature(self) -> float | None:
         return None
-
-    @property
-    def boiler_temperature_filtered(self) -> float | None:
-        # Not able to use if we do not have at least two values
-        if len(self._boiler_temperatures) <= 1:
-            return self.boiler_temperature
-
-        # Some noise filtering on the boiler temperature
-        difference_boiler_temperature_sum = sum(
-            abs(j[1] - i[1]) for i, j in pairwise(self._boiler_temperatures)
-        )
-
-        # Average it and return it
-        return round(difference_boiler_temperature_sum / (len(self._boiler_temperatures) - 1), 2)
 
     @property
     def boiler_temperature_derivative(self) -> float | None:
@@ -401,8 +381,7 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
     @property
     def maximum_setpoint(self) -> float:
         """Return the maximum setpoint temperature that the device can support."""
-        default_maximum_setpoint = calculate_default_maximum_setpoint(self._heating_system)
-        return float(self._options.get(CONF_MAXIMUM_SETPOINT, default_maximum_setpoint))
+        return configured_maximum_setpoint(self._options, self._heating_system)
 
     @property
     def supports_setpoint_management(self) -> bool:

@@ -48,7 +48,6 @@ class PWM:
         cycles: CycleConfig,
         heating_curve: HeatingCurve,
         *,
-        supports_relative_modulation_management: bool,
         automatic_duty_cycle: bool,
         force: bool = False,
     ) -> None:
@@ -77,18 +76,15 @@ class PWM:
         # Initialize some helpers
         self._setpoint: float | None = None
         self._setpoint_adjuster = SetpointAdjuster()
-        self._setpoint_offset: float = 0.5 if supports_relative_modulation_management else 1
 
         # The cycles per hour limit spans resets, otherwise every PID reset would start a new cycle
         self._current_cycle: int = 0
         self._first_duty_cycle_start: float | None = None
 
         _LOGGER.debug(
-            "Initialized PWM control with duty cycle thresholds - "
-            "Lower: %.2f%%, Upper: %.2f%%, Offset: %d°C",
+            "Initialized PWM control with duty cycle thresholds - Lower: %.2f%%, Upper: %.2f%%",
             self._duty_cycle_lower_threshold * 100,
             self._duty_cycle_upper_threshold * 100,
-            self._setpoint_offset,
         )
 
         self.reset()

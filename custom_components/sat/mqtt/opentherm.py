@@ -7,6 +7,7 @@ from homeassistant.components import mqtt
 
 from ..const import CONF_PUSH_SETPOINT_TO_THERMOSTAT
 from ..coordinator import DeviceState
+from ..helpers import float_value, int_value
 from ..manufacturers.immergas import Immergas
 from . import SatMqttCoordinator
 
@@ -108,8 +109,8 @@ class SatOpenThermMqttCoordinator(SatMqttCoordinator):
     @override
     @property
     def fault_code(self) -> int | None:
-        if (value := self._live_value(DATA_FAULT_CODE)) is not None:
-            return int(value)
+        if (value := int_value(self._live_value(DATA_FAULT_CODE))) is not None:
+            return value
 
         return None
 
@@ -121,100 +122,106 @@ class SatOpenThermMqttCoordinator(SatMqttCoordinator):
     @override
     @property
     def setpoint(self) -> float | None:
-        if (setpoint := self._live_value(DATA_CONTROL_SETPOINT)) is not None:
-            return float(setpoint)
+        if (setpoint := float_value(self._live_value(DATA_CONTROL_SETPOINT))) is not None:
+            return setpoint
 
         return None
 
     @override
     @property
     def maximum_setpoint_value(self) -> float | None:
-        if (setpoint := self.data.get(DATA_MAXIMUM_CONTROL_SETPOINT)) is not None:
-            return float(setpoint)
+        if (setpoint := float_value(self.data.get(DATA_MAXIMUM_CONTROL_SETPOINT))) is not None:
+            return setpoint
 
         return super().maximum_setpoint_value
 
     @override
     @property
     def hot_water_setpoint(self) -> float | None:
-        if (setpoint := self._live_value(DATA_DHW_SETPOINT)) is not None:
-            return float(setpoint)
+        if (setpoint := float_value(self._live_value(DATA_DHW_SETPOINT))) is not None:
+            return setpoint
+
+        if self._hot_water_setpoint is not None:
+            return self._hot_water_setpoint
+
+        if (setpoint := float_value(self.data.get(DATA_DHW_SETPOINT))) is not None:
+            return setpoint
 
         return super().hot_water_setpoint
 
     @override
     @property
     def minimum_hot_water_setpoint(self) -> float:
-        if (setpoint := self.data.get(DATA_DHW_SETPOINT_MINIMUM)) is not None:
-            return float(setpoint)
+        if (setpoint := float_value(self.data.get(DATA_DHW_SETPOINT_MINIMUM))) is not None:
+            return setpoint
 
         return super().minimum_hot_water_setpoint
 
     @override
     @property
     def maximum_hot_water_setpoint(self) -> float:
-        if (setpoint := self.data.get(DATA_DHW_SETPOINT_MAXIMUM)) is not None:
-            return float(setpoint)
+        if (setpoint := float_value(self.data.get(DATA_DHW_SETPOINT_MAXIMUM))) is not None:
+            return setpoint
 
         return super().maximum_hot_water_setpoint
 
     @override
     @property
     def boiler_temperature(self) -> float | None:
-        if (value := self._live_value(DATA_BOILER_TEMPERATURE)) is not None:
-            return float(value)
+        if (value := float_value(self._live_value(DATA_BOILER_TEMPERATURE))) is not None:
+            return value
 
         return super().boiler_temperature
 
     @override
     @property
     def return_temperature(self) -> float | None:
-        if (value := self._live_value(DATA_RETURN_TEMPERATURE)) is not None:
-            return float(value)
+        if (value := float_value(self._live_value(DATA_RETURN_TEMPERATURE))) is not None:
+            return value
 
         return super().return_temperature
 
     @override
     @property
     def relative_modulation_value(self) -> float | None:
-        if (value := self._live_value(DATA_REL_MOD_LEVEL)) is not None:
-            return float(value)
+        if (value := float_value(self._live_value(DATA_REL_MOD_LEVEL))) is not None:
+            return value
 
         return super().relative_modulation_value
 
     @override
     @property
     def boiler_capacity(self) -> float | None:
-        if (value := self.data.get(DATA_BOILER_CAPACITY)) is not None:
-            return float(value)
+        if (value := float_value(self.data.get(DATA_BOILER_CAPACITY))) is not None:
+            return value
 
         return super().boiler_capacity
 
     @override
     @property
     def minimum_relative_modulation_value(self) -> float | None:
-        if (value := self.data.get(DATA_REL_MIN_MOD_LEVEL)) is not None:
-            return float(value)
+        if (value := float_value(self.data.get(DATA_REL_MIN_MOD_LEVEL))) is not None:
+            return value
 
         # Legacy
-        if (value := self.data.get(DATA_REL_MIN_MOD_LEVEL_LEGACY)) is not None:
-            return float(value)
+        if (value := float_value(self.data.get(DATA_REL_MIN_MOD_LEVEL_LEGACY))) is not None:
+            return value
 
         return super().minimum_relative_modulation_value
 
     @override
     @property
     def maximum_relative_modulation_value(self) -> float | None:
-        if (value := self._live_value(DATA_MAX_REL_MOD_LEVEL_SETTING)) is not None:
-            return float(value)
+        if (value := float_value(self._live_value(DATA_MAX_REL_MOD_LEVEL_SETTING))) is not None:
+            return value
 
         return super().maximum_relative_modulation_value
 
     @override
     @property
     def member_id(self) -> int | None:
-        if (value := self.data.get(DATA_SLAVE_MEMBERID)) is not None:
-            return int(value)
+        if (value := int_value(self.data.get(DATA_SLAVE_MEMBERID))) is not None:
+            return value
 
         return None
 
@@ -306,8 +313,8 @@ class SatOpenThermMqttCoordinator(SatMqttCoordinator):
 
     @override
     async def async_set_control_hot_water_setpoint(self, value: float) -> None:
-        await self._publish_command(f"SW={value}")
-        self._hot_water_setpoint = value
+        if await self._publish_command(f"SW={value}"):
+            self._hot_water_setpoint = value
 
         await super().async_set_control_hot_water_setpoint(value)
 

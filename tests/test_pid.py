@@ -27,7 +27,7 @@ def create_pid(kp: float = 0.0, ki: float = 0.0, kd: float = 0.0) -> PID:
 
 def step(pid: PID, freezer: FrozenDateTimeFactory, error: float) -> None:
     freezer.tick(timedelta(seconds=30))
-    pid.update(Error(SENSOR, error), heating_curve_value=40.0, boiler_temperature=50.0)
+    pid.update(Error(SENSOR, error), heating_curve_value=40.0)
 
 
 def test_derivative_decays_inside_the_deadband(freezer: FrozenDateTimeFactory) -> None:
