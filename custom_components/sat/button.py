@@ -12,6 +12,7 @@ from .const import (
     CONF_MAXIMUM_SETPOINT,
     CONF_MINIMUM_SETPOINT,
     CONF_OVERSHOOT_PROTECTION,
+    HEATING_SYSTEM_UNKNOWN,
 )
 from .entity import SatClimateEntity
 from .helpers import calculate_default_maximum_setpoint
@@ -73,7 +74,7 @@ class SatCalibrateButton(SatClimateEntity, ButtonEntity):
 
     async def _async_calibrate(self) -> None:
         entry = self._config_entry
-        heating_system = entry.data[CONF_HEATING_SYSTEM]
+        heating_system = entry.data.get(CONF_HEATING_SYSTEM, HEATING_SYSTEM_UNKNOWN)
         maximum_setpoint = float(
             entry.options.get(
                 CONF_MAXIMUM_SETPOINT, calculate_default_maximum_setpoint(heating_system)

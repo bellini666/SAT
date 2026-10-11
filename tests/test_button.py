@@ -198,3 +198,25 @@ async def test_turning_off_while_the_calibration_waits_for_the_control_loop(
     assert state is not None
     assert state.state != STATE_UNAVAILABLE
     assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_missing_heating_system_reports_the_failure(hass: HomeAssistant) -> None:
+    hass.states.async_set("sensor.test_inside_sensor", "19.5")
+    hass.states.async_set("sensor.test_outside_sensor", "5.0")
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=SatFlowHandler.VERSION,
+        data={**DEFAULT_USER_DATA, "minimum_setpoint": 45},
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    await entry.runtime_data.climate.async_set_hvac_mode(HVACMode.HEAT)
+
+    await hass.services.async_call("button", "press", {"entity_id": BUTTON}, blocking=True)
+    await hass.async_block_till_done()
+
+    assert f"sat_calibration_{entry.entry_id}" in (
+        persistent_notification._async_get_or_create_notifications(hass)
+    )
+    assert await hass.config_entries.async_unload(entry.entry_id)
