@@ -9,6 +9,7 @@ import pytest
 from pytest_homeassistant_custom_component.common import async_fire_time_changed
 
 from custom_components.sat.const import (
+    CONF_MANUFACTURER,
     CONF_MAXIMUM_SETPOINT,
     HEATING_SYSTEM_RADIATORS,
     MINIMUM_SETPOINT,
@@ -30,19 +31,22 @@ if TYPE_CHECKING:
     from freezegun.api import FrozenDateTimeFactory
     from homeassistant.core import HomeAssistant
 
-    from custom_components.sat.manufacturer import Manufacturer
     from custom_components.sat.pwm import PWMState
 
 
 class Boiler(SatFakeCoordinator):
-    def __init__(self, hass: HomeAssistant) -> None:
-        super().__init__(hass, config_data={})
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        config_data: dict[str, str] | None = None,
+        minimum_relative_modulation: float | None = 12.0,
+    ) -> None:
+        super().__init__(hass, config_data=config_data or {})
         self._flame_active = False
         self._hot_water_active = False
         self._boiler_temperature: float | None = 30.0
         self._relative_modulation: float | None = 0.0
-        self._minimum_relative_modulation: float | None = 12.0
-        self._manufacturer: Manufacturer | None = None
+        self._minimum_relative_modulation = minimum_relative_modulation
         self.commands: list[tuple[str, object]] = []
         self.gate: asyncio.Event | None = None
         self.error: Exception | None = None
@@ -91,21 +95,6 @@ class Boiler(SatFakeCoordinator):
     @property
     def minimum_relative_modulation_value(self) -> float | None:
         return self._minimum_relative_modulation
-
-    @override
-    @minimum_relative_modulation_value.setter
-    def minimum_relative_modulation_value(self, value: float | None) -> None:
-        self._minimum_relative_modulation = value
-
-    @override
-    @property
-    def manufacturer(self) -> Manufacturer | None:
-        return self._manufacturer
-
-    @override
-    @manufacturer.setter
-    def manufacturer(self, value: Manufacturer | None) -> None:
-        self._manufacturer = value
 
     @override
     async def async_set_heater_state(self, state: DeviceState) -> None:
@@ -264,8 +253,7 @@ async def test_modulation_floor_is_the_lowest_level_seen(
     method: str,
     value: float,
 ) -> None:
-    boiler = Boiler(hass)
-    boiler.minimum_relative_modulation_value = minimum
+    boiler = Boiler(hass, minimum_relative_modulation=minimum)
     _protection, task = start(hass, boiler)
 
     boiler.flame_active = True
@@ -529,8 +517,7 @@ async def test_simulator_heats_during_calibration(
 async def test_geminox_gets_the_climate_modulation_clamp(
     hass: HomeAssistant, freezer: FrozenDateTimeFactory
 ) -> None:
-    boiler = Boiler(hass)
-    boiler.manufacturer = Geminox()
+    boiler = Boiler(hass, config_data={CONF_MANUFACTURER: Geminox().friendly_name})
     _protection, task = start(hass, boiler)
     await tick(hass, freezer)
 
