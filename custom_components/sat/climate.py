@@ -46,6 +46,7 @@ from homeassistant.core import (
     HomeAssistant,
     callback,
 )
+from homeassistant.helpers.entity import EntityPlatformState
 from homeassistant.helpers.event import (
     async_call_later,
     async_track_state_change_event,
@@ -375,6 +376,27 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         for listener in list(self._state_listeners):
             listener()
 
+        if self._sensor_stale_unsub is not None:
+            self._sensor_stale_unsub()
+            self._sensor_stale_unsub = None
+
+        if self._platform_state is not EntityPlatformState.ADDED or self._sensor_max_value_age <= 0:
+            return
+
+        ages = [
+            state_age_seconds(state)
+            for entity_id in (self.inside_sensor_entity_id, self.humidity_sensor_entity_id)
+            if entity_id is not None
+            and (state := self.hass.states.get(entity_id)) is not None
+            and not is_state_stale(state, self._sensor_max_value_age)
+        ]
+        if ages:
+            self._sensor_stale_unsub = async_call_later(
+                self.hass,
+                self._sensor_max_value_age - max(ages) + 1,
+                HassJob(callback(lambda _now: self.async_write_ha_state())),
+            )
+
     @override
     async def async_will_remove_from_hass(self) -> None:
         if self._control_heating_loop_unsub is not None:
@@ -641,27 +663,6 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             current_temperature = SummerSimmer.index(current_temperature, self.current_humidity)
 
         self._attr_current_temperature = current_temperature
-
-        if self._sensor_stale_unsub is not None:
-            self._sensor_stale_unsub()
-            self._sensor_stale_unsub = None
-
-        if self._sensor_max_value_age <= 0:
-            return
-
-        ages = [
-            state_age_seconds(state)
-            for entity_id in (self.inside_sensor_entity_id, self.humidity_sensor_entity_id)
-            if entity_id is not None
-            and (state := self.hass.states.get(entity_id)) is not None
-            and not is_state_stale(state, self._sensor_max_value_age)
-        ]
-        if ages:
-            self._sensor_stale_unsub = async_call_later(
-                self.hass,
-                self._sensor_max_value_age - max(ages) + 1,
-                HassJob(callback(lambda _now: self.async_write_ha_state())),
-            )
 
     @property
     def error(self) -> float:

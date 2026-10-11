@@ -127,3 +127,32 @@ async def test_stale_inside_sensor_clears_current_temperature(
     assert state is not None
     assert state.attributes["current_temperature"] is None
     assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_control_loop_before_the_stale_publish_keeps_it(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    entry = await setup_climate(hass, options={CONF_SENSOR_MAX_VALUE_AGE: "00:10:00"})
+    climate = entry.runtime_data.climate
+    await climate.async_set_hvac_mode(HVACMode.OFF)
+
+    freezer.tick(timedelta(seconds=600.5))
+    await climate.async_control_heating_loop()
+    freezer.tick(timedelta(minutes=5))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+
+    state = hass.states.get(climate.entity_id)
+    assert state is not None
+    assert state.attributes["current_temperature"] is None
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_state_write_after_unload_schedules_no_stale_publish(hass: HomeAssistant) -> None:
+    entry = await setup_climate(hass, options={CONF_SENSOR_MAX_VALUE_AGE: "00:10:00"})
+    climate = entry.runtime_data.climate
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+    climate.async_write_ha_state()
+
+    assert climate._sensor_stale_unsub is None
