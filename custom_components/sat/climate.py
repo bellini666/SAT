@@ -1090,7 +1090,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             else:
                 await self.pwm.update(flame=self._coordinator.flame, boiler=self._coordinator.boiler, requested_setpoint=self._calculated_setpoint)
 
-            # The flame must judge the next flame-off against this PWM state, not the one from before the update
+            # The next flame-off must be judged against the PWM state after this step
             self._coordinator.update_flame(pwm_state=self.pwm.state)
 
             # Set the control setpoint to make sure we always stay in control
