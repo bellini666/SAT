@@ -684,7 +684,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
                 continue
 
             if sensor.DOMAIN in entity_id:
-                return float(state.state)
+                return float_value(state.state)
 
             if weather.DOMAIN in entity_id:
                 return float_value(state.attributes.get("temperature"))
@@ -1563,4 +1563,4 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         if entity.state in [STATE_UNKNOWN, STATE_UNAVAILABLE]:
             return None
 
-        return float(entity.state)
+        return float_value(entity.state)

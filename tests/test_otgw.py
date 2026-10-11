@@ -589,3 +589,17 @@ async def test_minimum_modulation_falls_back_to_the_legacy_topic(
 
     assert entry.runtime_data.coordinator.minimum_relative_modulation_value == 20.0
     assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+@pytest.mark.usefixtures("mqtt_mock")
+async def test_an_empty_payload_reads_as_no_value(hass: HomeAssistant) -> None:
+    entry = otgw_entry(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    coordinator = entry.runtime_data.coordinator
+
+    async_fire_mqtt_message(hass, "OTGW/value/otgw/Tboiler", "")
+    await hass.async_block_till_done()
+
+    assert coordinator.boiler_temperature is None
+    assert await hass.config_entries.async_unload(entry.entry_id)
