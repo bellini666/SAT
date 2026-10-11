@@ -9,13 +9,12 @@ from homeassistant.const import EntityCategory
 
 from .const import (
     CONF_HEATING_SYSTEM,
-    CONF_MAXIMUM_SETPOINT,
     CONF_MINIMUM_SETPOINT,
     CONF_OVERSHOOT_PROTECTION,
     HEATING_SYSTEM_UNKNOWN,
 )
 from .entity import SatClimateEntity
-from .helpers import calculate_default_maximum_setpoint
+from .helpers import configured_maximum_setpoint
 from .overshoot_protection import CalibrationError, create_overshoot_protection
 
 if TYPE_CHECKING:
@@ -75,11 +74,7 @@ class SatCalibrateButton(SatClimateEntity, ButtonEntity):
     async def _async_calibrate(self) -> None:
         entry = self._config_entry
         heating_system = entry.data.get(CONF_HEATING_SYSTEM, HEATING_SYSTEM_UNKNOWN)
-        maximum_setpoint = float(
-            entry.options.get(
-                CONF_MAXIMUM_SETPOINT, calculate_default_maximum_setpoint(heating_system)
-            )
-        )
+        maximum_setpoint = configured_maximum_setpoint(entry.options, heating_system)
 
         try:
             async with self._climate.async_calibrating():

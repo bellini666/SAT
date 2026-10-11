@@ -16,7 +16,6 @@ from .const import (
     BOILER_DEADBAND,
     CONF_HEATING_SYSTEM,
     CONF_MANUFACTURER,
-    CONF_MAXIMUM_SETPOINT,
     CONF_MINIMUM_SETPOINT,
     CONF_SIMULATION,
     CONTROL_LOOP_STALL_TIME,
@@ -27,7 +26,7 @@ from .const import (
     BoilerStatus,
 )
 from .flame import Flame, FlameState
-from .helpers import calculate_default_maximum_setpoint, seconds_since
+from .helpers import configured_maximum_setpoint, seconds_since
 from .manufacturer import Manufacturer, ManufacturerFactory
 from .manufacturers.geminox import Geminox
 from .manufacturers.ideal import Ideal
@@ -382,8 +381,7 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
     @property
     def maximum_setpoint(self) -> float:
         """Return the maximum setpoint temperature that the device can support."""
-        default_maximum_setpoint = calculate_default_maximum_setpoint(self._heating_system)
-        return float(self._options.get(CONF_MAXIMUM_SETPOINT, default_maximum_setpoint))
+        return configured_maximum_setpoint(self._options, self._heating_system)
 
     @property
     def supports_setpoint_management(self) -> bool:

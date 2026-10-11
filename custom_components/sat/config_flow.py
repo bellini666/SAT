@@ -108,7 +108,7 @@ from .const import (
 )
 from .coordinator_factory import SatDataUpdateCoordinatorFactory
 from .helpers import (
-    calculate_default_maximum_setpoint,
+    configured_maximum_setpoint,
     convert_time_str_to_seconds,
     snake_case,
 )
@@ -621,9 +621,7 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
         heating_system = self.data[CONF_HEATING_SYSTEM]
         options = self.config_entry.options if self.config_entry else {}
-        maximum_setpoint = float(
-            options.get(CONF_MAXIMUM_SETPOINT, calculate_default_maximum_setpoint(heating_system))
-        )
+        maximum_setpoint = configured_maximum_setpoint(options, heating_system)
 
         climates = self.data.get(CONF_RADIATORS, []) + self.data.get(CONF_ROOMS, [])
         hvac_modes = {
@@ -697,13 +695,8 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
         if _user_input is not None:
             options = self.config_entry.options if self.config_entry else {}
-            maximum_setpoint = float(
-                options.get(
-                    CONF_MAXIMUM_SETPOINT,
-                    calculate_default_maximum_setpoint(
-                        self.data.get(CONF_HEATING_SYSTEM, OPTIONS_DEFAULTS[CONF_HEATING_SYSTEM])
-                    ),
-                )
+            maximum_setpoint = configured_maximum_setpoint(
+                options, self.data.get(CONF_HEATING_SYSTEM, OPTIONS_DEFAULTS[CONF_HEATING_SYSTEM])
             )
 
             if _user_input[CONF_MINIMUM_SETPOINT] > maximum_setpoint:
@@ -893,10 +886,10 @@ class SatOptionsFlowHandler(OptionsFlowWithReload):
         schema = {}
         options = await self.get_options()
 
-        default_maximum_setpoint = calculate_default_maximum_setpoint(
-            self.config_entry.data.get(CONF_HEATING_SYSTEM, OPTIONS_DEFAULTS[CONF_HEATING_SYSTEM])
+        maximum_setpoint = configured_maximum_setpoint(
+            options,
+            self.config_entry.data.get(CONF_HEATING_SYSTEM, OPTIONS_DEFAULTS[CONF_HEATING_SYSTEM]),
         )
-        maximum_setpoint = float(options.get(CONF_MAXIMUM_SETPOINT, default_maximum_setpoint))
 
         schema[
             vol.Required(

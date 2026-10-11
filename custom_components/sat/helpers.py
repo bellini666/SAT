@@ -1,13 +1,15 @@
 import math
 from re import sub
 from time import monotonic
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.util import dt
 
-from .const import HEATING_SYSTEM_UNDERFLOOR
+from .const import CONF_MAXIMUM_SETPOINT, HEATING_SYSTEM_UNDERFLOOR
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from homeassistant.core import State
 
 
@@ -41,12 +43,10 @@ def convert_time_str_to_seconds(time_str: str) -> int:
     return round((date_time.hour * 3600) + (date_time.minute * 60) + date_time.second, 0)
 
 
-def calculate_default_maximum_setpoint(heating_system: str) -> int:
-    """Determine the default maximum temperature for a given heating system."""
-    if heating_system == HEATING_SYSTEM_UNDERFLOOR:
-        return 50
-
-    return 55
+def configured_maximum_setpoint(options: Mapping[str, Any], heating_system: str) -> float:
+    """Return the configured maximum setpoint, or the default for the heating system."""
+    default = 50 if heating_system == HEATING_SYSTEM_UNDERFLOOR else 55
+    return float(options.get(CONF_MAXIMUM_SETPOINT, default))
 
 
 def snake_case(value: str) -> str:

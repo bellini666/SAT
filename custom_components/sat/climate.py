@@ -427,7 +427,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         if self.humidity_sensor_entity_id is not None:
             self.async_on_remove(
                 async_track_state_change_event(
-                    self.hass, [self.humidity_sensor_entity_id], self._async_humidity_sensor_changed
+                    self.hass, [self.humidity_sensor_entity_id], self._async_inside_sensor_changed
                 )
             )
 
@@ -845,7 +845,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             await self.async_set_target_temperature(temperature, cascade=False)
 
     async def _async_inside_sensor_changed(self, event: Event[EventStateChangedData]) -> None:
-        """Handle changes to the inside temperature sensor."""
+        """Handle changes to the inside temperature or humidity sensor."""
         self._async_update_sensor_values()
 
         new_state = event.data.get("new_state")
@@ -864,20 +864,6 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             return
 
         _LOGGER.debug("Outside Sensor Changed.")
-        self.async_write_ha_state()
-
-        self._async_control_pid()
-        self.schedule_control_heating_loop()
-
-    async def _async_humidity_sensor_changed(self, event: Event[EventStateChangedData]) -> None:
-        """Handle changes to the inside temperature sensor."""
-        self._async_update_sensor_values()
-
-        new_state = event.data.get("new_state")
-        if new_state is None or new_state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
-            return
-
-        _LOGGER.debug("Humidity Sensor Changed.")
         self.async_write_ha_state()
 
         self._async_control_pid()
