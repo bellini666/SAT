@@ -104,6 +104,7 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
         self._boiler_temperature_tracker: BoilerTemperatureTracker = BoilerTemperatureTracker()
 
         self._flame: Flame = Flame()
+        self._created_at: float = monotonic()
         self._device_on_since: Optional[float] = None
         self._listeners_unsub: Optional[Callable[[], None]] = None
 
@@ -139,6 +140,11 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
     def online(self) -> bool:
         """Return whether the device reports itself as reachable."""
         return True
+
+    @property
+    def awaiting_boiler_data(self) -> bool:
+        """Return True while the first boiler values after setup are still on their way."""
+        return self.online and self.boiler_temperature is None and seconds_since(self._created_at) < CONTROL_LOOP_STALL_TIME.total_seconds()
 
     @property
     def device_status(self) -> BoilerStatus:

@@ -665,7 +665,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         if self.current_temperature is None or self.target_temperature is None or self.current_outside_temperature is None:
             problems.append("inputs_missing")
 
-        if self._coordinator.boiler_temperature is None:
+        if self._coordinator.boiler_temperature is None and not self._coordinator.awaiting_boiler_data:
             problems.append("boiler_data_missing")
 
         if not problems and dt_util.utcnow() - self._last_control_at > CONTROL_LOOP_STALL_TIME:

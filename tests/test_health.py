@@ -16,6 +16,7 @@ from custom_components.sat.coordinator import DeviceState
 from tests.const import DEFAULT_USER_DATA
 
 ENTITY_ID = "binary_sensor.mock_title_heating_control"
+BOILER_HEALTH = "binary_sensor.mock_title_boiler_health"
 
 
 async def setup_heating(hass: HomeAssistant) -> MockConfigEntry:
@@ -120,14 +121,41 @@ async def test_flags_missing_inputs_and_recovers(hass: HomeAssistant) -> None:
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
-async def test_flags_missing_boiler_data(hass: HomeAssistant) -> None:
+async def test_flags_missing_boiler_data(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
     entry = await setup_heating(hass)
+    freezer.tick(timedelta(minutes=3))
 
     await entry.runtime_data.coordinator.async_set_boiler_temperature(None)
     await entry.runtime_data.climate.async_control_heating_loop()
     await hass.async_block_till_done()
 
     assert hass.states.get(ENTITY_ID).attributes["problems"] == ["boiler_data_missing"]
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_healthy_while_the_first_boiler_data_arrives(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+    hass.states.async_set("sensor.test_inside_sensor", "19.5")
+    hass.states.async_set("sensor.test_outside_sensor", "5.0")
+    entry = MockConfigEntry(domain=DOMAIN, data={**DEFAULT_USER_DATA, "minimum_setpoint": 45})
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    climate = entry.runtime_data.climate
+    await climate.async_set_hvac_mode(HVACMode.HEAT)
+    await climate.async_control_heating_loop()
+    await hass.async_block_till_done()
+
+    assert hass.states.get(ENTITY_ID).state == STATE_OFF
+    assert hass.states.get(BOILER_HEALTH).state == STATE_OFF
+
+    freezer.tick(timedelta(minutes=3))
+    await climate.async_control_heating_loop()
+    entry.runtime_data.coordinator.async_update_listeners()
+    await hass.async_block_till_done()
+
+    assert hass.states.get(ENTITY_ID).attributes["problems"] == ["boiler_data_missing"]
+    assert hass.states.get(BOILER_HEALTH).state == STATE_ON
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 

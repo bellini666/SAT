@@ -212,7 +212,10 @@ class SatBoilerHealthSensor(SatEntity, BinarySensorEntity):
     @property
     def is_on(self) -> bool:
         """Return the state of the sensor."""
-        return self._coordinator.boiler.status == BoilerStatus.INSUFFICIENT_DATA or self._coordinator.fault_active
+        if self._coordinator.fault_active:
+            return True
+
+        return self._coordinator.boiler.status == BoilerStatus.INSUFFICIENT_DATA and not self._coordinator.awaiting_boiler_data
 
     @property
     def unique_id(self) -> str:
