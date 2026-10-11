@@ -71,14 +71,14 @@ def wait_for_flame(flame: Flame, freezer: FrozenDateTimeFactory, seconds: int, h
         flame.update(boiler_state(False, hot_water=hot_water))
 
 
-@pytest.mark.parametrize("cycles", [1, 3], ids=["thin_history", "full_history"])
-def test_demand_after_a_long_idle_is_not_stuck_off(freezer: FrozenDateTimeFactory, cycles: int) -> None:
+@pytest.mark.parametrize(("cycles", "hot_water"), [(1, False), (3, False), (3, True)], ids=["thin_history", "full_history", "hot_water"])
+def test_demand_after_a_long_idle_is_not_stuck_off(freezer: FrozenDateTimeFactory, cycles: int, hot_water: bool) -> None:
     flame = Flame()
     for _ in range(cycles):
         run_cycle(flame, freezer, 300)
 
     idle(flame, freezer, 3600)
-    wait_for_flame(flame, freezer, 20)
+    wait_for_flame(flame, freezer, 20, hot_water=hot_water)
 
     assert flame.health_status != FlameStatus.STUCK_OFF
 
@@ -93,17 +93,6 @@ def test_demand_without_flame_is_stuck_off(freezer: FrozenDateTimeFactory, cycle
     wait_for_flame(flame, freezer, 360)
 
     assert flame.health_status == FlameStatus.STUCK_OFF
-
-
-def test_hot_water_after_a_long_idle_is_not_stuck_off(freezer: FrozenDateTimeFactory) -> None:
-    flame = Flame()
-    for _ in range(3):
-        run_cycle(flame, freezer, 300)
-
-    idle(flame, freezer, 3600)
-    wait_for_flame(flame, freezer, 10, hot_water=True)
-
-    assert flame.health_status != FlameStatus.STUCK_OFF
 
 
 def test_stuck_off_clears_when_the_flame_lights(freezer: FrozenDateTimeFactory) -> None:
@@ -169,14 +158,66 @@ def test_a_burn_pwm_ends_early_is_not_cut_short(freezer: FrozenDateTimeFactory) 
     assert flame.health_status == FlameStatus.HEALTHY
 
 
-def test_full_duty_burns_are_healthy(freezer: FrozenDateTimeFactory) -> None:
+def test_full_duty_burns_the_boiler_ends_early_are_pwm_short(freezer: FrozenDateTimeFactory) -> None:
     flame = Flame()
     full = PWMState(enabled=True, status=PWMStatus.ON, duty_cycle=(1800, 0))
-    for _ in range(3):
-        run_pwm_cycle(flame, freezer, 1800, pwm_on=full, cut=True)
+    run_pwm_cycle(flame, freezer, 1800, pwm_on=full, cut=True)
+    for _ in range(2):
+        run_pwm_cycle(flame, freezer, 30, pwm_on=full, cut=True)
 
     flame.update(boiler_state(False), full)
     flame.update(boiler_state(True), full)
+
+    assert flame.health_status == FlameStatus.PWM_SHORT
+
+
+def test_hot_water_burns_during_pwm_are_not_cut_short(freezer: FrozenDateTimeFactory, caplog: pytest.LogCaptureFixture) -> None:
+    flame = Flame()
+    run_pwm_cycle(flame, freezer, 900)
+
+    with caplog.at_level(logging.WARNING):
+        for _ in range(2):
+            flame.update(boiler_state(False, hot_water=True, setpoint=40.0, flow=40.0), PWM_ON)
+            flame.update(boiler_state(True, hot_water=True, setpoint=40.0, flow=60.0), PWM_ON)
+            freezer.tick(timedelta(seconds=120))
+            flame.update(boiler_state(False, hot_water=True, setpoint=40.0, flow=55.0), PWM_ON)
+            freezer.tick(timedelta(seconds=60))
+
+    start_pwm_burn(flame)
+
+    assert flame.health_status == FlameStatus.HEALTHY
+    assert "overshoot protection" not in caplog.text
+
+
+def test_a_stale_pwm_state_does_not_judge_burns(freezer: FrozenDateTimeFactory, caplog: pytest.LogCaptureFixture) -> None:
+    flame = Flame()
+    run_pwm_cycle(flame, freezer, 900)
+    flame.update(boiler_state(False), PWM_ON)
+    freezer.tick(timedelta(minutes=5))
+
+    with caplog.at_level(logging.WARNING):
+        for _ in range(2):
+            flame.update(boiler_state(True, setpoint=40.0, flow=50.0))
+            freezer.tick(timedelta(seconds=30))
+            flame.update(boiler_state(False, setpoint=40.0, flow=45.0))
+            freezer.tick(timedelta(minutes=5))
+
+    start_pwm_burn(flame)
+
+    assert flame.health_status == FlameStatus.HEALTHY
+    assert "overshoot protection" not in caplog.text
+
+
+def test_cut_burns_older_than_four_hours_are_forgotten(freezer: FrozenDateTimeFactory) -> None:
+    flame = Flame()
+    for _ in range(2):
+        run_pwm_cycle(flame, freezer, 30, cut=True)
+
+    freezer.tick(timedelta(hours=5))
+    for _ in range(3):
+        run_cycle(flame, freezer, 300)
+
+    start_pwm_burn(flame)
 
     assert flame.health_status == FlameStatus.HEALTHY
 
@@ -190,21 +231,16 @@ def ignition_spike(flame: Flame, freezer: FrozenDateTimeFactory, pwm_off_first: 
     flame.update(boiler_state(False, setpoint=40.0, flow=43.0), PWM_OFF if pwm_off_first else PWM_ON)
 
 
-def test_a_burn_cut_by_an_ignition_spike_warns(freezer: FrozenDateTimeFactory, caplog: pytest.LogCaptureFixture) -> None:
+@pytest.mark.parametrize("pwm_off_first", [False, True], ids=["boiler_cut", "pwm_ended"])
+def test_an_ignition_spike_warns_only_when_the_boiler_cuts_the_burn(freezer: FrozenDateTimeFactory, caplog: pytest.LogCaptureFixture, pwm_off_first: bool) -> None:
     flame = Flame()
 
     with caplog.at_level(logging.WARNING):
-        ignition_spike(flame, freezer, pwm_off_first=False)
+        ignition_spike(flame, freezer, pwm_off_first=pwm_off_first)
 
-    assert "raise the overshoot protection value" in caplog.text
-    assert (flame.last_cut_short_peak_flow, flame.last_cut_short_setpoint) == (46.5, 40.0)
-
-
-def test_a_burn_pwm_ends_does_not_warn(freezer: FrozenDateTimeFactory, caplog: pytest.LogCaptureFixture) -> None:
-    flame = Flame()
-
-    with caplog.at_level(logging.WARNING):
-        ignition_spike(flame, freezer, pwm_off_first=True)
-
-    assert "overshoot protection" not in caplog.text
-    assert flame.last_cut_short_peak_flow is None
+    if pwm_off_first:
+        assert "overshoot protection" not in caplog.text
+        assert flame.last_cut_short_peak_flow is None
+    else:
+        assert "raise the overshoot protection value" in caplog.text
+        assert (flame.last_cut_short_peak_flow, flame.last_cut_short_setpoint) == (46.5, 40.0)
