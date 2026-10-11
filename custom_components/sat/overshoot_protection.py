@@ -184,7 +184,10 @@ class OvershootProtection:
             try:
                 if (result := await self._async_step(now)) is not None:
                     self._result.set_result(result)
+            except CalibrationError as error:
+                self._result.set_exception(error)
             except Exception as error:
+                _LOGGER.exception("Calibration step failed")
                 self._result.set_exception(error)
 
     async def _async_step(self, now: datetime) -> CalibrationResult | None:
