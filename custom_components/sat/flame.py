@@ -22,7 +22,7 @@ _LOGGER = logging.getLogger(__name__)
 class FlameState:
     is_active: bool
     is_inactive: bool
-    health_status: str
+    health_status: FlameStatus
 
     latest_on_time_seconds: float | None
     average_on_time_seconds: float | None
@@ -113,10 +113,10 @@ class Flame:
         self._pwm_burns_cut_short: deque[tuple[float, bool]] = deque(maxlen=3)
 
         # Health
-        self._health_status: str = FlameStatus.INSUFFICIENT_DATA
+        self._health_status: FlameStatus = FlameStatus.INSUFFICIENT_DATA
 
     @property
-    def health_status(self) -> str:
+    def health_status(self) -> FlameStatus:
         return self._health_status
 
     @property

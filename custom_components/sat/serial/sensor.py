@@ -1,11 +1,11 @@
-from typing import override
-
 """Sensor platform for SAT."""
 
+from __future__ import annotations
+
 import logging
+from typing import TYPE_CHECKING, override
 
 from homeassistant.components import sensor
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     PERCENTAGE,
     UnitOfPower,
@@ -14,7 +14,6 @@ from homeassistant.const import (
     UnitOfTime,
     UnitOfVolume,
 )
-from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import async_generate_entity_id
 from pyotgw.vars import (
     BOILER,
@@ -80,7 +79,14 @@ from ..const import (
     CONF_NAME,
 )
 from ..entity import SatEntity
-from . import TRANSLATE_SOURCE, SatSerialCoordinator
+from . import TRANSLATE_SOURCE
+
+if TYPE_CHECKING:
+    from homeassistant.config_entries import ConfigEntry
+    from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+
+    from .. import SatConfigEntry
+    from . import SatSerialCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -92,7 +98,7 @@ class SatSensorInfo:
         unit: str | None,
         friendly_name_format: str,
         status_sources: list[str],
-    ):
+    ) -> None:
         self.unit = unit
         self.device_class = device_class
         self.status_sources = status_sources
@@ -334,9 +340,12 @@ SENSOR_INFO: dict[str, SatSensorInfo] = {
 }
 
 
-async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, async_add_entities):
-    """Setup sensor platform."""
-    coordinator = config_entry.runtime_data.coordinator
+async def async_setup_entry(
+    coordinator: SatSerialCoordinator,
+    config_entry: SatConfigEntry,
+    async_add_entities: AddConfigEntryEntitiesCallback,
+) -> None:
+    """Set up the sensor platform."""
     has_thermostat = coordinator.data[OTGW].get(OTGW_THRM_DETECT) != "D"
 
     # Create a list of entities to be added
@@ -366,12 +375,12 @@ class SatSensor(SatEntity, sensor.SensorEntity):
         info: SatSensorInfo,
         key: str,
         source: str,
-    ):
+    ) -> None:
         super().__init__(coordinator, config_entry)
 
         self.entity_id = async_generate_entity_id(
             sensor.DOMAIN + ".{}",
-            f"{config_entry.data.get(CONF_NAME).lower()}_{source}_{key}",
+            f"{config_entry.data[CONF_NAME].lower()}_{source}_{key}",
             hass=coordinator.hass,
         )
 
@@ -390,7 +399,7 @@ class SatSensor(SatEntity, sensor.SensorEntity):
 
     @override
     @property
-    def available(self):
+    def available(self) -> bool:
         """Return availability of the sensor."""
         return self._coordinator.data[self._source].get(self._key) is not None
 

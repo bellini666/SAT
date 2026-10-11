@@ -6,10 +6,7 @@ from typing import TYPE_CHECKING, override
 from homeassistant.components import persistent_notification
 from homeassistant.components.button import ButtonEntity
 from homeassistant.const import EntityCategory
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from . import SatConfigEntry
 from .const import (
     CONF_HEATING_SYSTEM,
     CONF_MAXIMUM_SETPOINT,
@@ -21,6 +18,10 @@ from .helpers import calculate_default_maximum_setpoint
 from .overshoot_protection import CalibrationError, create_overshoot_protection
 
 if TYPE_CHECKING:
+    from homeassistant.core import HomeAssistant
+    from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+
+    from . import SatConfigEntry
     from .climate import SatClimate
     from .coordinator import SatDataUpdateCoordinator
 
@@ -28,7 +29,9 @@ _LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(
-    _hass: HomeAssistant, config_entry: SatConfigEntry, async_add_entities: AddEntitiesCallback
+    _hass: HomeAssistant,
+    config_entry: SatConfigEntry,
+    async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     coordinator = config_entry.runtime_data.coordinator
 
@@ -70,7 +73,7 @@ class SatCalibrateButton(SatClimateEntity, ButtonEntity):
 
     async def _async_calibrate(self) -> None:
         entry = self._config_entry
-        heating_system = entry.data.get(CONF_HEATING_SYSTEM)
+        heating_system = entry.data[CONF_HEATING_SYSTEM]
         maximum_setpoint = float(
             entry.options.get(
                 CONF_MAXIMUM_SETPOINT, calculate_default_maximum_setpoint(heating_system)
@@ -83,12 +86,21 @@ class SatCalibrateButton(SatClimateEntity, ButtonEntity):
                     self._coordinator, heating_system, maximum_setpoint, entry.options
                 ).calculate()
         except CalibrationError as error:
-            message = f"Calibrating the overshoot protection value failed ({error.reason}). The current value stays in use."
+            message = (
+                f"Calibrating the overshoot protection value failed ({error.reason}). "
+                "The current value stays in use."
+            )
             if error.value is not None:
-                message += f" The boiler reached {error.value} °C at minimum modulation, a starting point for setting it by hand."
+                message += (
+                    f" The boiler reached {error.value} °C at minimum modulation, "
+                    "a starting point for setting it by hand."
+                )
         except Exception as error:
             _LOGGER.exception("Overshoot protection calibration failed")
-            message = f"Calibrating the overshoot protection value failed ({error}). The current value stays in use."
+            message = (
+                f"Calibrating the overshoot protection value failed ({error}). "
+                "The current value stays in use."
+            )
         else:
             message = (
                 f"Overshoot protection value calibrated at {result.value} °C ({result.method})."

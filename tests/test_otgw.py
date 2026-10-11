@@ -2,10 +2,10 @@
 
 import asyncio
 from datetime import timedelta
+from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
 
 import pytest
-from freezegun.api import FrozenDateTimeFactory
 from homeassistant.components.climate import HVACMode
 from homeassistant.const import (
     EVENT_HOMEASSISTANT_FINAL_WRITE,
@@ -13,13 +13,11 @@ from homeassistant.const import (
     STATE_OFF,
     STATE_ON,
 )
-from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
     async_fire_mqtt_message,
     async_fire_time_changed,
 )
-from pytest_homeassistant_custom_component.typing import MqttMockHAClient
 
 from custom_components.sat.const import (
     CONF_DEVICE,
@@ -32,6 +30,11 @@ from custom_components.sat.const import (
     MODE_MQTT_OPENTHERM,
 )
 from tests.const import DEFAULT_USER_DATA
+
+if TYPE_CHECKING:
+    from freezegun.api import FrozenDateTimeFactory
+    from homeassistant.core import HomeAssistant
+    from pytest_homeassistant_custom_component.typing import MqttMockHAClient
 
 COMMAND_TOPIC = "OTGW/set/otgw/command"
 STORAGE_KEY = "sat_open_therm_mqtt_coordinator_otgw"
@@ -49,7 +52,7 @@ def commands(mqtt_mock: MqttMockHAClient) -> list[str]:
 
 
 async def setup_heating(
-    hass: HomeAssistant, mqtt_mock: MqttMockHAClient, options: dict | None = None
+    hass: HomeAssistant, mqtt_mock: MqttMockHAClient, options: dict[str, Any] | None = None
 ) -> MockConfigEntry:
     hass.states.async_set("sensor.test_inside_sensor", "19.5")
     hass.states.async_set("sensor.test_outside_sensor", "5.0")
@@ -236,9 +239,9 @@ async def test_synchro_sensors_ignore_the_room_thermostat_after_the_release(
     climate.async_write_ha_state()
 
     assert climate.setpoint is None
-    assert (
-        hass.states.get("binary_sensor.mock_title_relative_modulation_synchro").state == STATE_OFF
-    )
+    state = hass.states.get("binary_sensor.mock_title_relative_modulation_synchro")
+    assert state is not None
+    assert state.state == STATE_OFF
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
@@ -322,8 +325,9 @@ def otgw_entry(hass: HomeAssistant) -> MockConfigEntry:
     return entry
 
 
+@pytest.mark.usefixtures("mqtt_mock")
 async def test_restored_values_are_stale_until_a_live_message(
-    hass: HomeAssistant, mqtt_mock: MqttMockHAClient, hass_storage: dict
+    hass: HomeAssistant, hass_storage: dict[str, Any]
 ) -> None:
     hass_storage[STORAGE_KEY] = {
         "version": 1,
@@ -346,10 +350,10 @@ async def test_restored_values_are_stale_until_a_live_message(
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
+@pytest.mark.usefixtures("mqtt_mock")
 async def test_listeners_are_notified_when_a_restored_value_comes_back_unchanged(
     hass: HomeAssistant,
-    mqtt_mock: MqttMockHAClient,
-    hass_storage: dict,
+    hass_storage: dict[str, Any],
     freezer: FrozenDateTimeFactory,
 ) -> None:
     hass_storage[STORAGE_KEY] = {"version": 1, "key": STORAGE_KEY, "data": {"Tboiler": "40.0"}}
@@ -376,9 +380,10 @@ async def test_listeners_are_notified_when_a_restored_value_comes_back_unchanged
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
+@pytest.mark.usefixtures("mqtt_mock")
 @pytest.mark.parametrize("expected_lingering_timers", [True])
 async def test_values_are_saved_when_home_assistant_stops(
-    hass: HomeAssistant, mqtt_mock: MqttMockHAClient, hass_storage: dict
+    hass: HomeAssistant, hass_storage: dict[str, Any]
 ) -> None:
     entry = otgw_entry(hass)
     assert await hass.config_entries.async_setup(entry.entry_id)
@@ -413,7 +418,7 @@ async def test_max_modulation_is_sent_again_after_a_release(
 
 
 async def test_restored_max_modulation_does_not_skip_the_command(
-    hass: HomeAssistant, mqtt_mock: MqttMockHAClient, hass_storage: dict
+    hass: HomeAssistant, mqtt_mock: MqttMockHAClient, hass_storage: dict[str, Any]
 ) -> None:
     hass_storage[STORAGE_KEY] = {
         "version": 1,
@@ -442,7 +447,9 @@ async def test_offline_gateway_pauses_control(
 
     assert not entry.runtime_data.coordinator.online
     assert "gateway_offline" in climate.control_problems
-    assert hass.states.get("binary_sensor.mock_title_boiler_health").state == STATE_ON
+    state = hass.states.get("binary_sensor.mock_title_boiler_health")
+    assert state is not None
+    assert state.state == STATE_ON
     assert commands(mqtt_mock) == []
     assert await hass.config_entries.async_unload(entry.entry_id)
 
@@ -515,10 +522,15 @@ async def test_boiler_fault_is_reported(
     await hass.async_block_till_done()
 
     fault = hass.states.get("binary_sensor.mock_title_boiler_fault")
+    assert fault is not None
     assert fault.state == STATE_ON
     assert fault.attributes["flags"] == "00001000"
-    assert hass.states.get("sensor.mock_title_boiler_fault_code").state == "38"
-    assert hass.states.get("binary_sensor.mock_title_boiler_health").state == STATE_ON
+    state = hass.states.get("sensor.mock_title_boiler_fault_code")
+    assert state is not None
+    assert state.state == "38"
+    state = hass.states.get("binary_sensor.mock_title_boiler_health")
+    assert state is not None
+    assert state.state == STATE_ON
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 

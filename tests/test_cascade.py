@@ -1,13 +1,16 @@
 """Tests for cascading SAT changes to the controlled climates."""
 
+from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 from homeassistant.components.climate import HVACMode
-from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_mock_service
 
 from custom_components.sat.const import CONF_PUSH_SETPOINT_TO_THERMOSTAT, CONF_RADIATORS, DOMAIN
 from tests.const import DEFAULT_USER_DATA
+
+if TYPE_CHECKING:
+    from homeassistant.core import HomeAssistant
 
 
 async def test_hvac_mode_reaches_radiators_after_an_unsupported_one(hass: HomeAssistant) -> None:

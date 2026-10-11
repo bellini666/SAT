@@ -1,6 +1,7 @@
 """Tests for config entry migrations."""
 
-from homeassistant.core import HomeAssistant
+from typing import TYPE_CHECKING
+
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -15,6 +16,9 @@ from custom_components.sat.const import (
     DOMAIN,
 )
 from tests.const import DEFAULT_USER_DATA
+
+if TYPE_CHECKING:
+    from homeassistant.core import HomeAssistant
 
 
 async def test_v10_copies_sync_with_thermostat(hass: HomeAssistant) -> None:
@@ -66,21 +70,23 @@ async def test_v11_moves_unique_ids_to_entry_id(hass: HomeAssistant) -> None:
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
 
-    assert entities.async_get("climate.living_room_thermostat").unique_id == entry.entry_id
-    assert (
-        entities.async_get("sensor.living_room_heating_curve").unique_id
-        == f"{entry.entry_id}-heating-curve"
-    )
-    assert (
-        entities.async_get("binary_sensor.living_room_central_heating_synchro").unique_id
-        == f"{entry.entry_id}-central-heating-synchro"
-    )
-    assert (
-        entities.async_get("sensor.living_room_otgw_key").unique_id == f"{entry.entry_id}-otgw-key"
-    )
+    registry_entry = entities.async_get("climate.living_room_thermostat")
+    assert registry_entry is not None
+    assert registry_entry.unique_id == entry.entry_id
+    registry_entry = entities.async_get("sensor.living_room_heating_curve")
+    assert registry_entry is not None
+    assert registry_entry.unique_id == f"{entry.entry_id}-heating-curve"
+    registry_entry = entities.async_get("binary_sensor.living_room_central_heating_synchro")
+    assert registry_entry is not None
+    assert registry_entry.unique_id == f"{entry.entry_id}-central-heating-synchro"
+    registry_entry = entities.async_get("sensor.living_room_otgw_key")
+    assert registry_entry is not None
+    assert registry_entry.unique_id == f"{entry.entry_id}-otgw-key"
     assert len(hass.states.async_entity_ids("climate")) == 1
     assert hass.states.get("climate.living_room_thermostat") is not None
-    assert dr.async_get(hass).async_get(device.id).identifiers == {(DOMAIN, entry.entry_id)}
+    migrated_device = dr.async_get(hass).async_get(device.id)
+    assert migrated_device is not None
+    assert migrated_device.identifiers == {(DOMAIN, entry.entry_id)}
 
 
 async def test_entries_with_the_same_name_do_not_collide(hass: HomeAssistant) -> None:
@@ -122,7 +128,9 @@ async def test_v11_without_a_name_migrates(hass: HomeAssistant) -> None:
     await hass.async_block_till_done()
 
     assert entry.version == SatFlowHandler.VERSION
-    assert entities.async_get("climate.sat").unique_id == entry.entry_id
+    registry_entry = entities.async_get("climate.sat")
+    assert registry_entry is not None
+    assert registry_entry.unique_id == entry.entry_id
 
 
 async def test_v12_copies_the_pid_gains_to_options(hass: HomeAssistant) -> None:

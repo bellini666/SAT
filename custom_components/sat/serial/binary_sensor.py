@@ -3,15 +3,13 @@
 from __future__ import annotations
 
 import logging
-from typing import override
+from typing import TYPE_CHECKING, override
 
 from homeassistant.components.binary_sensor import (
     ENTITY_ID_FORMAT,
     BinarySensorDeviceClass,
     BinarySensorEntity,
 )
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import async_generate_entity_id
 from pyotgw.vars import (
     BOILER,
@@ -58,7 +56,14 @@ from ..const import (
     CONF_NAME,
 )
 from ..entity import SatEntity
-from . import TRANSLATE_SOURCE, SatSerialCoordinator
+from . import TRANSLATE_SOURCE
+
+if TYPE_CHECKING:
+    from homeassistant.config_entries import ConfigEntry
+    from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+
+    from .. import SatConfigEntry
+    from . import SatSerialCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -69,7 +74,7 @@ class SatBinarySensorInfo:
         device_class: BinarySensorDeviceClass | None,
         friendly_name_format: str,
         status_sources: list[str],
-    ):
+    ) -> None:
         self.device_class = device_class
         self.status_sources = status_sources
         self.friendly_name_format = friendly_name_format
@@ -173,9 +178,12 @@ BINARY_SENSOR_INFO: dict[str, SatBinarySensorInfo] = {
 }
 
 
-async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, async_add_entities):
-    """Setup sensor platform."""
-    coordinator = config_entry.runtime_data.coordinator
+async def async_setup_entry(
+    coordinator: SatSerialCoordinator,
+    config_entry: SatConfigEntry,
+    async_add_entities: AddConfigEntryEntitiesCallback,
+) -> None:
+    """Set up the sensor platform."""
     has_thermostat = coordinator.data[OTGW].get(OTGW_THRM_DETECT) != "D"
 
     # Create a list of entities to be added
@@ -207,12 +215,12 @@ class SatBinarySensor(SatEntity, BinarySensorEntity):
         info: SatBinarySensorInfo,
         key: str,
         source: str,
-    ):
+    ) -> None:
         super().__init__(coordinator, config_entry)
 
         self.entity_id = async_generate_entity_id(
             ENTITY_ID_FORMAT,
-            f"{config_entry.data.get(CONF_NAME).lower()}_{source}_{key}",
+            f"{config_entry.data[CONF_NAME].lower()}_{source}_{key}",
             hass=coordinator.hass,
         )
 
@@ -230,7 +238,7 @@ class SatBinarySensor(SatEntity, BinarySensorEntity):
 
     @override
     @property
-    def available(self):
+    def available(self) -> bool:
         """Return availability of the sensor."""
         return self._coordinator.data[self._source].get(self._key) is not None
 

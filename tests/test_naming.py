@@ -1,11 +1,15 @@
 """Tests for entity and device naming."""
 
-from homeassistant.core import HomeAssistant
+from typing import TYPE_CHECKING
+
 from homeassistant.helpers import device_registry as dr
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.sat.const import DOMAIN
 from tests.const import DEFAULT_USER_DATA
+
+if TYPE_CHECKING:
+    from homeassistant.core import HomeAssistant
 
 
 async def test_entities_are_named_after_the_device(hass: HomeAssistant) -> None:
@@ -18,21 +22,19 @@ async def test_entities_are_named_after_the_device(hass: HomeAssistant) -> None:
     device = dr.async_get(hass).async_get_device_by_identifier(
         (DOMAIN, entry.entry_id), entry.entry_id
     )
+    assert device is not None
     assert device.name == "Living Room"
     assert device.suggested_area is None
 
-    assert hass.states.get("climate.living_room").attributes["friendly_name"] == "Living Room"
-    assert (
-        hass.states.get("sensor.living_room_heating_curve").attributes["friendly_name"]
-        == "Living Room Heating curve"
-    )
-    assert (
-        hass.states.get("sensor.living_room_boiler_status").attributes["friendly_name"]
-        == "Living Room Boiler status"
-    )
-    assert (
-        hass.states.get("binary_sensor.living_room_central_heating_synchro").attributes[
-            "friendly_name"
-        ]
-        == "Living Room Central heating synchro"
-    )
+    state = hass.states.get("climate.living_room")
+    assert state is not None
+    assert state.attributes["friendly_name"] == "Living Room"
+    state = hass.states.get("sensor.living_room_heating_curve")
+    assert state is not None
+    assert state.attributes["friendly_name"] == "Living Room Heating curve"
+    state = hass.states.get("sensor.living_room_boiler_status")
+    assert state is not None
+    assert state.attributes["friendly_name"] == "Living Room Boiler status"
+    state = hass.states.get("binary_sensor.living_room_central_heating_synchro")
+    assert state is not None
+    assert state.attributes["friendly_name"] == "Living Room Central heating synchro"

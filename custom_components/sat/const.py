@@ -211,3 +211,8 @@ class PWMStatus(str, Enum):
     ON = "on"
     OFF = "off"
     IDLE = "idle"
+
+
+# Dynamic minimum setpoint versions
+DYNAMIC_MINIMUM_SETPOINT_VERSION_1 = 1
+DYNAMIC_MINIMUM_SETPOINT_VERSION_2 = 2

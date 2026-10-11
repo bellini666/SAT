@@ -4,44 +4,46 @@ import logging
 from typing import TYPE_CHECKING, override
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfPower, UnitOfTemperature, UnitOfVolume
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
     CONF_MAXIMUM_CONSUMPTION,
     CONF_MINIMUM_CONSUMPTION,
     CONF_MODE,
     MODE_MQTT_OPENTHERM,
-    MODE_SERIAL,
-    MODE_SIMULATOR,
 )
-from .coordinator import SatDataUpdateCoordinator
 from .entity import SatClimateEntity, SatEntity
+from .serial import SatSerialCoordinator
 from .serial import sensor as serial_sensor
+from .simulator import SatSimulatorCoordinator
 from .simulator import sensor as simulator_sensor
 
 if TYPE_CHECKING:
+    from homeassistant.config_entries import ConfigEntry
+    from homeassistant.core import HomeAssistant
+    from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+
+    from . import SatConfigEntry
     from .climate import SatClimate
+    from .coordinator import SatDataUpdateCoordinator
 
 _LOGGER: logging.Logger = logging.getLogger(__name__)
 
 
 async def async_setup_entry(
-    _hass: HomeAssistant, _config_entry: ConfigEntry, _async_add_entities: AddEntitiesCallback
-):
+    _hass: HomeAssistant,
+    _config_entry: SatConfigEntry,
+    _async_add_entities: AddConfigEntryEntitiesCallback,
+) -> None:
     """Add sensors for the serial protocol if the integration is set to use it."""
     climate = _config_entry.runtime_data.climate
     coordinator = _config_entry.runtime_data.coordinator
 
-    # Check if integration is set to use the serial protocol
-    if _config_entry.data.get(CONF_MODE) == MODE_SERIAL:
-        await serial_sensor.async_setup_entry(_hass, _config_entry, _async_add_entities)
+    if isinstance(coordinator, SatSerialCoordinator):
+        await serial_sensor.async_setup_entry(coordinator, _config_entry, _async_add_entities)
 
-    # Check if integration is set to use the simulator
-    if _config_entry.data.get(CONF_MODE) == MODE_SIMULATOR:
-        await simulator_sensor.async_setup_entry(_hass, _config_entry, _async_add_entities)
+    if isinstance(coordinator, SatSimulatorCoordinator):
+        await simulator_sensor.async_setup_entry(coordinator, _config_entry, _async_add_entities)
 
     if _config_entry.data.get(CONF_MODE) == MODE_MQTT_OPENTHERM:
         _async_add_entities([SatBoilerFaultCodeSensor(coordinator, _config_entry)])
@@ -78,7 +80,7 @@ class SatCurrentPowerSensor(SatEntity, SensorEntity):
 
     @override
     @property
-    def available(self):
+    def available(self) -> bool:
         """Return availability of the sensor."""
         return self._coordinator.boiler_power is not None
 
@@ -96,18 +98,19 @@ class SatCurrentConsumptionSensor(SatEntity, SensorEntity):
         super().__init__(coordinator, config_entry)
 
         self._attr_unique_id = f"{config_entry.entry_id}-boiler-current-consumption"
-        self._minimum_consumption = self._config_entry.options.get(CONF_MINIMUM_CONSUMPTION)
-        self._maximum_consumption = self._config_entry.options.get(CONF_MAXIMUM_CONSUMPTION)
+        self._minimum_consumption = self._config_entry.options[CONF_MINIMUM_CONSUMPTION]
+        self._maximum_consumption = self._config_entry.options[CONF_MAXIMUM_CONSUMPTION]
 
     @override
     @property
-    def available(self):
+    def available(self) -> bool:
         """Return availability of the sensor."""
         return self._coordinator.relative_modulation_value is not None
 
     @override
     def _update_attrs(self) -> None:
-        if not self.available:
+        relative_modulation_value = self._coordinator.relative_modulation_value
+        if relative_modulation_value is None:
             return
 
         if not self._coordinator.device_active or not self._coordinator.flame_active:
@@ -115,7 +118,6 @@ class SatCurrentConsumptionSensor(SatEntity, SensorEntity):
             return
 
         differential_gas_consumption = self._maximum_consumption - self._minimum_consumption
-        relative_modulation_value = self._coordinator.relative_modulation_value
 
         self._attr_native_value = round(
             self._minimum_consumption
@@ -138,7 +140,7 @@ class SatHeatingCurveSensor(SatClimateEntity, SensorEntity):
 
     @override
     @property
-    def available(self):
+    def available(self) -> bool:
         """Return availability of the sensor."""
         return self.climate_added and self._climate.heating_curve.value is not None
 
@@ -161,7 +163,7 @@ class SatErrorValueSensor(SatClimateEntity, SensorEntity):
 
     @override
     @property
-    def available(self):
+    def available(self) -> bool:
         """Return availability of the sensor."""
         return self.climate_added
 

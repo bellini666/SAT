@@ -1,10 +1,9 @@
 from datetime import timedelta
+from typing import TYPE_CHECKING, Any
 
 import pytest
-from freezegun.api import FrozenDateTimeFactory
 from homeassistant.components.climate import HVACMode
 from homeassistant.config_entries import SOURCE_RECONFIGURE, SOURCE_USER
-from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import section
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
@@ -12,7 +11,6 @@ from pytest_homeassistant_custom_component.common import (
     async_fire_time_changed,
     async_mock_service,
 )
-from pytest_homeassistant_custom_component.typing import MqttMockHAClient
 
 from custom_components.sat.config_flow import SatFlowHandler
 from custom_components.sat.const import (
@@ -24,8 +22,14 @@ from custom_components.sat.const import (
 )
 from tests.const import BUTTON, DEFAULT_USER_DATA
 
+if TYPE_CHECKING:
+    from freezegun.api import FrozenDateTimeFactory
+    from homeassistant.config_entries import ConfigFlowResult
+    from homeassistant.core import HomeAssistant
 
-async def test_create_coordinator(hass):
+
+@pytest.mark.usefixtures("hass")
+async def test_create_coordinator() -> None:
     flow_handler = SatFlowHandler()
     flow_handler.data = {
         "name": "Test",
@@ -59,7 +63,9 @@ async def test_options_advanced_section(
     result = await hass.config_entries.options.async_configure(
         result["flow_id"], {"next_step_id": "system_configuration"}
     )
-    advanced = result["data_schema"].schema["advanced"]
+    schema = result["data_schema"]
+    assert schema is not None
+    advanced = schema.schema["advanced"]
     assert isinstance(advanced, section)
     assert advanced.options["collapsed"] is True
 
@@ -149,16 +155,16 @@ async def test_cycles_per_hour_follow_the_heating_system(hass: HomeAssistant) ->
         result["flow_id"], {"next_step_id": "system_configuration"}
     )
 
-    cycles = next(
-        value for key, value in result["data_schema"].schema.items() if key == "cycles_per_hour"
-    )
+    schema = result["data_schema"]
+    assert schema is not None
+    cycles = next(value for key, value in schema.schema.items() if key == "cycles_per_hour")
     assert [option["value"] for option in cycles.config["options"]] == ["2", "3"]
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
 async def reconfigure_to_menu(
     hass: HomeAssistant, entry: MockConfigEntry, next_step_id: str
-) -> dict:
+) -> ConfigFlowResult:
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": SOURCE_RECONFIGURE, "entry_id": entry.entry_id}
     )
@@ -220,7 +226,9 @@ async def test_calibration_uses_the_running_coordinator(
 
     assert result["type"] == "menu"
     assert result["step_id"] == "calibrated"
-    assert result["description_placeholders"]["minimum_setpoint"] == 40.0
+    placeholders = result["description_placeholders"]
+    assert placeholders is not None
+    assert placeholders["minimum_setpoint"] == 40.0
     assert not entry.runtime_data.climate.control_paused
 
     hass.config_entries.flow.async_abort(result["flow_id"])
@@ -330,7 +338,9 @@ async def test_failed_calibration_offers_manual_entry(
     assert result["step_id"] == "overshoot_protection"
     assert result["errors"] == {"base": "unable_to_calibrate"}
     assert result["description_placeholders"] == {"reason": "timeout"}
-    field = next(key for key in result["data_schema"].schema if key == "minimum_setpoint")
+    schema = result["data_schema"]
+    assert schema is not None
+    field = next(key for key in schema.schema if key == "minimum_setpoint")
     assert field.default() == 55.0
     assert entry.runtime_data.climate.hvac_mode == HVACMode.HEAT
 
@@ -338,10 +348,8 @@ async def test_failed_calibration_offers_manual_entry(
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
-@pytest.mark.usefixtures("instant_mqtt_command_delay")
-async def test_flow_coordinator_receives_gateway_updates(
-    hass: HomeAssistant, mqtt_mock: MqttMockHAClient
-) -> None:
+@pytest.mark.usefixtures("instant_mqtt_command_delay", "mqtt_mock")
+async def test_flow_coordinator_receives_gateway_updates(hass: HomeAssistant) -> None:
     flow = SatFlowHandler()
     flow.hass = hass
     flow.data = {
@@ -392,13 +400,11 @@ async def test_reconfigured_overshoot_protection_takes_effect(hass: HomeAssistan
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {"minimum_setpoint": 52}
     )
+    schema = result["data_schema"]
+    assert schema is not None
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"],
-        {
-            "manufacturer": result["data_schema"]
-            .schema["manufacturer"]
-            .config["options"][0]["value"]
-        },
+        {"manufacturer": schema.schema["manufacturer"].config["options"][0]["value"]},
     )
     await hass.async_block_till_done()
 
@@ -464,7 +470,7 @@ async def test_manufacturer_step_without_mqtt(hass: HomeAssistant) -> None:
 
 
 async def test_manufacturer_step_preselects_the_detected_manufacturer(
-    hass: HomeAssistant, hass_storage: dict
+    hass: HomeAssistant, hass_storage: dict[str, Any]
 ) -> None:
     hass_storage["sat_open_therm_mqtt_coordinator_otgw"] = {
         "version": 1,
@@ -478,7 +484,9 @@ async def test_manufacturer_step_preselects_the_detected_manufacturer(
         result["flow_id"], {"minimum_setpoint": 52}
     )
 
-    field = next(key for key in result["data_schema"].schema if key == "manufacturer")
+    schema = result["data_schema"]
+    assert schema is not None
+    field = next(key for key in schema.schema if key == "manufacturer")
     assert field.default() == "Worcester"
     hass.config_entries.flow.async_abort(result["flow_id"])
 
@@ -507,7 +515,9 @@ async def test_reconfigure_offers_the_overshoot_protection_value_in_use(
 
     result = await reconfigure_to_menu(hass, entry, "overshoot_protection")
 
-    field = next(key for key in result["data_schema"].schema if key == "minimum_setpoint")
+    schema = result["data_schema"]
+    assert schema is not None
+    field = next(key for key in schema.schema if key == "minimum_setpoint")
     assert field.default() == 42
 
 
@@ -529,7 +539,9 @@ async def test_reconfigure_offers_the_saved_manufacturer(hass: HomeAssistant) ->
         result["flow_id"], {"minimum_setpoint": 45}
     )
 
-    field = next(key for key in result["data_schema"].schema if key == "manufacturer")
+    schema = result["data_schema"]
+    assert schema is not None
+    field = next(key for key in schema.schema if key == "manufacturer")
     assert field.default() == "Ideal"
     hass.config_entries.flow.async_abort(result["flow_id"])
 

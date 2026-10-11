@@ -82,7 +82,7 @@ class HeatingCurve:
         self._optimal_coefficients.append(coefficient)
         self._optimal_coefficient = round(mean(self._optimal_coefficients), 1)
 
-    def restore_autotune(self, coefficient: float, derivative: float) -> None:
+    def restore_autotune(self, coefficient: float, derivative: float | None) -> None:
         """Restore a previous optimal coefficient value."""
         self._optimal_coefficient = coefficient
         self._coefficient_derivative = derivative

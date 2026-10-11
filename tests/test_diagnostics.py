@@ -1,15 +1,15 @@
 """Tests for the SAT diagnostics."""
 
+from typing import TYPE_CHECKING, Any
+
 import pytest
 from homeassistant.components.climate import HVACMode
 from homeassistant.components.diagnostics import REDACTED
-from homeassistant.core import HomeAssistant
 from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_mqtt_message
 from pytest_homeassistant_custom_component.components.diagnostics import (
     get_diagnostics_for_config_entry,
 )
-from pytest_homeassistant_custom_component.typing import ClientSessionGenerator, MqttMockHAClient
 
 from custom_components.sat.const import (
     CONF_DEVICE,
@@ -21,11 +21,16 @@ from custom_components.sat.const import (
 )
 from tests.const import DEFAULT_USER_DATA
 
+if TYPE_CHECKING:
+    from homeassistant.core import HomeAssistant
+    from pytest_homeassistant_custom_component.typing import ClientSessionGenerator
+
 pytestmark = pytest.mark.usefixtures("instant_mqtt_command_delay")
 
 
+@pytest.mark.usefixtures("mqtt_mock")
 async def test_config_entry_diagnostics(
-    hass: HomeAssistant, hass_client: ClientSessionGenerator, mqtt_mock: MqttMockHAClient
+    hass: HomeAssistant, hass_client: ClientSessionGenerator
 ) -> None:
     assert await async_setup_component(hass, "diagnostics", {})
     hass.states.async_set("sensor.test_inside_sensor", "19.5")
@@ -51,7 +56,7 @@ async def test_config_entry_diagnostics(
     await hass.async_block_till_done()
     await entry.runtime_data.climate.async_set_hvac_mode(HVACMode.HEAT)
 
-    diagnostics = await get_diagnostics_for_config_entry(hass, hass_client, entry)
+    diagnostics: dict[str, Any] = await get_diagnostics_for_config_entry(hass, hass_client, entry)
 
     assert diagnostics["entry"]["data"][CONF_DEVICE] == REDACTED
     assert diagnostics["entry"]["data"][CONF_MINIMUM_SETPOINT] == 45

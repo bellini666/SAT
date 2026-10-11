@@ -4,7 +4,6 @@ import logging
 import typing
 from typing import override
 
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -14,6 +13,8 @@ from .const import DOMAIN
 _LOGGER: logging.Logger = logging.getLogger(__name__)
 
 if typing.TYPE_CHECKING:
+    from homeassistant.config_entries import ConfigEntry
+
     from .climate import SatClimate
     from .coordinator import SatDataUpdateCoordinator
 
@@ -21,7 +22,7 @@ if typing.TYPE_CHECKING:
 class SatEntity(CoordinatorEntity):
     _attr_has_entity_name = True
 
-    def __init__(self, coordinator: SatDataUpdateCoordinator, config_entry: ConfigEntry):
+    def __init__(self, coordinator: SatDataUpdateCoordinator, config_entry: ConfigEntry) -> None:
         super().__init__(coordinator)
 
         self._coordinator = coordinator
@@ -56,7 +57,9 @@ class SatEntity(CoordinatorEntity):
 
 
 class SatClimateEntity(SatEntity):
-    def __init__(self, coordinator, config_entry: ConfigEntry, climate: SatClimate):
+    def __init__(
+        self, coordinator: SatDataUpdateCoordinator, config_entry: ConfigEntry, climate: SatClimate
+    ) -> None:
         super().__init__(coordinator, config_entry)
 
         self._climate = climate

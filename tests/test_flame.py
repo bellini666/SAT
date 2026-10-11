@@ -2,14 +2,17 @@
 
 import logging
 from datetime import timedelta
+from typing import TYPE_CHECKING
 
 import pytest
-from freezegun.api import FrozenDateTimeFactory
 
 from custom_components.sat.boiler import BoilerState
 from custom_components.sat.const import BoilerStatus, FlameStatus, PWMStatus
 from custom_components.sat.flame import Flame
 from custom_components.sat.pwm import PWMState
+
+if TYPE_CHECKING:
+    from freezegun.api import FrozenDateTimeFactory
 
 PWM_ON = PWMState(enabled=True, status=PWMStatus.ON, duty_cycle=(900, 300))
 PWM_OFF = PWMState(enabled=True, status=PWMStatus.OFF, duty_cycle=(900, 300))

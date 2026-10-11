@@ -1,15 +1,17 @@
 """Tests for the dynamic minimum setpoint."""
 
 from datetime import timedelta
-
-from freezegun.api import FrozenDateTimeFactory
+from typing import TYPE_CHECKING
 
 from custom_components.sat.boiler import BoilerState
 from custom_components.sat.const import BoilerStatus, PWMStatus
 from custom_components.sat.minimum_setpoint import MinimumSetpoint
 
+if TYPE_CHECKING:
+    from freezegun.api import FrozenDateTimeFactory
 
-def boiler_state(**overrides) -> BoilerState:
+
+def boiler_state(**overrides: float | None) -> BoilerState:
     values = {
         "is_active": True,
         "is_inactive": False,

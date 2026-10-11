@@ -1,15 +1,18 @@
 """Tests for the boiler temperature derivative and tracking."""
 
 from datetime import timedelta
+from typing import TYPE_CHECKING
 
-from freezegun.api import FrozenDateTimeFactory
-from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.sat.boiler import BoilerTemperatureTracker
 from custom_components.sat.const import CONF_HEATING_CURVE_COEFFICIENT, DOMAIN, BoilerStatus
 from custom_components.sat.coordinator import DeviceState
 from tests.const import DEFAULT_USER_DATA
+
+if TYPE_CHECKING:
+    from freezegun.api import FrozenDateTimeFactory
+    from homeassistant.core import HomeAssistant
 
 
 async def test_boiler_temperature_derivative_keeps_slow_changes(

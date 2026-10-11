@@ -1,8 +1,8 @@
 """Tests for the SAT health binary sensor and repair issues."""
 
 from datetime import timedelta
+from typing import TYPE_CHECKING
 
-from freezegun.api import FrozenDateTimeFactory
 from homeassistant.components.climate import HVACMode
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import STATE_OFF, STATE_ON
@@ -20,6 +20,9 @@ from custom_components.sat.const import (
 )
 from custom_components.sat.coordinator import DeviceState
 from tests.const import DEFAULT_USER_DATA
+
+if TYPE_CHECKING:
+    from freezegun.api import FrozenDateTimeFactory
 
 ENTITY_ID = "binary_sensor.mock_title_heating_control"
 BOILER_HEALTH = "binary_sensor.mock_title_boiler_health"
@@ -48,6 +51,7 @@ async def test_healthy_while_controlling(hass: HomeAssistant) -> None:
     entry = await setup_heating(hass)
 
     state = hass.states.get(ENTITY_ID)
+    assert state is not None
     assert state.state == STATE_OFF
     assert state.attributes["problems"] == []
     assert await hass.config_entries.async_unload(entry.entry_id)
@@ -63,6 +67,7 @@ async def test_flags_a_stalled_control_loop(
     await hass.async_block_till_done()
 
     state = hass.states.get(ENTITY_ID)
+    assert state is not None
     assert state.state == STATE_ON
     assert state.attributes["problems"] == ["control_loop_stalled"]
     assert await hass.config_entries.async_unload(entry.entry_id)
@@ -76,7 +81,9 @@ async def test_healthy_while_paused(hass: HomeAssistant, freezer: FrozenDateTime
         async_fire_time_changed(hass)
         await hass.async_block_till_done()
 
-        assert hass.states.get(ENTITY_ID).attributes["problems"] == []
+        state = hass.states.get(ENTITY_ID)
+        assert state is not None
+        assert state.attributes["problems"] == []
 
     assert entry.runtime_data.climate.control_problems == []
     assert await hass.config_entries.async_unload(entry.entry_id)
@@ -95,7 +102,9 @@ async def test_healthy_right_after_turning_on(
 
     await climate.async_set_hvac_mode(HVACMode.HEAT)
 
-    assert hass.states.get(ENTITY_ID).attributes["problems"] == []
+    state = hass.states.get(ENTITY_ID)
+    assert state is not None
+    assert state.attributes["problems"] == []
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
@@ -114,7 +123,9 @@ async def test_healthy_while_home_assistant_starts(
     async_fire_time_changed(hass)
     await hass.async_block_till_done()
 
-    assert hass.states.get(ENTITY_ID).attributes["problems"] == []
+    state = hass.states.get(ENTITY_ID)
+    assert state is not None
+    assert state.attributes["problems"] == []
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
@@ -124,12 +135,16 @@ async def test_flags_missing_inputs_and_recovers(hass: HomeAssistant) -> None:
     hass.states.async_set("sensor.test_inside_sensor", "unavailable")
     async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=31))
     await hass.async_block_till_done()
-    assert hass.states.get(ENTITY_ID).attributes["problems"] == ["inputs_missing"]
-    assert hass.states.get(ENTITY_ID).state == STATE_ON
+    state = hass.states.get(ENTITY_ID)
+    assert state is not None
+    assert state.attributes["problems"] == ["inputs_missing"]
+    assert state.state == STATE_ON
 
     hass.states.async_set("sensor.test_inside_sensor", "19.6")
     await hass.async_block_till_done()
-    assert hass.states.get(ENTITY_ID).state == STATE_OFF
+    state = hass.states.get(ENTITY_ID)
+    assert state is not None
+    assert state.state == STATE_OFF
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
@@ -143,7 +158,9 @@ async def test_flags_missing_boiler_data(
     await entry.runtime_data.climate.async_control_heating_loop()
     await hass.async_block_till_done()
 
-    assert hass.states.get(ENTITY_ID).attributes["problems"] == ["boiler_data_missing"]
+    state = hass.states.get(ENTITY_ID)
+    assert state is not None
+    assert state.attributes["problems"] == ["boiler_data_missing"]
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
@@ -162,16 +179,24 @@ async def test_healthy_while_the_first_boiler_data_arrives(
     await climate.async_control_heating_loop()
     await hass.async_block_till_done()
 
-    assert hass.states.get(ENTITY_ID).state == STATE_OFF
-    assert hass.states.get(BOILER_HEALTH).state == STATE_OFF
+    state = hass.states.get(ENTITY_ID)
+    assert state is not None
+    assert state.state == STATE_OFF
+    state = hass.states.get(BOILER_HEALTH)
+    assert state is not None
+    assert state.state == STATE_OFF
 
     freezer.tick(timedelta(minutes=3))
     await climate.async_control_heating_loop()
     async_fire_time_changed(hass)
     await hass.async_block_till_done()
 
-    assert hass.states.get(ENTITY_ID).attributes["problems"] == ["boiler_data_missing"]
-    assert hass.states.get(BOILER_HEALTH).state == STATE_ON
+    state = hass.states.get(ENTITY_ID)
+    assert state is not None
+    assert state.attributes["problems"] == ["boiler_data_missing"]
+    state = hass.states.get(BOILER_HEALTH)
+    assert state is not None
+    assert state.state == STATE_ON
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
@@ -240,6 +265,10 @@ async def test_synchro_sensors_ignore_the_room_thermostat_while_off(
     freezer.tick(timedelta(seconds=61))
     climate.async_write_ha_state()
 
-    assert hass.states.get("binary_sensor.mock_title_control_setpoint_synchro").state == STATE_OFF
-    assert hass.states.get("binary_sensor.mock_title_central_heating_synchro").state == STATE_OFF
+    state = hass.states.get("binary_sensor.mock_title_control_setpoint_synchro")
+    assert state is not None
+    assert state.state == STATE_OFF
+    state = hass.states.get("binary_sensor.mock_title_central_heating_synchro")
+    assert state is not None
+    assert state.state == STATE_OFF
     assert await hass.config_entries.async_unload(entry.entry_id)

@@ -3,13 +3,13 @@
 import asyncio
 import logging
 from datetime import timedelta
+from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
 
 import pytest
 from homeassistant.components.climate import PRESET_ACTIVITY, HVACMode
 from homeassistant.config_entries import SOURCE_DHCP, ConfigEntryState
 from homeassistant.const import Platform
-from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.service_info.dhcp import DhcpServiceInfo
@@ -19,7 +19,6 @@ from pytest_homeassistant_custom_component.common import (
     async_fire_mqtt_message,
     async_fire_time_changed,
 )
-from pytest_homeassistant_custom_component.typing import MqttMockHAClient
 
 from custom_components import sat
 from custom_components.sat.const import (
@@ -35,6 +34,15 @@ from custom_components.sat.const import (
 )
 from custom_components.sat.coordinator import SatDataUpdateCoordinatorFactory
 from tests.const import DEFAULT_USER_DATA
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
+
+    from homeassistant.core import HomeAssistant
+
+    from custom_components.sat import SatConfigEntry
+    from custom_components.sat.climate import SatClimate
+    from custom_components.sat.coordinator import SatDataUpdateCoordinator
 
 
 @pytest.fixture
@@ -183,7 +191,8 @@ def mqtt_entry(hass: HomeAssistant) -> MockConfigEntry:
     return entry
 
 
-async def test_unload_stops_mqtt_updates(hass: HomeAssistant, mqtt_mock: MqttMockHAClient) -> None:
+@pytest.mark.usefixtures("mqtt_mock")
+async def test_unload_stops_mqtt_updates(hass: HomeAssistant) -> None:
     entry = mqtt_entry(hass)
 
     assert await hass.config_entries.async_setup(entry.entry_id)
@@ -202,11 +211,9 @@ async def test_unload_stops_mqtt_updates(hass: HomeAssistant, mqtt_mock: MqttMoc
     assert coordinator.flame_active
 
 
-@pytest.mark.usefixtures("instant_mqtt_command_delay")
+@pytest.mark.usefixtures("instant_mqtt_command_delay", "mqtt_mock")
 @pytest.mark.parametrize("target", ["climate", "platforms"])
-async def test_failed_setup_stops_mqtt_updates(
-    hass: HomeAssistant, mqtt_mock: MqttMockHAClient, target: str
-) -> None:
+async def test_failed_setup_stops_mqtt_updates(hass: HomeAssistant, target: str) -> None:
     entry = mqtt_entry(hass)
     failure = (
         (sat, "SatClimate")
@@ -214,10 +221,16 @@ async def test_failed_setup_stops_mqtt_updates(
         else (hass.config_entries, "async_forward_entry_setups")
     )
     resolve = SatDataUpdateCoordinatorFactory.resolve
-    coordinators = []
+    coordinators: list[SatDataUpdateCoordinator] = []
 
-    def capture(**kwargs):
-        coordinators.append(resolve(**kwargs))
+    def capture(
+        hass: HomeAssistant,
+        mode: str,
+        device: str,
+        data: Mapping[str, Any],
+        options: Mapping[str, Any] | None = None,
+    ) -> SatDataUpdateCoordinator:
+        coordinators.append(resolve(hass, mode, device, data, options))
         return coordinators[-1]
 
     with (
@@ -246,8 +259,9 @@ async def test_setup_retries_while_mqtt_is_unavailable(
     assert errors(caplog) == []
 
 
+@pytest.mark.usefixtures("mqtt_mock")
 async def test_dhcp_discovery_keeps_mqtt_entry(
-    hass: HomeAssistant, mqtt_mock: MqttMockHAClient, caplog: pytest.LogCaptureFixture
+    hass: HomeAssistant, caplog: pytest.LogCaptureFixture
 ) -> None:
     entry = mqtt_entry(hass)
 
@@ -287,7 +301,7 @@ async def test_reset_integral_targets_reloaded_climate(
     reset.assert_called_once()
 
 
-async def start_heating(hass: HomeAssistant, entry: MockConfigEntry):
+async def start_heating(hass: HomeAssistant, entry: SatConfigEntry) -> SatClimate:
     hass.states.async_set("sensor.test_inside_sensor", "19.5")
     hass.states.async_set("sensor.test_outside_sensor", "5.0")
 

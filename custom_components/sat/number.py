@@ -3,17 +3,24 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, override
 
 from homeassistant.components.number import NumberDeviceClass, NumberEntity
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfTemperature
-from homeassistant.core import HomeAssistant
 
 from .entity import SatEntity
 
 if TYPE_CHECKING:
+    from homeassistant.config_entries import ConfigEntry
+    from homeassistant.core import HomeAssistant
+    from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+
+    from . import SatConfigEntry
     from .coordinator import SatDataUpdateCoordinator
 
 
-async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, async_add_entities):
+async def async_setup_entry(
+    _hass: HomeAssistant,
+    config_entry: SatConfigEntry,
+    async_add_entities: AddConfigEntryEntitiesCallback,
+) -> None:
     coordinator = config_entry.runtime_data.coordinator
 
     if coordinator.supports_hot_water_setpoint_management:
@@ -33,7 +40,7 @@ class SatHotWaterSetpointEntity(SatEntity, NumberEntity):
 
     @override
     @property
-    def available(self):
+    def available(self) -> bool:
         """Return availability of the sensor."""
         return self._coordinator.hot_water_setpoint is not None
 

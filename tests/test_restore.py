@@ -1,5 +1,7 @@
 """Tests for restoring the climate state."""
 
+from typing import Any
+
 import pytest
 from homeassistant.components.climate import HVACMode
 from homeassistant.const import STATE_UNAVAILABLE
@@ -39,6 +41,7 @@ async def test_restores_extra_data_when_last_state_is_unavailable(hass: HomeAssi
     await setup_entry(hass)
 
     state = hass.states.get(ENTITY_ID)
+    assert state is not None
     assert state.state == HVACMode.HEAT
     assert state.attributes["temperature"] == 21.0
     assert state.attributes["preset_mode"] == "home"
@@ -58,6 +61,7 @@ async def test_restores_last_state_without_extra_data(hass: HomeAssistant) -> No
     await setup_entry(hass)
 
     state = hass.states.get(ENTITY_ID)
+    assert state is not None
     assert state.state == HVACMode.HEAT
     assert state.attributes["temperature"] == 20.5
 
@@ -78,6 +82,7 @@ async def test_reload_keeps_mode_and_target(hass: HomeAssistant) -> None:
     await hass.async_block_till_done()
 
     state = hass.states.get(ENTITY_ID)
+    assert state is not None
     assert state.state == HVACMode.HEAT
     assert state.attributes["temperature"] == 21.5
 
@@ -88,6 +93,7 @@ async def test_defaults_to_heat_at_the_home_temperature(
     await setup_entry(hass)
 
     state = hass.states.get(ENTITY_ID)
+    assert state is not None
     assert state.state == HVACMode.HEAT
     assert state.attributes["temperature"] == 18
     assert "No previously saved temperature" not in caplog.text
@@ -102,7 +108,9 @@ async def test_default_hvac_mode_option(hass: HomeAssistant) -> None:
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
 
-    assert hass.states.get(ENTITY_ID).state == HVACMode.OFF
+    state = hass.states.get(ENTITY_ID)
+    assert state is not None
+    assert state.state == HVACMode.OFF
 
 
 @pytest.mark.parametrize(
@@ -113,7 +121,7 @@ async def test_default_hvac_mode_option(hass: HomeAssistant) -> None:
     ],
 )
 async def test_preset_none_after_restore_returns_to_the_custom_temperature(
-    hass: HomeAssistant, extra_data: dict, temperature: float
+    hass: HomeAssistant, extra_data: dict[str, Any], temperature: float
 ) -> None:
     mock_restore_cache_with_extra_data(
         hass,
@@ -135,4 +143,6 @@ async def test_preset_none_after_restore_returns_to_the_custom_temperature(
         "climate", "set_preset_mode", {"entity_id": ENTITY_ID, "preset_mode": "none"}, blocking=True
     )
 
-    assert hass.states.get(ENTITY_ID).attributes["temperature"] == temperature
+    state = hass.states.get(ENTITY_ID)
+    assert state is not None
+    assert state.attributes["temperature"] == temperature

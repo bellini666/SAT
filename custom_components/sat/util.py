@@ -93,7 +93,7 @@ def create_pwm_controller(
     config_options: Mapping[str, Any],
     *,
     supports_relative_modulation_management: bool,
-) -> PWM | None:
+) -> PWM:
     """Create and return a PWM controller instance with the given configuration options."""
     # Extract the configuration options
     max_duty_cycles = int(config_options[CONF_CYCLES_PER_HOUR])

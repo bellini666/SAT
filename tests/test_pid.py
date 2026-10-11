@@ -1,12 +1,14 @@
 """Tests for the PID controller."""
 
 from datetime import timedelta
-
-from freezegun.api import FrozenDateTimeFactory
+from typing import TYPE_CHECKING
 
 from custom_components.sat.const import HEATING_SYSTEM_RADIATORS
 from custom_components.sat.errors import Error
 from custom_components.sat.pid import PID
+
+if TYPE_CHECKING:
+    from freezegun.api import FrozenDateTimeFactory
 
 SENSOR = "sensor.test_inside_sensor"
 

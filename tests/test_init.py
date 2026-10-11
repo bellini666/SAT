@@ -1,5 +1,7 @@
 """Test setup process."""
 
+from typing import TYPE_CHECKING
+
 from homeassistant.components.switch import DOMAIN as SWITCH_DOMAIN
 from homeassistant.config_entries import ConfigEntryState
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -7,8 +9,11 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from custom_components.sat.const import DOMAIN
 from tests.const import DEFAULT_USER_DATA
 
+if TYPE_CHECKING:
+    from homeassistant.core import HomeAssistant
 
-async def test_setup_update_unload_entry(hass):
+
+async def test_setup_update_unload_entry(hass: HomeAssistant) -> None:
     """Test entry setup and unload."""
     # Create the switch entry
     switch_entry = MockConfigEntry(domain=SWITCH_DOMAIN, entry_id="switch.test")

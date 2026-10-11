@@ -3,13 +3,13 @@
 import logging
 from dataclasses import replace
 from datetime import timedelta
+from typing import TYPE_CHECKING, Any
 
 import pytest
-from freezegun.api import FrozenDateTimeFactory
 from homeassistant.components.climate import HVACMode
-from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.sat.climate import SatClimate
 from custom_components.sat.const import (
     CONF_DYNAMIC_MINIMUM_SETPOINT,
     CONF_DYNAMIC_MINIMUM_SETPOINT_VERSION,
@@ -27,10 +27,17 @@ from custom_components.sat.const import (
     PWMStatus,
 )
 from custom_components.sat.coordinator import DeviceState
+from custom_components.sat.fake import SatFakeCoordinator
 from tests.const import DEFAULT_USER_DATA
 
+if TYPE_CHECKING:
+    from freezegun.api import FrozenDateTimeFactory
+    from homeassistant.core import HomeAssistant
 
-async def setup_climate(hass: HomeAssistant, options: dict):
+
+async def setup_climate(
+    hass: HomeAssistant, options: dict[str, Any]
+) -> tuple[MockConfigEntry, SatClimate, SatFakeCoordinator]:
     hass.states.async_set("sensor.test_inside_sensor", "20.9")
     hass.states.async_set("sensor.test_outside_sensor", "9.9")
 
@@ -48,7 +55,11 @@ async def setup_climate(hass: HomeAssistant, options: dict):
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
 
-    return entry, entry.runtime_data.climate, entry.runtime_data.coordinator
+    climate = entry.runtime_data.climate
+    coordinator = entry.runtime_data.coordinator
+    assert isinstance(climate, SatClimate)
+    assert isinstance(coordinator, SatFakeCoordinator)
+    return entry, climate, coordinator
 
 
 async def test_pwm_starts_once_the_boiler_temperature_arrives(
@@ -57,6 +68,7 @@ async def test_pwm_starts_once_the_boiler_temperature_arrives(
     entry, climate, coordinator = await setup_climate(
         hass, {CONF_FORCE_PULSE_WIDTH_MODULATION: True}
     )
+    assert climate.pwm is not None
 
     await climate.async_set_target_temperature(21.0)
     await climate.async_set_hvac_mode(HVACMode.HEAT)
@@ -106,12 +118,14 @@ async def test_full_duty_cycle_stays_on(
     entry, climate, coordinator = await setup_climate(
         hass, {CONF_FORCE_PULSE_WIDTH_MODULATION: True}
     )
+    assert climate.pwm is not None
 
     await coordinator.async_set_boiler_temperature(30)
     await climate.async_set_target_temperature(25.0)
     await climate.async_set_hvac_mode(HVACMode.HEAT)
     await climate.async_control_heating_loop()
     assert climate.pwm.status == PWMStatus.ON
+    assert climate.pwm.duty_cycle is not None
     assert climate.pwm.duty_cycle[1] == 0
 
     freezer.tick(timedelta(seconds=climate.pwm.duty_cycle[0] + 1))
@@ -150,7 +164,7 @@ async def test_dynamic_minimum_setpoint_below_the_overshoot_value_still_enables_
     ],
 )
 async def test_overshoot_handling_enables_pwm_only_for_dynamic_minimum_setpoint_v2(
-    hass: HomeAssistant, options: dict, enabled: bool
+    hass: HomeAssistant, options: dict[str, Any], enabled: bool
 ) -> None:
     entry, climate, coordinator = await setup_climate(hass, {**options, CONF_MINIMUM_SETPOINT: 30})
     await climate.async_set_target_temperature(21.0)
@@ -262,7 +276,7 @@ async def test_closed_valves_keep_the_pwm_enabled(hass: HomeAssistant) -> None:
 
     await climate.async_set_target_temperature(21.0)
     await climate.async_set_hvac_mode(HVACMode.HEAT)
-    await climate.async_set_pulse_width_modulation(True)
+    await climate.async_set_pulse_width_modulation(enabled=True)
     await climate.async_control_heating_loop()
 
     assert climate.pwm.enabled
@@ -274,6 +288,7 @@ async def test_disable_clears_the_adjusted_setpoint(hass: HomeAssistant) -> None
     entry, climate, coordinator = await setup_climate(
         hass, {CONF_FORCE_PULSE_WIDTH_MODULATION: True}
     )
+    assert climate.pwm is not None
     await coordinator.async_set_boiler_temperature(57)
     await climate.async_set_hvac_mode(HVACMode.HEAT)
     await climate.async_set_target_temperature(21.0)
@@ -290,6 +305,7 @@ async def test_reset_keeps_the_adjusted_setpoint(hass: HomeAssistant) -> None:
     entry, climate, coordinator = await setup_climate(
         hass, {CONF_FORCE_PULSE_WIDTH_MODULATION: True}
     )
+    assert climate.pwm is not None
     await coordinator.async_set_boiler_temperature(57)
     await climate.async_set_hvac_mode(HVACMode.HEAT)
     await climate.async_set_target_temperature(21.0)
@@ -309,6 +325,7 @@ async def test_cycle_limit_survives_resets_and_holds_off(hass: HomeAssistant) ->
     entry, climate, coordinator = await setup_climate(
         hass, {CONF_FORCE_PULSE_WIDTH_MODULATION: True}
     )
+    assert climate.pwm is not None
     await coordinator.async_set_boiler_temperature(57)
     await climate.async_set_hvac_mode(HVACMode.HEAT)
 
@@ -327,6 +344,7 @@ async def test_burns_pwm_ends_itself_are_not_cut_short(
     entry, climate, coordinator = await setup_climate(
         hass, {CONF_FORCE_PULSE_WIDTH_MODULATION: True}
     )
+    assert climate.pwm is not None
     await coordinator.async_set_boiler_temperature(57)
     await climate.async_set_target_temperature(21.0)
     await climate.async_set_hvac_mode(HVACMode.HEAT)

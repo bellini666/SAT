@@ -1,9 +1,9 @@
 from custom_components.sat.manufacturer import MANUFACTURERS, ManufacturerFactory
 
 
-def test_resolve_by_name():
+def test_resolve_by_name() -> None:
     """Test resolving manufacturers by name."""
-    for name, data in MANUFACTURERS.items():
+    for name in MANUFACTURERS:
         # Test valid name
         manufacturer = ManufacturerFactory.resolve_by_name(name)
         assert manufacturer is not None, f"Manufacturer '{name}' should not be None"
@@ -14,7 +14,7 @@ def test_resolve_by_name():
     assert manufacturer is None, "resolve_by_name should return None for invalid names"
 
 
-def test_resolve_by_member_id():
+def test_resolve_by_member_id() -> None:
     """Test resolving manufacturers by member ID."""
     member_id_to_names = {member_id: [] for name, member_id in MANUFACTURERS.items()}
     for name, member_id in MANUFACTURERS.items():
@@ -31,7 +31,8 @@ def test_resolve_by_member_id():
                 f"Expected {manufacturer.member_id} for member ID {member_id}"
             )
             assert manufacturer.__class__.__name__ in names, (
-                f"Manufacturer name '{manufacturer.friendly_name}' not expected for member ID {member_id}"
+                f"Manufacturer name '{manufacturer.friendly_name}' "
+                f"not expected for member ID {member_id}"
             )
 
     # Test invalid member ID

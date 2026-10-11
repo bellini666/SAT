@@ -3,10 +3,9 @@
 import asyncio
 import math
 from datetime import timedelta
+from typing import TYPE_CHECKING
 
 import pytest
-from freezegun.api import FrozenDateTimeFactory
-from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import async_fire_time_changed
 
 from custom_components.sat.const import (
@@ -16,10 +15,19 @@ from custom_components.sat.const import (
     OPTIONS_DEFAULTS,
 )
 from custom_components.sat.coordinator import DeviceState
-from custom_components.sat.manufacturer import Manufacturer
 from custom_components.sat.manufacturers.geminox import Geminox
-from custom_components.sat.overshoot_protection import CalibrationError, OvershootProtection
+from custom_components.sat.overshoot_protection import (
+    CalibrationError,
+    CalibrationResult,
+    OvershootProtection,
+)
 from custom_components.sat.simulator import SatSimulatorCoordinator
+
+if TYPE_CHECKING:
+    from freezegun.api import FrozenDateTimeFactory
+    from homeassistant.core import HomeAssistant
+
+    from custom_components.sat.manufacturer import Manufacturer
 
 
 class Boiler:
@@ -65,8 +73,8 @@ async def tick(hass: HomeAssistant, freezer: FrozenDateTimeFactory, count: int =
 
 
 def start(
-    hass: HomeAssistant, boiler: Boiler, **kwargs
-) -> tuple[OvershootProtection, asyncio.Task]:
+    hass: HomeAssistant, boiler: Boiler | SatSimulatorCoordinator, **kwargs: timedelta
+) -> tuple[OvershootProtection, asyncio.Task[CalibrationResult]]:
     protection = OvershootProtection(
         boiler, HEATING_SYSTEM_RADIATORS, maximum_setpoint=55, **kwargs
     )
@@ -441,6 +449,7 @@ async def test_simulator_heats_during_calibration(
 
     await tick(hass, freezer, 4)
 
+    assert simulator.boiler_temperature is not None
     assert simulator.boiler_temperature > MINIMUM_SETPOINT
     task.cancel()
     with pytest.raises(asyncio.CancelledError):
