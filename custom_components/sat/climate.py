@@ -1061,15 +1061,11 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
                 )
 
             # Update our PID controllers if we have valid values
-            if self._coordinator.boiler_temperature_filtered is not None:
-                self.areas.pids.update(self._coordinator.boiler_temperature_filtered)
+            if self._coordinator.boiler_temperature is not None:
+                self.areas.pids.update()
 
                 if self.heating_curve.value is not None:
-                    self.pid.update(
-                        max_error,
-                        self.heating_curve.value,
-                        self._coordinator.boiler_temperature_filtered,
-                    )
+                    self.pid.update(max_error, self.heating_curve.value)
 
         elif max_error.value != self.pid.last_error:
             _LOGGER.info(
@@ -1340,16 +1336,12 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
 
             # Apply an error change that arrived inside the sample time,
             # then control the integral (if exceeded the time limit)
-            if self._coordinator.boiler_temperature_filtered is not None:
-                self.areas.pids.update(self._coordinator.boiler_temperature_filtered)
+            if self._coordinator.boiler_temperature is not None:
+                self.areas.pids.update()
 
             if self.heating_curve.value is not None:
-                if self._coordinator.boiler_temperature_filtered is not None:
-                    self.pid.update(
-                        self.max_error,
-                        self.heating_curve.value,
-                        self._coordinator.boiler_temperature_filtered,
-                    )
+                if self._coordinator.boiler_temperature is not None:
+                    self.pid.update(self.max_error, self.heating_curve.value)
 
                 self.pid.update_integral(self.max_error, self.heating_curve.value)
 
