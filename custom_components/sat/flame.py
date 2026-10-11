@@ -82,6 +82,7 @@ class Flame:
         self._has_completed_first_cycle: bool = False
         self._flame_on_monotonic: Optional[float] = None
         self._flame_off_monotonic: Optional[float] = None
+        self._demand_since_monotonic: Optional[float] = None
 
         # Stored states
         self._last_boiler_state: Optional[BoilerState] = None
@@ -242,15 +243,22 @@ class Flame:
             self._health_status = FlameStatus.INSUFFICIENT_DATA
             return
 
+        domestic_hot_water_active = bool(state.hot_water_active)
+        heating_demand = bool(state.is_active) or (state.status in self._HEATING_STATUSES)
+
+        if not heating_demand and not domestic_hot_water_active:
+            self._demand_since_monotonic = None
+        elif self._demand_since_monotonic is None:
+            self._demand_since_monotonic = now
+
+        # The flame can only be late since the demand started, not since it last went out
         last_on_seconds = self._latest_on_time_seconds if (state.flame_active and self._flame_on_monotonic) else 0.0
-        last_off_seconds = (now - self._flame_off_monotonic) if (not state.flame_active and self._flame_off_monotonic) else 0.0
+        last_off_seconds = (now - max(self._flame_off_monotonic, self._demand_since_monotonic or 0.0)) if (not state.flame_active and self._flame_off_monotonic) else 0.0
 
         cycles_per_hour = self._cycles_per_hour(now)
         duty_ratio = self._duty_ratio_last_window(now)
         median_on_seconds, sample_count = self._median_on_duration(now)
 
-        domestic_hot_water_active = bool(state.hot_water_active)
-        heating_demand = bool(state.is_active) or (state.status in self._HEATING_STATUSES)
         modulating_boiler = (state.relative_modulation_level is not None and isinstance(state.relative_modulation_level, (int, float)))
 
         # Thin history: still allow stuck checks, avoid cycling judgments
@@ -266,6 +274,8 @@ class Flame:
             timeout = self.MAX_DOMESTIC_HOT_WATER_IDLE_OFF_SECONDS if domestic_hot_water_active else self.STUCK_OFF_SECONDS
             if (not state.flame_active) and last_off_seconds > timeout and state.status not in self._TRANSIENT_STATUSES:
                 self._health_status = FlameStatus.STUCK_OFF
+            else:
+                self._health_status = FlameStatus.HEALTHY
 
             return
 
