@@ -3,7 +3,7 @@
 import logging
 from dataclasses import replace
 from datetime import timedelta
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal, TypeIs
 
 import pytest
 from homeassistant.components.climate import HVACMode
@@ -33,6 +33,10 @@ from tests.const import DEFAULT_USER_DATA
 if TYPE_CHECKING:
     from freezegun.api import FrozenDateTimeFactory
     from homeassistant.core import HomeAssistant
+
+
+def is_off(status: PWMStatus) -> TypeIs[Literal[PWMStatus.OFF]]:
+    return status == PWMStatus.OFF
 
 
 async def setup_climate(
@@ -359,7 +363,7 @@ async def test_burns_pwm_ends_itself_are_not_cut_short(
             freezer.tick(timedelta(seconds=30))
             await climate.async_control_heating_loop()
             coordinator.async_update_listeners()
-            if climate.pwm.status == PWMStatus.OFF:
+            if is_off(climate.pwm.status):
                 break
 
         assert climate.pwm.status == PWMStatus.OFF
