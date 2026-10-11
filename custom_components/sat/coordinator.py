@@ -25,13 +25,6 @@ from .const import (
     HEATING_SYSTEM_UNKNOWN,
     MAX_BOILER_TEMPERATURE_AGE,
     MINIMUM_SETPOINT,
-    MODE_ESPHOME,
-    MODE_FAKE,
-    MODE_MQTT_EMS,
-    MODE_MQTT_OPENTHERM,
-    MODE_SERIAL,
-    MODE_SIMULATOR,
-    MODE_SWITCH,
     BoilerStatus,
 )
 from .flame import Flame, FlameState
@@ -84,62 +77,6 @@ class SatData(dict[str, Any]):
 
     def is_dirty(self) -> bool:
         return self._is_dirty
-
-
-class SatDataUpdateCoordinatorFactory:
-    @staticmethod
-    def resolve(
-        hass: HomeAssistant,
-        mode: str,
-        device: str,
-        data: Mapping[str, Any],
-        options: Mapping[str, Any] | None = None,
-    ) -> SatDataUpdateCoordinator:
-        if mode == MODE_FAKE:
-            from .fake import SatFakeCoordinator
-
-            return SatFakeCoordinator(hass=hass, config_data=data, options=options)
-
-        if mode == MODE_SIMULATOR:
-            from .simulator import SatSimulatorCoordinator
-
-            return SatSimulatorCoordinator(hass=hass, config_data=data, options=options)
-
-        if mode == MODE_SWITCH:
-            from .switch import SatSwitchCoordinator
-
-            return SatSwitchCoordinator(
-                hass=hass, entity_id=device, config_data=data, options=options
-            )
-
-        if mode == MODE_ESPHOME:
-            from .esphome import SatEspHomeCoordinator
-
-            return SatEspHomeCoordinator(
-                hass=hass, device_id=device, config_data=data, options=options
-            )
-
-        if mode == MODE_MQTT_EMS:
-            from .mqtt.ems import SatEmsMqttCoordinator
-
-            return SatEmsMqttCoordinator(
-                hass=hass, device_id=device, config_data=data, options=options
-            )
-
-        if mode == MODE_MQTT_OPENTHERM:
-            from .mqtt.opentherm import SatOpenThermMqttCoordinator
-
-            return SatOpenThermMqttCoordinator(
-                hass=hass, device_id=device, config_data=data, options=options
-            )
-
-        if mode == MODE_SERIAL:
-            from .serial import SatSerialCoordinator
-
-            return SatSerialCoordinator(hass=hass, port=device, config_data=data, options=options)
-
-        msg = f"Invalid mode[{mode}]"
-        raise ValueError(msg)
 
 
 class SatDataUpdateCoordinator(DataUpdateCoordinator):

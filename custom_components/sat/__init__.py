@@ -24,6 +24,7 @@ from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
 from .climate import SatClimate
+from .config_flow import SatFlowHandler
 from .const import (
     CONF_DEVICE,
     CONF_MODE,
@@ -31,7 +32,7 @@ from .const import (
     DOMAIN,
     SETUP_FAILED_ISSUE_DELAY,
 )
-from .coordinator import SatDataUpdateCoordinatorFactory
+from .coordinator_factory import SatDataUpdateCoordinatorFactory
 from .services import async_setup_services
 
 if TYPE_CHECKING:
@@ -144,8 +145,6 @@ async def async_remove_entry(hass: HomeAssistant, entry: SatConfigEntry) -> None
 
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Migrate old entry."""
-    from .config_flow import SatFlowHandler
-
     _LOGGER.debug("Migrating from version %s", entry.version)
 
     if entry.version < SatFlowHandler.VERSION:

@@ -32,7 +32,7 @@ from custom_components.sat.const import (
     MODE_ESPHOME,
     MODE_MQTT_OPENTHERM,
 )
-from custom_components.sat.coordinator import SatDataUpdateCoordinatorFactory
+from custom_components.sat.coordinator_factory import SatDataUpdateCoordinatorFactory
 from tests.const import DEFAULT_USER_DATA
 
 if TYPE_CHECKING:

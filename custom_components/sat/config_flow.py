@@ -33,7 +33,6 @@ from homeassistant.helpers.selector import SelectOptionDict, SelectSelectorMode
 from probatio import Marker
 from pyotgw import OpenThermGateway
 
-from . import SatDataUpdateCoordinatorFactory
 from .const import (
     CONF_ACTIVITY_TEMPERATURE,
     CONF_AUTOMATIC_DUTY_CYCLE,
@@ -107,6 +106,7 @@ from .const import (
     MODE_SWITCH,
     OPTIONS_DEFAULTS,
 )
+from .coordinator_factory import SatDataUpdateCoordinatorFactory
 from .helpers import calculate_default_maximum_setpoint, convert_time_str_to_seconds
 from .manufacturer import MANUFACTURERS, ManufacturerFactory
 from .overshoot_protection import PLATEAU_WINDOW, CalibrationError, create_overshoot_protection
