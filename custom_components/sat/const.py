@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from datetime import timedelta
-from enum import Enum, StrEnum
+from enum import StrEnum
 from typing import Any
 
 NAME = "Smart Autotune Thermostat"
@@ -205,7 +205,7 @@ class BoilerStatus(StrEnum):
     INSUFFICIENT_DATA = "insufficient_data"
 
 
-class PWMStatus(str, Enum):
+class PWMStatus(StrEnum):
     """The current state of Pulse Width Modulation."""
 
     ON = "on"

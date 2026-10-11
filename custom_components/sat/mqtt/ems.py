@@ -64,17 +64,17 @@ class SatEmsMqttCoordinator(SatMqttCoordinator):
     @override
     @property
     def device_active(self) -> bool:
-        return self.data.get(DATA_CENTRAL_HEATING) == DATA_ON
+        return self._is_on(DATA_CENTRAL_HEATING)
 
     @override
     @property
     def flame_active(self) -> bool:
-        return self.data.get(DATA_FLAME_ACTIVE) == DATA_ON
+        return self._is_on(DATA_FLAME_ACTIVE)
 
     @override
     @property
     def hot_water_active(self) -> bool:
-        return self.data.get(DATA_DHW_ENABLE) == DATA_ON
+        return self._is_on(DATA_DHW_ENABLE)
 
     @override
     @property
@@ -126,6 +126,10 @@ class SatEmsMqttCoordinator(SatMqttCoordinator):
     async def boot(self) -> None:
         # Nothing needs to be booted (yet)
         pass
+
+    def _is_on(self, key: str) -> bool:
+        value = self.data.get(key)
+        return isinstance(value, str) and value == DATA_ON
 
     @override
     def get_tracked_entities(self) -> list[str]:

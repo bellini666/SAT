@@ -5,7 +5,7 @@ from abc import abstractmethod
 from enum import StrEnum
 from itertools import pairwise
 from time import monotonic
-from typing import TYPE_CHECKING, Any, override
+from typing import TYPE_CHECKING, Any, TypedDict, override
 
 from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import HassJob, HomeAssistant, callback
@@ -46,6 +46,8 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
     from datetime import datetime
 
+    from homeassistant.helpers.service_info.mqtt import ReceivePayloadType
+
     from .pwm import PWMState
 
 _LOGGER: logging.Logger = logging.getLogger(__name__)
@@ -54,6 +56,12 @@ _LOGGER: logging.Logger = logging.getLogger(__name__)
 class DeviceState(StrEnum):
     ON = "on"
     OFF = "off"
+
+
+class MqttMessage(TypedDict):
+    received: str
+    topic: str
+    payload: ReceivePayloadType
 
 
 class SatData(dict[str, Any]):
@@ -181,7 +189,7 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
         pass
 
     @property
-    def messages(self) -> list[dict[str, str]]:
+    def messages(self) -> list[MqttMessage]:
         return []
 
     @property

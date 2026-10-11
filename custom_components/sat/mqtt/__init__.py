@@ -13,7 +13,7 @@ from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
 from ..const import CONF_MQTT_TOPIC
-from ..coordinator import SatDataUpdateCoordinator
+from ..coordinator import MqttMessage, SatDataUpdateCoordinator
 from ..helpers import snake_case
 
 if TYPE_CHECKING:
@@ -42,7 +42,7 @@ class SatMqttCoordinator(SatDataUpdateCoordinator):
         self._device_id: str = device_id
         self._topic: str = config_data[CONF_MQTT_TOPIC]
         self._subscriptions: list[Callable[[], None]] = []
-        self._messages: deque[dict[str, str]] = deque(maxlen=50)
+        self._messages: deque[MqttMessage] = deque(maxlen=50)
         self._stale_keys: set[str] = set()
         self._store: Store[dict[str, Any]] = Store(
             hass, STORAGE_VERSION, snake_case(f"{self.__class__.__name__}_{device_id}")
@@ -55,7 +55,7 @@ class SatMqttCoordinator(SatDataUpdateCoordinator):
 
     @override
     @property
-    def messages(self) -> list[dict[str, str]]:
+    def messages(self) -> list[MqttMessage]:
         return list(self._messages)
 
     @override
