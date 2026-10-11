@@ -795,7 +795,9 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 if coordinator.member_id is not None
                 else []
             )
-            default_manufacturer = type(manufacturers[0]).__name__ if len(manufacturers) > 0 else -1
+            default_manufacturer = (
+                type(manufacturers[0]).__name__ if manufacturers else vol.UNDEFINED
+            )
         finally:
             await coordinator.async_will_remove_from_hass()
 

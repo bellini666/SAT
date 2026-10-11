@@ -1,6 +1,7 @@
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
+import probatio as vol
 import pytest
 from homeassistant.components.climate import HVACMode
 from homeassistant.config_entries import SOURCE_RECONFIGURE, SOURCE_USER
@@ -488,6 +489,21 @@ async def test_manufacturer_step_preselects_the_detected_manufacturer(
     assert schema is not None
     field = next(key for key in schema.schema if key == "manufacturer")
     assert field.default() == "Worcester"
+    hass.config_entries.flow.async_abort(result["flow_id"])
+
+
+async def test_manufacturer_step_has_no_default_without_a_member_id(hass: HomeAssistant) -> None:
+    entry = unloaded_mqtt_entry(hass)
+
+    result = await reconfigure_to_menu(hass, entry, "overshoot_protection")
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"minimum_setpoint": 52}
+    )
+
+    schema = result["data_schema"]
+    assert schema is not None
+    field = next(key for key in schema.schema if key == "manufacturer")
+    assert field.default is vol.UNDEFINED
     hass.config_entries.flow.async_abort(result["flow_id"])
 
 
