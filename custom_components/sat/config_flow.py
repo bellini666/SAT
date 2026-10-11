@@ -45,6 +45,7 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         self.options = {}
         self.errors = {}
         self.config_entry = None
+        self.calibration_error: CalibrationError | None = None
 
     @staticmethod
     @callback
@@ -368,6 +369,7 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_calibrate(self, _user_input: dict[str, Any] | None = None):
         if started := self.calibration is None:
+            self.calibration_error = None
             if self.config_entry is not None and self.config_entry.state is ConfigEntryState.LOADED:
                 if self.config_entry.runtime_data.climate.calibration is not None:
                     return self.async_abort(reason="already_in_progress")
@@ -428,7 +430,8 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                     for entity_id, hvac_mode in hvac_modes.items():
                         data = {ATTR_ENTITY_ID: entity_id, climate.ATTR_HVAC_MODE: hvac_mode}
                         await self.hass.services.async_call(climate.DOMAIN, climate.SERVICE_SET_HVAC_MODE, data, blocking=True)
-        except CalibrationError:
+        except CalibrationError as error:
+            self.calibration_error = error
             return None
         finally:
             if climate_entity is None:
@@ -442,7 +445,11 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
     async def async_step_overshoot_protection(self, _user_input: dict[str, Any] | None = None):
-        errors = {}
+        errors = {"base": "unable_to_calibrate"} if self.calibration_error is not None else {}
+        default = self.data.get(CONF_MINIMUM_SETPOINT, OPTIONS_DEFAULTS[CONF_MINIMUM_SETPOINT])
+        if self.calibration_error is not None and self.calibration_error.value is not None:
+            default = self.calibration_error.value
+
         if _user_input is not None:
             options = self.config_entry.options if self.config_entry else {}
             maximum_setpoint = float(options.get(CONF_MAXIMUM_SETPOINT, calculate_default_maximum_setpoint(self.data.get(CONF_HEATING_SYSTEM))))
@@ -463,8 +470,9 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             last_step=False,
             errors=errors,
             step_id="overshoot_protection",
+            description_placeholders={"reason": self.calibration_error.reason} if self.calibration_error is not None else None,
             data_schema=vol.Schema({
-                vol.Required(CONF_MINIMUM_SETPOINT, default=self.data.get(CONF_MINIMUM_SETPOINT, OPTIONS_DEFAULTS[CONF_MINIMUM_SETPOINT])): selector.NumberSelector(
+                vol.Required(CONF_MINIMUM_SETPOINT, default=default): selector.NumberSelector(
                     selector.NumberSelectorConfig(min=MINIMUM_SETPOINT, max=MAXIMUM_SETPOINT, step=1, unit_of_measurement="°C")
                 ),
             })

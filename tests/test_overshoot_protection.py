@@ -1,6 +1,7 @@
 """Tests for the overshoot protection value calibration."""
 
 import asyncio
+import math
 from datetime import timedelta
 
 import pytest
@@ -198,6 +199,24 @@ async def test_times_out_without_a_plateau(hass: HomeAssistant, freezer: FrozenD
     with pytest.raises(CalibrationError, match="timeout"):
         await task
     assert released(boiler)
+
+
+@pytest.mark.parametrize(("modulation", "suggested"), [(0, True), (60, False)], ids=["minimum_modulation", "modulating"])
+async def test_a_timeout_suggests_the_flow_reached_at_minimum_modulation(hass: HomeAssistant, freezer: FrozenDateTimeFactory, modulation: float, suggested: bool) -> None:
+    boiler = Boiler(hass)
+    _protection, task = start(hass, boiler, plateau_timeout=timedelta(minutes=10))
+
+    boiler.flame_active = True
+    boiler.relative_modulation_value = modulation
+    for step in range(40):
+        boiler.boiler_temperature = 35.0 + step / 10
+        await tick(hass, freezer)
+        if task.done():
+            break
+
+    with pytest.raises(CalibrationError, match="timeout") as error:
+        await task
+    assert error.value.value == (math.ceil(boiler.boiler_temperature) if suggested else None)
 
 
 async def test_hot_water_counts_towards_the_overall_deadline(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:

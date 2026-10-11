@@ -52,6 +52,8 @@ class SatCalibrateButton(SatClimateEntity, ButtonEntity):
                 result = await create_overshoot_protection(self._coordinator, heating_system, maximum_setpoint, entry.options).calculate()
         except CalibrationError as error:
             message = f"Calibrating the overshoot protection value failed ({error.reason}). The current value stays in use."
+            if error.value is not None:
+                message += f" The boiler reached {error.value} °C at minimum modulation, a starting point for setting it by hand."
         except Exception as error:
             _LOGGER.exception("Overshoot protection calibration failed")
             message = f"Calibrating the overshoot protection value failed ({error}). The current value stays in use."

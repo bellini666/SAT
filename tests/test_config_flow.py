@@ -238,6 +238,10 @@ async def test_failed_calibration_offers_manual_entry(hass: HomeAssistant, freez
     result = await hass.config_entries.flow.async_configure(result["flow_id"])
     assert result["type"] == "form"
     assert result["step_id"] == "overshoot_protection"
+    assert result["errors"] == {"base": "unable_to_calibrate"}
+    assert result["description_placeholders"] == {"reason": "timeout"}
+    field = next(key for key in result["data_schema"].schema if key == "minimum_setpoint")
+    assert field.default() == 55.0
     assert entry.runtime_data.climate.hvac_mode == HVACMode.HEAT
 
     hass.config_entries.flow.async_abort(result["flow_id"])

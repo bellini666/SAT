@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from statistics import fmean, linear_regression
@@ -29,9 +30,10 @@ MAXIMUM_FLAME_LOSSES = 3
 
 
 class CalibrationError(Exception):
-    def __init__(self, reason: str) -> None:
+    def __init__(self, reason: str, value: float | None = None) -> None:
         super().__init__(reason)
         self.reason = reason
+        self.value = value
 
 
 @dataclass(frozen=True, slots=True)
@@ -127,7 +129,7 @@ class OvershootProtection:
         elapsed = now - self._last_tick
         self._last_tick = now
         if now > self._deadline:
-            raise CalibrationError("timeout")
+            raise CalibrationError("timeout", self._minimum_modulation_flow(now))
 
         coordinator = self._coordinator
         if coordinator.hot_water_active:
@@ -189,9 +191,21 @@ class OvershootProtection:
             raise CalibrationError("no_modulation")
 
         if self._heated > self._plateau_timeout:
-            raise CalibrationError("timeout")
+            raise CalibrationError("timeout", self._minimum_modulation_flow(now))
 
         return None
+
+    def _modulation_floor(self) -> float:
+        # ID 17 is 0 at minimum modulation on spec boilers, others report ID 15's scale (% of maximum capacity)
+        return min(self._lowest_modulation, self._coordinator.minimum_relative_modulation_value or 100)
+
+    def _minimum_modulation_flow(self, now: datetime) -> float | None:
+        """Return the highest recent flow, rounded up, when the boiler held minimum modulation without settling."""
+        window = [sample for sample in self._samples if sample[0] >= now - PLATEAU_WINDOW]
+        if not window or fmean(modulation for _, _, modulation in window) > self._modulation_floor() + MODULATION_TOLERANCE:
+            return None
+
+        return float(min(math.ceil(max(flow for _, flow, _ in window)), self.setpoint))
 
     def _plateau(self, now: datetime) -> CalibrationResult | None:
         if not self._samples or self._samples[0][0] > now - PLATEAU_WINDOW:
@@ -200,8 +214,7 @@ class OvershootProtection:
         window = [sample for sample in self._samples if sample[0] >= now - PLATEAU_WINDOW]
         flows = [flow for _, flow, _ in window]
         modulations = [modulation for _, _, modulation in window]
-        # ID 17 is 0 at minimum modulation on spec boilers, others report ID 15's scale (% of maximum capacity)
-        floor = min(self._lowest_modulation, self._coordinator.minimum_relative_modulation_value or 100)
+        floor = self._modulation_floor()
 
         _LOGGER.debug(
             "Calibration window: flow %.1f-%.1f°C, modulation %.0f-%.0f%%, modulation floor %.0f%%",
@@ -223,7 +236,7 @@ class OvershootProtection:
 
         if modulation <= floor + MODULATION_TOLERANCE:
             if plateau >= self.setpoint - SETPOINT_MARGIN:
-                raise CalibrationError("setpoint_reached")
+                raise CalibrationError("setpoint_reached", self.setpoint)
 
             return CalibrationResult(plateau, "zero_modulation" if max(modulations) == 0 else "minimum_modulation")
 

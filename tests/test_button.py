@@ -94,6 +94,7 @@ async def test_calibration_timeouts_come_from_the_options(hass: HomeAssistant, f
 
     notification = persistent_notification._async_get_or_create_notifications(hass)[f"sat_calibration_{entry.entry_id}"]
     assert "timeout" in notification["message"]
+    assert "reached 40.0 °C at minimum modulation" in notification["message"]
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
