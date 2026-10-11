@@ -3,7 +3,7 @@
 import asyncio
 import math
 from datetime import timedelta
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 import pytest
 from pytest_homeassistant_custom_component.common import async_fire_time_changed
@@ -15,6 +15,7 @@ from custom_components.sat.const import (
     OPTIONS_DEFAULTS,
 )
 from custom_components.sat.coordinator import DeviceState
+from custom_components.sat.fake import SatFakeCoordinator
 from custom_components.sat.manufacturers.geminox import Geminox
 from custom_components.sat.overshoot_protection import (
     CalibrationError,
@@ -24,44 +25,112 @@ from custom_components.sat.overshoot_protection import (
 from custom_components.sat.simulator import SatSimulatorCoordinator
 
 if TYPE_CHECKING:
+    from datetime import datetime
+
     from freezegun.api import FrozenDateTimeFactory
     from homeassistant.core import HomeAssistant
 
     from custom_components.sat.manufacturer import Manufacturer
+    from custom_components.sat.pwm import PWMState
 
 
-class Boiler:
-    """The coordinator surface calibration talks to."""
-
+class Boiler(SatFakeCoordinator):
     def __init__(self, hass: HomeAssistant) -> None:
-        self.hass = hass
-        self.flame_active = False
-        self.hot_water_active = False
-        self.boiler_temperature: float | None = 30.0
-        self.relative_modulation_value: float | None = 0.0
-        self.minimum_relative_modulation_value: float | None = 12.0
-        self.manufacturer: Manufacturer | None = None
+        super().__init__(hass, config_data={})
+        self._flame_active = False
+        self._hot_water_active = False
+        self._boiler_temperature: float | None = 30.0
+        self._relative_modulation: float | None = 0.0
+        self._minimum_relative_modulation: float | None = 12.0
+        self._manufacturer: Manufacturer | None = None
         self.commands: list[tuple[str, object]] = []
         self.gate: asyncio.Event | None = None
         self.error: Exception | None = None
 
+    @override
+    @property
+    def flame_active(self) -> bool:
+        return self._flame_active
+
+    @override
+    @flame_active.setter
+    def flame_active(self, value: bool) -> None:
+        self._flame_active = value
+
+    @override
+    @property
+    def hot_water_active(self) -> bool:
+        return self._hot_water_active
+
+    @override
+    @hot_water_active.setter
+    def hot_water_active(self, value: bool) -> None:
+        self._hot_water_active = value
+
+    @override
+    @property
+    def boiler_temperature(self) -> float | None:
+        return self._boiler_temperature
+
+    @override
+    @boiler_temperature.setter
+    def boiler_temperature(self, value: float | None) -> None:
+        self._boiler_temperature = value
+
+    @override
+    @property
+    def relative_modulation_value(self) -> float | None:
+        return self._relative_modulation
+
+    @override
+    @relative_modulation_value.setter
+    def relative_modulation_value(self, value: float | None) -> None:
+        self._relative_modulation = value
+
+    @override
+    @property
+    def minimum_relative_modulation_value(self) -> float | None:
+        return self._minimum_relative_modulation
+
+    @override
+    @minimum_relative_modulation_value.setter
+    def minimum_relative_modulation_value(self, value: float | None) -> None:
+        self._minimum_relative_modulation = value
+
+    @override
+    @property
+    def manufacturer(self) -> Manufacturer | None:
+        return self._manufacturer
+
+    @override
+    @manufacturer.setter
+    def manufacturer(self, value: Manufacturer | None) -> None:
+        self._manufacturer = value
+
+    @override
     async def async_set_heater_state(self, state: DeviceState) -> None:
         self.commands.append(("CH", state))
 
+    @override
     async def async_set_control_setpoint(self, value: float) -> None:
         if self.gate is not None:
             await self.gate.wait()
         self.commands.append(("CS", value))
 
+    @override
     async def async_set_control_max_relative_modulation(self, value: int) -> None:
         if self.error is not None:
             raise self.error
         self.commands.append(("MM", value))
 
+    @override
     async def async_release_control(self) -> None:
         self.commands.append(("release", None))
 
-    async def async_control_heating_loop(self) -> None:
+    @override
+    async def async_control_heating_loop(
+        self, pwm_state: PWMState | None = None, _time: datetime | None = None
+    ) -> None:
         pass
 
 
@@ -289,6 +358,7 @@ async def test_a_timeout_suggests_the_flow_reached_at_minimum_modulation(
 
     with pytest.raises(CalibrationError, match="timeout") as error:
         await task
+    assert boiler.boiler_temperature is not None
     assert error.value.value == (math.ceil(boiler.boiler_temperature) if suggested else None)
 
 

@@ -6,7 +6,7 @@ import math
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from statistics import fmean, linear_regression
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.util import dt as dt_util
@@ -19,16 +19,12 @@ from .const import (
     OPTIONS_DEFAULTS,
     OVERSHOOT_PROTECTION_SETPOINT,
 )
-from .coordinator import DeviceState
+from .coordinator import DeviceState, SatDataUpdateCoordinator
 from .helpers import convert_time_str_to_seconds
 from .manufacturers.geminox import Geminox
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
-
-    from homeassistant.core import HomeAssistant
-
-    from .manufacturer import Manufacturer
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -64,31 +60,8 @@ class CalibrationResult:
     method: str
 
 
-class CalibrationTarget(Protocol):
-    hass: HomeAssistant
-
-    @property
-    def boiler_temperature(self) -> float | None: ...
-    @property
-    def flame_active(self) -> bool: ...
-    @property
-    def hot_water_active(self) -> bool: ...
-    @property
-    def manufacturer(self) -> Manufacturer | None: ...
-    @property
-    def minimum_relative_modulation_value(self) -> float | None: ...
-    @property
-    def relative_modulation_value(self) -> float | None: ...
-
-    async def async_control_heating_loop(self) -> None: ...
-    async def async_release_control(self) -> None: ...
-    async def async_set_control_max_relative_modulation(self, value: int) -> None: ...
-    async def async_set_control_setpoint(self, value: float) -> None: ...
-    async def async_set_heater_state(self, state: DeviceState) -> None: ...
-
-
 def create_overshoot_protection(
-    coordinator: CalibrationTarget,
+    coordinator: SatDataUpdateCoordinator,
     heating_system: str,
     maximum_setpoint: float,
     options: Mapping[str, Any],
@@ -114,7 +87,7 @@ class OvershootProtection:
 
     def __init__(
         self,
-        coordinator: CalibrationTarget,
+        coordinator: SatDataUpdateCoordinator,
         heating_system: str,
         maximum_setpoint: float,
         flame_timeout: timedelta = DEFAULT_FLAME_TIMEOUT,
