@@ -191,3 +191,18 @@ async def test_v3_moves_the_window_sensor_to_options(hass: HomeAssistant) -> Non
     assert entry.version == SatFlowHandler.VERSION
     assert entry.options["window_sensors"] == ["binary_sensor.window"]
     assert "window_sensor" not in entry.options
+
+
+async def test_v1_keeps_a_maximum_setpoint_from_options(hass: HomeAssistant) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=1,
+        data={**DEFAULT_USER_DATA, "minimum_setpoint": 45},
+        options={"heating_system": "radiator_high_temperatures", "maximum_setpoint": 70},
+    )
+    entry.add_to_hass(hass)
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entry.options["maximum_setpoint"] == 70
