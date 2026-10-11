@@ -602,6 +602,8 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         )
 
     def compute_extra_state_attributes(self) -> dict[str, Any]:
+        inside_temperature = self._get_entity_state_float(self.inside_sensor_entity_id)
+
         return {
             "error": self.max_error.value,
             "error_pid": self.pid.last_error,
@@ -626,11 +628,9 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             "rooms": self._rooms,
             "setpoint": self._setpoint,
             "current_humidity": self.current_humidity,
-            "summer_simmer_index": SummerSimmer.index(
-                self.current_temperature, self.current_humidity
-            ),
+            "summer_simmer_index": SummerSimmer.index(inside_temperature, self.current_humidity),
             "summer_simmer_perception": SummerSimmer.perception(
-                self.current_temperature, self.current_humidity
+                inside_temperature, self.current_humidity
             ),
             "valves_open": self.valves_open,
             "heating_curve": self.heating_curve.value,
