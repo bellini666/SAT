@@ -201,8 +201,11 @@ class OvershootProtection:
 
     def _minimum_modulation_flow(self, now: datetime) -> float | None:
         """Return the highest recent flow, rounded up, when the boiler held minimum modulation without settling."""
+        if not self._samples or self._samples[0][0] > now - PLATEAU_WINDOW:
+            return None
+
         window = [sample for sample in self._samples if sample[0] >= now - PLATEAU_WINDOW]
-        if not window or fmean(modulation for _, _, modulation in window) > self._modulation_floor() + MODULATION_TOLERANCE:
+        if fmean(modulation for _, _, modulation in window) > self._modulation_floor() + MODULATION_TOLERANCE:
             return None
 
         return float(min(math.ceil(max(flow for _, flow, _ in window)), self.setpoint))

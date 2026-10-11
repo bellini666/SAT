@@ -219,6 +219,24 @@ async def test_a_timeout_suggests_the_flow_reached_at_minimum_modulation(hass: H
     assert error.value.value == (math.ceil(boiler.boiler_temperature) if suggested else None)
 
 
+async def test_a_timeout_right_after_a_flame_loss_suggests_nothing(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+    boiler = Boiler(hass)
+    _protection, task = start(hass, boiler, plateau_timeout=timedelta(minutes=10))
+
+    boiler.flame_active = True
+    boiler.relative_modulation_value = 0
+    for step in range(40):
+        boiler.flame_active = step != 17
+        boiler.boiler_temperature = 35.0 + step / 10
+        await tick(hass, freezer)
+        if task.done():
+            break
+
+    with pytest.raises(CalibrationError, match="timeout") as error:
+        await task
+    assert error.value.value is None
+
+
 async def test_hot_water_counts_towards_the_overall_deadline(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
     boiler = Boiler(hass)
     boiler.hot_water_active = True
