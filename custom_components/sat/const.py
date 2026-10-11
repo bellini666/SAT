@@ -2,7 +2,8 @@
 from __future__ import annotations
 
 from datetime import timedelta
-from enum import Enum
+from enum import Enum, StrEnum
+from typing import Any
 
 NAME = "Smart Autotune Thermostat"
 DOMAIN = "sat"
@@ -103,7 +104,7 @@ HEATING_SYSTEM_UNDERFLOOR = "underfloor"
 HEATING_MODE_ECO = "eco"
 HEATING_MODE_COMFORT = "comfort"
 
-OPTIONS_DEFAULTS = {
+OPTIONS_DEFAULTS: dict[str, Any] = {
     CONF_PROPORTIONAL: "45",
     CONF_INTEGRAL: "0",
     CONF_DERIVATIVE: "6000",
@@ -176,7 +177,7 @@ STEP_SETUP_SENSORS = "sensors"
 
 
 # Enumerations
-class FlameStatus(str, Enum):
+class FlameStatus(StrEnum):
     HEALTHY = "healthy"
     IDLE_OK = "idle_ok"
     STUCK_ON = "stuck_on"
@@ -186,7 +187,7 @@ class FlameStatus(str, Enum):
     INSUFFICIENT_DATA = "insufficient_data"
 
 
-class BoilerStatus(str, Enum):
+class BoilerStatus(StrEnum):
     HOT_WATER = "hot_water"
     PREHEATING = "preheating"
     HEATING_UP = "heating_up"
@@ -205,7 +206,7 @@ class BoilerStatus(str, Enum):
 
 
 class PWMStatus(str, Enum):
-    """The current state of Pulse Width Modulation"""
+    """The current state of Pulse Width Modulation."""
 
     ON = "on"
     OFF = "off"

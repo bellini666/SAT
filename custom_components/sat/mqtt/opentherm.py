@@ -1,16 +1,19 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Mapping
-from typing import Any, override
+from typing import TYPE_CHECKING, Any, override
 
 from homeassistant.components import mqtt
-from homeassistant.core import HomeAssistant
 
 from ..const import CONF_PUSH_SETPOINT_TO_THERMOSTAT
 from ..coordinator import DeviceState
 from ..manufacturers.immergas import Immergas
 from . import SatMqttCoordinator
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
+
+    from homeassistant.core import HomeAssistant
 
 STATE_ON = "ON"
 
@@ -64,22 +67,22 @@ class SatOpenThermMqttCoordinator(SatMqttCoordinator):
 
     @override
     @property
-    def supports_setpoint_management(self):
+    def supports_setpoint_management(self) -> bool:
         return True
 
     @override
     @property
-    def supports_hot_water_setpoint_management(self):
+    def supports_hot_water_setpoint_management(self) -> bool:
         return True
 
     @override
     @property
-    def supports_maximum_setpoint_management(self):
+    def supports_maximum_setpoint_management(self) -> bool:
         return True
 
     @override
     @property
-    def supports_relative_modulation(self):
+    def supports_relative_modulation(self) -> bool:
         return True
 
     @override
@@ -112,7 +115,7 @@ class SatOpenThermMqttCoordinator(SatMqttCoordinator):
 
     @property
     def fault_flags(self) -> str | None:
-        """Return the application-specific fault flags (ID 5 high byte), most significant bit first."""
+        """Return the application-specific fault flags (ID 5 high byte), MSB first."""
         return self._live_value(DATA_FAULT_FLAGS)
 
     @override
@@ -216,10 +219,11 @@ class SatOpenThermMqttCoordinator(SatMqttCoordinator):
         return None
 
     @override
-    async def async_setup(self):
+    async def async_setup(self) -> None:
         await super().async_setup()
 
-        # OTGW-firmware publishes its retained will message, "online" or "offline", on the bare value namespace
+        # OTGW-firmware publishes its retained will message, "online" or "offline", on the bare
+        # value namespace
         self._subscriptions.append(
             await mqtt.async_subscribe(
                 self.hass,
@@ -228,17 +232,18 @@ class SatOpenThermMqttCoordinator(SatMqttCoordinator):
             )
         )
 
-    async def _async_availability_changed(self, message) -> None:
+    async def _async_availability_changed(self, message: mqtt.ReceiveMessage) -> None:
         was_online = self._online
-        self._online = message.payload == "online"
+        self._online = online = message.payload == "online"
 
-        if not self._online:
+        if not online:
             self._stale_keys = set(self.data)
             self.async_update_listeners()
             return
 
-        # A live "online" is an ESP boot or reconnect; the ESP boot resets the PIC, which drops every override
-        if was_online or message.retain:
+        # A live "online" is an ESP boot or reconnect; the ESP boot resets the PIC, which drops
+        # every override
+        if was_online is True or message.retain:
             return
 
         self._stale_keys = set(self.data)
@@ -248,7 +253,8 @@ class SatOpenThermMqttCoordinator(SatMqttCoordinator):
         if self._hot_water_setpoint is not None:
             await self.async_set_control_hot_water_setpoint(self._hot_water_setpoint)
 
-        # The last sent MM is set by the first control loop and cleared by the release, so without one SAT is not in control
+        # The last sent MM is set by the first control loop and cleared by the release, so without
+        # one SAT is not in control
         if self._control_max_relative_modulation is None:
             await self.async_release_control()
         else:

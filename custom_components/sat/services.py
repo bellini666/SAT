@@ -1,4 +1,4 @@
-import voluptuous as vol
+import probatio as vol
 from homeassistant.components.climate import DOMAIN as CLIMATE_DOMAIN
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import config_validation as cv

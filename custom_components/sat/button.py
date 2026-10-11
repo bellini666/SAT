@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import override
+from typing import TYPE_CHECKING, override
 
 from homeassistant.components import persistent_notification
 from homeassistant.components.button import ButtonEntity
@@ -19,6 +19,10 @@ from .const import (
 from .entity import SatClimateEntity
 from .helpers import calculate_default_maximum_setpoint
 from .overshoot_protection import CalibrationError, create_overshoot_protection
+
+if TYPE_CHECKING:
+    from .climate import SatClimate
+    from .coordinator import SatDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -38,10 +42,15 @@ class SatCalibrateButton(SatClimateEntity, ButtonEntity):
     _attr_translation_key = "calibrate_overshoot_protection"
     _attr_entity_category = EntityCategory.CONFIG
 
-    @override
-    @property
-    def unique_id(self) -> str:
-        return f"{self._config_entry.entry_id}-calibrate-overshoot-protection"
+    def __init__(
+        self,
+        coordinator: SatDataUpdateCoordinator,
+        config_entry: SatConfigEntry,
+        climate: SatClimate,
+    ) -> None:
+        super().__init__(coordinator, config_entry, climate)
+
+        self._attr_unique_id = f"{config_entry.entry_id}-calibrate-overshoot-protection"
 
     @override
     @property

@@ -1,10 +1,23 @@
 from homeassistant.const import UnitOfTemperature
 from homeassistant.util.unit_conversion import TemperatureConverter
 
+BASE_FAHRENHEIT = 58.0
+
+PERCEPTION_THRESHOLDS = (
+    (21.1, "Cool"),
+    (25.0, "Slightly Cool"),
+    (28.3, "Comfortable"),
+    (32.8, "Slightly Warm"),
+    (37.8, "Increasing Discomfort"),
+    (44.4, "Extremely Warm"),
+    (51.7, "Danger Of Heatstroke"),
+    (65.6, "Extreme Danger Of Heatstroke"),
+)
+
 
 class SummerSimmer:
     @staticmethod
-    def index(temperature: float, humidity: float) -> float | None:
+    def index(temperature: float | None, humidity: float | None) -> float | None:
         """Calculate the Summer Simmer Index.
 
         The Summer Simmer Index is a measure of heat and humidity.
@@ -26,10 +39,13 @@ class SummerSimmer:
         )
 
         # Calculate Summer Simmer Index
-        index = 1.98 * (fahrenheit - (0.55 - 0.0055 * humidity) * (fahrenheit - 58.0)) - 56.83
+        index = (
+            1.98 * (fahrenheit - (0.55 - 0.0055 * humidity) * (fahrenheit - BASE_FAHRENHEIT))
+            - 56.83
+        )
 
         # If the temperature is below 58°F, use the temperature as the index
-        if fahrenheit < 58:
+        if fahrenheit < BASE_FAHRENHEIT:
             index = fahrenheit
 
         # Convert the result back to Celsius
@@ -41,25 +57,14 @@ class SummerSimmer:
         )
 
     @staticmethod
-    def perception(temperature: float, humidity: float) -> str:
+    def perception(temperature: float | None, humidity: float | None) -> str:
         index = SummerSimmer.index(temperature, humidity)
 
         if index is None:
             return "Unknown"
-        if index < 21.1:
-            return "Cool"
-        if index < 25.0:
-            return "Slightly Cool"
-        if index < 28.3:
-            return "Comfortable"
-        if index < 32.8:
-            return "Slightly Warm"
-        if index < 37.8:
-            return "Increasing Discomfort"
-        if index < 44.4:
-            return "Extremely Warm"
-        if index < 51.7:
-            return "Danger Of Heatstroke"
-        if index < 65.6:
-            return "Extreme Danger Of Heatstroke"
+
+        for limit, label in PERCEPTION_THRESHOLDS:
+            if index < limit:
+                return label
+
         return "Circulatory Collapse Imminent"

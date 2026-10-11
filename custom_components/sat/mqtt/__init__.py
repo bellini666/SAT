@@ -1,9 +1,10 @@
+from __future__ import annotations
+
 import asyncio
 import logging
 from abc import abstractmethod
 from collections import deque
-from collections.abc import Callable, Mapping
-from typing import Any, override
+from typing import TYPE_CHECKING, Any, override
 
 from homeassistant.components import mqtt
 from homeassistant.core import HomeAssistant, callback
@@ -14,6 +15,11 @@ from homeassistant.util import dt as dt_util
 from ..const import CONF_MQTT_TOPIC
 from ..coordinator import SatDataUpdateCoordinator
 from ..helpers import snake_case
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Mapping
+
+    from homeassistant.helpers.service_info.mqtt import ReceivePayloadType
 
 _LOGGER: logging.Logger = logging.getLogger(__name__)
 
@@ -34,11 +40,11 @@ class SatMqttCoordinator(SatDataUpdateCoordinator):
         super().__init__(hass, config_data, options)
 
         self._device_id: str = device_id
-        self._topic: str = config_data.get(CONF_MQTT_TOPIC)
+        self._topic: str = config_data[CONF_MQTT_TOPIC]
         self._subscriptions: list[Callable[[], None]] = []
         self._messages: deque[dict[str, str]] = deque(maxlen=50)
         self._stale_keys: set[str] = set()
-        self._store: Store = Store(
+        self._store: Store[dict[str, Any]] = Store(
             hass, STORAGE_VERSION, snake_case(f"{self.__class__.__name__}_{device_id}")
         )
 
@@ -53,11 +59,12 @@ class SatMqttCoordinator(SatDataUpdateCoordinator):
         return list(self._messages)
 
     @override
-    async def async_setup(self):
+    async def async_setup(self) -> None:
         await self._load_stored_data()
 
         if not await mqtt.async_wait_for_mqtt_client(self.hass):
-            raise ConfigEntryNotReady("MQTT is not available")
+            message = "MQTT is not available"
+            raise ConfigEntryNotReady(message)
 
         for key in self.get_tracked_entities():
             self._subscriptions.append(
@@ -86,7 +93,7 @@ class SatMqttCoordinator(SatDataUpdateCoordinator):
 
     async def _load_stored_data(self) -> None:
         """Load the data from persistent storage."""
-        if stored_data := await self._store.async_load():
+        if (stored_data := await self._store.async_load()) is not None:
             restored = {key: value for key, value in stored_data.items() if value not in (None, "")}
             self._stale_keys = set(restored)
             self.async_set_updated_data(restored)
@@ -97,25 +104,25 @@ class SatMqttCoordinator(SatDataUpdateCoordinator):
 
     @abstractmethod
     def get_tracked_entities(self) -> list[str]:
-        """Method to be overridden in subclasses to provide specific entities to track."""
+        """Return the entities to track."""
 
     @abstractmethod
     def _get_topic_for_subscription(self, key: str) -> str:
-        """Method to be overridden in subclasses to provide a specific topic for subscribing."""
+        """Return the topic to subscribe to for the given key."""
 
     @abstractmethod
     def _get_topic_for_publishing(self) -> str:
-        """Method to be overridden in subclasses to provide a specific topic for publishing."""
+        """Return the topic to publish commands to."""
 
     @abstractmethod
     async def boot(self) -> None:
-        """Method to be overridden in subclasses to provide specific boot functionality."""
+        """Boot the device."""
 
-    def _create_message_handler(self, key: str):
+    def _create_message_handler(self, key: str) -> Callable[[mqtt.ReceiveMessage], None]:
         """Create a message handler to process incoming MQTT messages."""
 
         @callback
-        def message_handler(message):
+        def message_handler(message: mqtt.ReceiveMessage) -> None:
             """Handle an incoming MQTT message and schedule an update."""
             self._messages.append(
                 {
@@ -128,28 +135,36 @@ class SatMqttCoordinator(SatDataUpdateCoordinator):
             try:
                 # Process the payload and update the data property
                 self._process_message_payload(key, message.payload)
-            except Exception as e:
-                _LOGGER.error("Failed to process message for key '%s': %s", key, str(e))
+            except Exception:
+                _LOGGER.exception("Failed to process message for key '%s'", key)
 
             self._store.async_delay_save(lambda: dict(self.data), STORAGE_SAVE_DELAY)
 
         return message_handler
 
-    def _live_value(self, key: str) -> Any:
-        """Return the value of a key unless it was restored from storage or the device went offline since it arrived."""
-        return None if key in self._stale_keys else self.data.get(key)
+    def _live_value(self, key: str) -> str | None:
+        """Return the value of a key unless it is stale.
 
-    def _process_message_payload(self, key: str, value):
+        A value is stale when it was restored from storage or the device went offline since it
+        arrived.
+        """
+        if key in self._stale_keys or not isinstance(value := self.data.get(key), str):
+            return None
+
+        return value
+
+    def _process_message_payload(self, key: str, value: ReceivePayloadType) -> None:
         """Process and store the payload of a received MQTT message."""
         if key in self._stale_keys:
             self._stale_keys.discard(key)
 
-            # Deleting marks the data dirty, so a stale value that comes back unchanged still notifies the listeners
+            # Deleting marks the data dirty, so a stale value that comes back unchanged still
+            # notifies the listeners
             del self.data[key]
 
         self.async_set_updated_data({key: value})
 
-    async def _publish_command(self, payload: str, wait_time: float = 1.0):
+    async def _publish_command(self, payload: str, wait_time: float = 1.0) -> None:
         """Publish a command to the MQTT topic."""
         topic = self._get_topic_for_publishing()
 
@@ -168,5 +183,5 @@ class SatMqttCoordinator(SatDataUpdateCoordinator):
 
             # Add a small delay to allow processing of the message
             await asyncio.sleep(wait_time)
-        except Exception as error:
-            _LOGGER.error("Failed to publish MQTT command. Error: %s", error)
+        except Exception:
+            _LOGGER.exception("Failed to publish MQTT command")

@@ -25,8 +25,8 @@ MANUFACTURERS = {
 
 
 class Manufacturer(ABC):
-    def __init__(self):
-        self._member_id = MANUFACTURERS.get(type(self).__name__)
+    def __init__(self) -> None:
+        self._member_id = MANUFACTURERS[type(self).__name__]
 
     @property
     def member_id(self) -> int:
@@ -59,7 +59,12 @@ class ManufacturerFactory:
     @staticmethod
     def _import_class(module_name: str, class_name: str) -> type[Manufacturer]:
         """Dynamically import and return a Manufacturer class."""
-        return getattr(
+        manufacturer_class = getattr(
             __import__(f"custom_components.sat.manufacturers.{module_name}", fromlist=[class_name]),
             class_name,
         )
+        if not issubclass(manufacturer_class, Manufacturer):
+            msg = f"{class_name} is not a Manufacturer"
+            raise TypeError(msg)
+
+        return manufacturer_class

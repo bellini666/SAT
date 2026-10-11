@@ -2,6 +2,7 @@ from typing import override
 
 from homeassistant.components import sensor
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import UnitOfTemperature
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import async_generate_entity_id
 
@@ -27,6 +28,8 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
 
 class SatSetpointSensor(SatEntity, sensor.SensorEntity):
     _attr_has_entity_name = False
+    _attr_device_class = sensor.SensorDeviceClass.TEMPERATURE
+    _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
 
     def __init__(self, coordinator: SatSimulatorCoordinator, config_entry: ConfigEntry):
         super().__init__(coordinator, config_entry)
@@ -37,24 +40,8 @@ class SatSetpointSensor(SatEntity, sensor.SensorEntity):
             f"{config_entry.data.get(CONF_NAME).lower()}_setpoint",
             hass=coordinator.hass,
         )
-
-    @override
-    @property
-    def name(self) -> str:
-        """Return the friendly name of the sensor."""
-        return f"Current Setpoint {self._config_entry.data.get(CONF_NAME)} (Boiler)"
-
-    @override
-    @property
-    def device_class(self):
-        """Return the device class."""
-        return sensor.SensorDeviceClass.TEMPERATURE
-
-    @override
-    @property
-    def native_unit_of_measurement(self):
-        """Return the unit of measurement in native units."""
-        return "°C"
+        self._attr_name = f"Current Setpoint {config_entry.data.get(CONF_NAME)} (Boiler)"
+        self._attr_unique_id = f"{config_entry.entry_id}-setpoint"
 
     @override
     @property
@@ -63,20 +50,14 @@ class SatSetpointSensor(SatEntity, sensor.SensorEntity):
         return self._coordinator.setpoint is not None
 
     @override
-    @property
-    def native_value(self):
-        """Return the state of the device."""
-        return self._coordinator.setpoint
-
-    @override
-    @property
-    def unique_id(self):
-        """Return a unique ID to use for this entity."""
-        return f"{self._config_entry.entry_id}-setpoint"
+    def _update_attrs(self) -> None:
+        self._attr_native_value = self._coordinator.setpoint
 
 
 class SatBoilerTemperatureSensor(SatEntity, sensor.SensorEntity):
     _attr_has_entity_name = False
+    _attr_device_class = sensor.SensorDeviceClass.TEMPERATURE
+    _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
 
     def __init__(self, coordinator: SatSimulatorCoordinator, config_entry: ConfigEntry):
         super().__init__(coordinator, config_entry)
@@ -87,24 +68,8 @@ class SatBoilerTemperatureSensor(SatEntity, sensor.SensorEntity):
             f"{config_entry.data.get(CONF_NAME).lower()}_boiler_temperature",
             hass=coordinator.hass,
         )
-
-    @override
-    @property
-    def name(self) -> str:
-        """Return the friendly name of the sensor."""
-        return f"Current Temperature {self._config_entry.data.get(CONF_NAME)} (Boiler)"
-
-    @override
-    @property
-    def device_class(self):
-        """Return the device class."""
-        return sensor.SensorDeviceClass.TEMPERATURE
-
-    @override
-    @property
-    def native_unit_of_measurement(self):
-        """Return the unit of measurement in native units."""
-        return "°C"
+        self._attr_name = f"Current Temperature {config_entry.data.get(CONF_NAME)} (Boiler)"
+        self._attr_unique_id = f"{config_entry.entry_id}-boiler_temperature"
 
     @override
     @property
@@ -113,13 +78,5 @@ class SatBoilerTemperatureSensor(SatEntity, sensor.SensorEntity):
         return self._coordinator.boiler_temperature is not None
 
     @override
-    @property
-    def native_value(self):
-        """Return the state of the device."""
-        return self._coordinator.boiler_temperature
-
-    @override
-    @property
-    def unique_id(self):
-        """Return a unique ID to use for this entity."""
-        return f"{self._config_entry.entry_id}-boiler_temperature"
+    def _update_attrs(self) -> None:
+        self._attr_native_value = self._coordinator.boiler_temperature

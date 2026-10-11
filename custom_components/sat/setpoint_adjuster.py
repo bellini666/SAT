@@ -7,7 +7,7 @@ INCREASE_STEP = 1.0
 
 
 class SetpointAdjuster:
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the SetpointAdjuster with no current setpoint."""
         self._current = None
 
@@ -16,7 +16,7 @@ class SetpointAdjuster:
         """Return the current setpoint."""
         return self._current
 
-    def reset(self):
+    def reset(self) -> None:
         """Reset the setpoint."""
         self._current = None
 

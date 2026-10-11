@@ -66,7 +66,7 @@ _LOGGER = logging.getLogger(__name__)
 class SatBinarySensorInfo:
     def __init__(
         self,
-        device_class: str | None,
+        device_class: BinarySensorDeviceClass | None,
         friendly_name_format: str,
         status_sources: list[str],
     ):
@@ -219,25 +219,14 @@ class SatBinarySensor(SatEntity, BinarySensorEntity):
         self._key = key
         self._source = source
         self._config_entry = config_entry
-        self._device_class = info.device_class
+        self._attr_unique_id = f"{config_entry.entry_id}-{source}-{key}"
+        self._attr_device_class = info.device_class
 
         friendly_name_format = info.friendly_name_format
         if TRANSLATE_SOURCE[source] is not None:
             friendly_name_format = f"{info.friendly_name_format} ({TRANSLATE_SOURCE[source]})"
 
-        self._friendly_name = friendly_name_format.format(config_entry.data.get(CONF_NAME))
-
-    @override
-    @property
-    def name(self):
-        """Return the friendly name of the sensor."""
-        return self._friendly_name
-
-    @override
-    @property
-    def device_class(self):
-        """Return the device class."""
-        return self._device_class
+        self._attr_name = friendly_name_format.format(config_entry.data.get(CONF_NAME))
 
     @override
     @property
@@ -246,13 +235,5 @@ class SatBinarySensor(SatEntity, BinarySensorEntity):
         return self._coordinator.data[self._source].get(self._key) is not None
 
     @override
-    @property
-    def is_on(self):
-        """Return the state of the device."""
-        return self._coordinator.data[self._source].get(self._key)
-
-    @override
-    @property
-    def unique_id(self):
-        """Return a unique ID to use for this entity."""
-        return f"{self._config_entry.entry_id}-{self._source}-{self._key}"
+    def _update_attrs(self) -> None:
+        self._attr_is_on = self._coordinator.data[self._source].get(self._key)

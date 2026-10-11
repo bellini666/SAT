@@ -1,15 +1,18 @@
 import math
 from re import sub
 from time import monotonic
+from typing import TYPE_CHECKING
 
-from homeassistant.core import State
 from homeassistant.util import dt
 
 from .const import HEATING_SYSTEM_UNDERFLOOR
 
+if TYPE_CHECKING:
+    from homeassistant.core import State
+
 
 def seconds_since(start_time: float | None) -> float:
-    """Calculate the elapsed time in seconds since a given start time, returns zero if time is not valid."""
+    """Calculate the elapsed seconds since a given start time, or zero if it is not valid."""
     if start_time is None:
         return 0.0
 
@@ -38,11 +41,12 @@ def convert_time_str_to_seconds(time_str: str) -> int:
         # Calculate the number of seconds
         return round((date_time.hour * 3600) + (date_time.minute * 60) + date_time.second, 0)
     except ValueError as e:
-        raise ValueError(f"Invalid time format. Expected 'HH:MM:SS', got '{time_str}'") from e
+        msg = f"Invalid time format. Expected 'HH:MM:SS', got '{time_str}'"
+        raise ValueError(msg) from e
 
 
-def calculate_derivative_per_hour(temperature_error: float, time_taken_seconds: float):
-    """Calculates the derivative per hour based on the temperature error and time taken."""
+def calculate_derivative_per_hour(temperature_error: float, time_taken_seconds: float) -> float:
+    """Calculate the derivative per hour based on the temperature error and time taken."""
     # Convert time taken from seconds to hours
     time_taken_hours = time_taken_seconds / 3600
 

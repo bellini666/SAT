@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Mapping
-from typing import Any, override
+from typing import TYPE_CHECKING, Any, override
 
-from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
 from pyotgw import OpenThermGateway
 from pyotgw import vars as gw_vars
@@ -29,6 +27,11 @@ from pyotgw.vars import (
 from serial import SerialException
 
 from ..coordinator import DeviceState, SatDataUpdateCoordinator
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
+
+    from homeassistant.core import HomeAssistant
 
 _LOGGER: logging.Logger = logging.getLogger(__name__)
 
@@ -58,7 +61,7 @@ class SatSerialCoordinator(SatDataUpdateCoordinator):
         self._hass_loop = hass.loop
         self._api: OpenThermGateway = OpenThermGateway()
 
-        async def _publish(data: dict) -> None:
+        async def _publish(data: dict[str, Any]) -> None:
             self._hass_loop.call_soon_threadsafe(self.async_set_updated_data, data)
 
         self._publish_callback = _publish
@@ -91,7 +94,7 @@ class SatSerialCoordinator(SatDataUpdateCoordinator):
 
     @override
     @property
-    def supports_hot_water_setpoint_management(self):
+    def supports_hot_water_setpoint_management(self) -> bool:
         return True
 
     @override
@@ -197,17 +200,17 @@ class SatSerialCoordinator(SatDataUpdateCoordinator):
     def flame_active(self) -> bool:
         return bool(self.get(DATA_SLAVE_FLAME_ON))
 
-    def get(self, key: str) -> Any | None:
+    def get(self, key: str) -> float | None:
         """Get the value for the given `key` from the boiler data."""
-        return self.data[BOILER].get(key)
+        value = self.data[BOILER].get(key)
+        return value if isinstance(value, float | int) else None
 
     async def async_connect(self) -> SatSerialCoordinator:
         try:
             await self._api.connect(port=self._port, timeout=5)
         except (TimeoutError, ConnectionError, SerialException) as exception:
-            raise ConfigEntryNotReady(
-                f"Could not connect to gateway at {self._port}: {exception}"
-            ) from exception
+            message = f"Could not connect to gateway at {self._port}: {exception}"
+            raise ConfigEntryNotReady(message) from exception
 
         return self
 

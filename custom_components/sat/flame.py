@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 from collections import deque
-from collections.abc import Iterable
 from dataclasses import dataclass
 from statistics import median
 from time import monotonic
@@ -11,6 +10,8 @@ from typing import TYPE_CHECKING
 from .const import CONTROL_LOOP_STALL_TIME, BoilerStatus, FlameStatus, PWMStatus
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
+
     from .boiler import BoilerState
     from .pwm import PWMState
 
@@ -42,6 +43,8 @@ class Flame:
     # Thresholds
     MAX_CYCLES_PER_HOUR_PWM: float = 8.0
     MAX_CYCLES_PER_HOUR_NON_PWM: float = 3.0
+    MAX_CYCLES_PER_HOUR_MODULATING_STEADY: float = 2.0
+    PWM_SHORT_BURNS_THRESHOLD: int = 2
 
     STUCK_OFF_SECONDS: float = 300.0
     STUCK_ON_WITHOUT_DEMAND_SECONDS: float = 120.0
@@ -77,7 +80,8 @@ class Flame:
 
     def __init__(self, smoothing_alpha: float = 0.2) -> None:
         if not (0.0 <= smoothing_alpha <= 1.0):
-            raise ValueError("smoothing_alpha must be within [0.0, 1.0].")
+            msg = "smoothing_alpha must be within [0.0, 1.0]."
+            raise ValueError(msg)
 
         self._smoothing_alpha: float = smoothing_alpha
 
@@ -208,7 +212,7 @@ class Flame:
             pwm_burn = (
                 pwm is not None
                 and pwm.status == PWMStatus.ON
-                and pwm.duty_cycle
+                and pwm.duty_cycle is not None
                 and not boiler_state.hot_water_active
             )
             self._pwm_planned_on_seconds = pwm.duty_cycle[0] if pwm_burn else None
@@ -275,7 +279,8 @@ class Flame:
                     self._last_cut_short_peak_flow = self._burn_peak_flow
                     self._last_cut_short_setpoint = self._burn_setpoint
                     _LOGGER.warning(
-                        "The boiler stopped a PWM burn after %.0fs with the flow at %.1f°C against a %.1f°C setpoint; raise the overshoot protection value",
+                        "The boiler stopped a PWM burn after %.0fs with the flow at %.1f°C "
+                        "against a %.1f°C setpoint; raise the overshoot protection value",
                         duration,
                         self._burn_peak_flow,
                         self._burn_setpoint,
@@ -322,12 +327,12 @@ class Flame:
         # The flame can only be late since the demand started, not since it last went out
         last_on_seconds = (
             self._latest_on_time_seconds
-            if (state.flame_active and self._flame_on_monotonic)
+            if (state.flame_active and self._flame_on_monotonic is not None)
             else 0.0
         )
         last_off_seconds = (
             (now - max(self._flame_off_monotonic, self._demand_since_monotonic or 0.0))
-            if (not state.flame_active and self._flame_off_monotonic)
+            if (not state.flame_active and self._flame_off_monotonic is not None)
             else 0.0
         )
 
@@ -374,7 +379,8 @@ class Flame:
 
             return
 
-        # Domestic hot water: allow continuous flame; only stuck-off if off too long (and not transient)
+        # Domestic hot water: allow continuous flame;
+        # only stuck-off if off too long (and not transient)
         if domestic_hot_water_active:
             if (
                 (not state.flame_active)
@@ -410,7 +416,7 @@ class Flame:
                     for ended, cut_short in self._pwm_burns_cut_short
                     if ended >= now - self.MEDIAN_WINDOW_SECONDS
                 )
-                >= 2
+                >= self.PWM_SHORT_BURNS_THRESHOLD
             ):
                 self._health_status = FlameStatus.PWM_SHORT
                 return
@@ -421,7 +427,7 @@ class Flame:
         # Non-PWM: internal regulation; do not require continuous flame
         if modulating_boiler:
             if (
-                cycles_per_hour <= 2.0
+                cycles_per_hour <= self.MAX_CYCLES_PER_HOUR_MODULATING_STEADY
                 and duty_ratio >= 0.8 * self.EXPECTED_MODULATING_DUTY_RATIO_WHEN_HEATING
             ):
                 self._health_status = FlameStatus.HEALTHY
@@ -450,7 +456,8 @@ class Flame:
         self._health_status = FlameStatus.HEALTHY
 
     def _fresh_pulse_width_modulation_state(self, now: float) -> PWMState | None:
-        # Only the control loop sends the PWM state, so it goes stale while SAT is off, paused or offline
+        # Only the control loop sends the PWM state,
+        # so it goes stale while SAT is off, paused or offline
         if (
             self._pwm_state_updated_monotonic is None
             or now - self._pwm_state_updated_monotonic > CONTROL_LOOP_STALL_TIME.total_seconds()

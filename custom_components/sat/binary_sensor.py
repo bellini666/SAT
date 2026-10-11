@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timedelta
 from time import monotonic
-from typing import override
+from typing import TYPE_CHECKING, override
 
 from homeassistant.components.binary_sensor import BinarySensorDeviceClass, BinarySensorEntity
 from homeassistant.components.climate import HVACAction, HVACMode
@@ -26,6 +26,9 @@ from .const import (
 from .entity import SatClimateEntity, SatEntity
 from .helpers import seconds_since
 from .serial import binary_sensor as serial_binary_sensor
+
+if TYPE_CHECKING:
+    from .coordinator import SatDataUpdateCoordinator
 
 _LOGGER: logging.Logger = logging.getLogger(__name__)
 
@@ -96,16 +99,13 @@ class SatSynchroSensor:
 
 class SatControlSetpointSynchroSensor(SatSynchroSensor, SatClimateEntity, BinarySensorEntity):
     _attr_translation_key = "control_setpoint_synchro"
+    _attr_device_class = BinarySensorDeviceClass.PROBLEM
 
     def __init__(self, coordinator, _config_entry, climate):
         SatSynchroSensor.__init__(self)
         SatClimateEntity.__init__(self, coordinator, _config_entry, climate)
 
-    @override
-    @property
-    def device_class(self):
-        """Return the device class."""
-        return BinarySensorDeviceClass.PROBLEM
+        self._attr_unique_id = f"{_config_entry.entry_id}-control-setpoint-synchro"
 
     @override
     @property
@@ -114,32 +114,22 @@ class SatControlSetpointSynchroSensor(SatSynchroSensor, SatClimateEntity, Binary
         return self._climate.setpoint is not None and self._coordinator.setpoint is not None
 
     @override
-    @property
-    def is_on(self):
-        """Return the state of the sensor."""
-        return self.state_delayed(
-            round(self._climate.setpoint, 1) != round(self._coordinator.setpoint, 1)
-        )
-
-    @override
-    @property
-    def unique_id(self):
-        """Return a unique ID to use for this entity."""
-        return f"{self._config_entry.entry_id}-control-setpoint-synchro"
+    def _update_attrs(self) -> None:
+        if self.available:
+            self._attr_is_on = self.state_delayed(
+                round(self._climate.setpoint, 1) != round(self._coordinator.setpoint, 1)
+            )
 
 
 class SatRelativeModulationSynchroSensor(SatSynchroSensor, SatClimateEntity, BinarySensorEntity):
     _attr_translation_key = "relative_modulation_synchro"
+    _attr_device_class = BinarySensorDeviceClass.PROBLEM
 
     def __init__(self, coordinator, _config_entry, climate):
         SatSynchroSensor.__init__(self)
         SatClimateEntity.__init__(self, coordinator, _config_entry, climate)
 
-    @override
-    @property
-    def device_class(self):
-        """Return the device class."""
-        return BinarySensorDeviceClass.PROBLEM
+        self._attr_unique_id = f"{_config_entry.entry_id}-relative-modulation-synchro"
 
     @override
     @property
@@ -151,33 +141,23 @@ class SatRelativeModulationSynchroSensor(SatSynchroSensor, SatClimateEntity, Bin
         )
 
     @override
-    @property
-    def is_on(self):
-        """Return the state of the sensor."""
-        return self.state_delayed(
-            int(self._climate.relative_modulation_value)
-            != int(self._coordinator.maximum_relative_modulation_value)
-        )
-
-    @override
-    @property
-    def unique_id(self):
-        """Return a unique ID to use for this entity."""
-        return f"{self._config_entry.entry_id}-relative-modulation-synchro"
+    def _update_attrs(self) -> None:
+        if self.available:
+            self._attr_is_on = self.state_delayed(
+                int(self._climate.relative_modulation_value)
+                != int(self._coordinator.maximum_relative_modulation_value)
+            )
 
 
 class SatCentralHeatingSynchroSensor(SatSynchroSensor, SatClimateEntity, BinarySensorEntity):
     _attr_translation_key = "central_heating_synchro"
+    _attr_device_class = BinarySensorDeviceClass.PROBLEM
 
     def __init__(self, coordinator, _config_entry, climate):
         SatSynchroSensor.__init__(self)
         SatClimateEntity.__init__(self, coordinator, _config_entry, climate)
 
-    @override
-    @property
-    def device_class(self) -> str:
-        """Return the device class."""
-        return BinarySensorDeviceClass.PROBLEM
+        self._attr_unique_id = f"{_config_entry.entry_id}-central-heating-synchro"
 
     @override
     @property
@@ -186,13 +166,14 @@ class SatCentralHeatingSynchroSensor(SatSynchroSensor, SatClimateEntity, BinaryS
         return self.climate_added
 
     @override
-    @property
-    def is_on(self) -> bool:
-        """Return the state of the sensor."""
+    def _update_attrs(self) -> None:
+        if not self.available:
+            return
+
         device_active = self._coordinator.device_active
         climate_hvac_action = self._climate.hvac_action
 
-        return self.state_delayed(
+        self._attr_is_on = self.state_delayed(
             not (
                 (climate_hvac_action == HVACAction.OFF and not device_active)
                 or (climate_hvac_action == HVACAction.IDLE and not device_active)
@@ -200,16 +181,17 @@ class SatCentralHeatingSynchroSensor(SatSynchroSensor, SatClimateEntity, BinaryS
             )
         )
 
-    @override
-    @property
-    def unique_id(self) -> str:
-        """Return a unique ID to use for this entity."""
-        return f"{self._config_entry.entry_id}-central-heating-synchro"
-
 
 class SatHeatingControlSensor(SatClimateEntity, BinarySensorEntity):
     _attr_translation_key = "heating_control"
     _attr_device_class = BinarySensorDeviceClass.PROBLEM
+
+    def __init__(
+        self, coordinator: SatDataUpdateCoordinator, config_entry: ConfigEntry, climate: SatClimate
+    ) -> None:
+        super().__init__(coordinator, config_entry, climate)
+
+        self._attr_unique_id = f"{config_entry.entry_id}-heating-control"
 
     @override
     async def async_added_to_hass(self) -> None:
@@ -220,6 +202,7 @@ class SatHeatingControlSensor(SatClimateEntity, BinarySensorEntity):
 
     @callback
     def _async_refresh(self, _now: datetime) -> None:
+        self._update_attrs()
         self.async_write_ha_state()
 
     @override
@@ -228,23 +211,23 @@ class SatHeatingControlSensor(SatClimateEntity, BinarySensorEntity):
         return self.climate_added
 
     @override
-    @property
-    def is_on(self) -> bool:
-        return len(self._climate.control_problems) > 0
+    def _update_attrs(self) -> None:
+        if not self.available:
+            return
 
-    @override
-    @property
-    def extra_state_attributes(self) -> dict:
-        return {"problems": self._climate.control_problems}
-
-    @override
-    @property
-    def unique_id(self) -> str:
-        return f"{self._config_entry.entry_id}-heating-control"
+        problems = self._climate.control_problems
+        self._attr_is_on = len(problems) > 0
+        self._attr_extra_state_attributes = {"problems": problems}
 
 
 class SatBoilerHealthSensor(SatEntity, BinarySensorEntity):
     _attr_translation_key = "boiler_health"
+    _attr_device_class = BinarySensorDeviceClass.PROBLEM
+
+    def __init__(self, coordinator: SatDataUpdateCoordinator, config_entry: ConfigEntry) -> None:
+        super().__init__(coordinator, config_entry)
+
+        self._attr_unique_id = f"{config_entry.entry_id}-boiler-health"
 
     @override
     async def async_added_to_hass(self) -> None:
@@ -255,41 +238,25 @@ class SatBoilerHealthSensor(SatEntity, BinarySensorEntity):
 
     @callback
     def _async_refresh(self, _now: datetime) -> None:
+        self._update_attrs()
         self.async_write_ha_state()
 
     @override
-    @property
-    def device_class(self) -> str:
-        """Return the device class."""
-        return BinarySensorDeviceClass.PROBLEM
-
-    @override
-    @property
-    def is_on(self) -> bool:
-        """Return the state of the sensor."""
-        if self._coordinator.fault_active:
-            return True
-
-        return (
+    def _update_attrs(self) -> None:
+        self._attr_is_on = self._coordinator.fault_active or (
             self._coordinator.boiler.status == BoilerStatus.INSUFFICIENT_DATA
             and not self._coordinator.awaiting_boiler_data
         )
 
-    @override
-    @property
-    def unique_id(self) -> str:
-        """Return a unique ID to use for this entity."""
-        return f"{self._config_entry.entry_id}-boiler-health"
-
 
 class SatFlameHealthSensor(SatEntity, BinarySensorEntity):
     _attr_translation_key = "flame_health"
+    _attr_device_class = BinarySensorDeviceClass.PROBLEM
 
-    @override
-    @property
-    def device_class(self) -> str:
-        """Return the device class."""
-        return BinarySensorDeviceClass.PROBLEM
+    def __init__(self, coordinator: SatDataUpdateCoordinator, config_entry: ConfigEntry) -> None:
+        super().__init__(coordinator, config_entry)
+
+        self._attr_unique_id = f"{config_entry.entry_id}-flame-health"
 
     @override
     @property
@@ -298,19 +265,11 @@ class SatFlameHealthSensor(SatEntity, BinarySensorEntity):
         return self._coordinator.flame.health_status != FlameStatus.INSUFFICIENT_DATA
 
     @override
-    @property
-    def is_on(self) -> bool:
-        """Return the state of the sensor."""
-        return self._coordinator.flame.health_status not in (
+    def _update_attrs(self) -> None:
+        self._attr_is_on = self._coordinator.flame.health_status not in (
             FlameStatus.HEALTHY,
             FlameStatus.IDLE_OK,
         )
-
-    @override
-    @property
-    def unique_id(self) -> str:
-        """Return a unique ID to use for this entity."""
-        return f"{self._config_entry.entry_id}-flame-health"
 
 
 class SatWindowSensor(SatClimateEntity, BinarySensorGroup):
@@ -321,6 +280,8 @@ class SatWindowSensor(SatClimateEntity, BinarySensorGroup):
 
         self.mode = any
         self._entity_ids = self._config_entry.options.get(CONF_WINDOW_SENSORS)
+        self._attr_unique_id = f"{config_entry.entry_id}-window-sensor"
+        self._device_class = BinarySensorDeviceClass.WINDOW
         self._attr_extra_state_attributes = {ATTR_ENTITY_ID: self._entity_ids}
 
     @override
@@ -332,34 +293,17 @@ class SatWindowSensor(SatClimateEntity, BinarySensorGroup):
             )
         )
 
-    @override
-    @property
-    def device_class(self) -> str:
-        """Return the device class."""
-        return BinarySensorDeviceClass.WINDOW
-
-    @override
-    @property
-    def unique_id(self) -> str:
-        """Return a unique ID to use for this entity."""
-        return f"{self._config_entry.entry_id}-window-sensor"
-
 
 class SatBoilerFaultSensor(SatEntity, BinarySensorEntity):
     _attr_translation_key = "boiler_fault"
     _attr_device_class = BinarySensorDeviceClass.PROBLEM
 
-    @override
-    @property
-    def is_on(self) -> bool:
-        return self._coordinator.fault_active
+    def __init__(self, coordinator: SatDataUpdateCoordinator, config_entry: ConfigEntry) -> None:
+        super().__init__(coordinator, config_entry)
+
+        self._attr_unique_id = f"{config_entry.entry_id}-boiler-fault"
 
     @override
-    @property
-    def extra_state_attributes(self) -> dict:
-        return {"flags": self._coordinator.fault_flags}
-
-    @override
-    @property
-    def unique_id(self) -> str:
-        return f"{self._config_entry.entry_id}-boiler-fault"
+    def _update_attrs(self) -> None:
+        self._attr_is_on = self._coordinator.fault_active
+        self._attr_extra_state_attributes = {"flags": self._coordinator.fault_flags}

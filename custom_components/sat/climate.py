@@ -207,7 +207,6 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         self._last_boiler_temperature = None
 
         self._hvac_mode = None
-        self._target_temperature = None
         self._window_sensor_handle = None
         self._pre_custom_temperature = None
         self._pre_activity_temperature = None
@@ -243,7 +242,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
 
         # System Configuration
         self._attr_name = None
-        self._attr_id = config_entry.entry_id
+        self._attr_unique_id = config_entry.entry_id
 
         self._radiators = config_entry.data.get(CONF_RADIATORS) or []
 
@@ -258,7 +257,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             config_options.get(CONF_PUSH_SETPOINT_TO_THERMOSTAT)
         )
         self._climate_valve_offset = float(config_options.get(CONF_CLIMATE_VALVE_OFFSET))
-        self._target_temperature_step = float(config_options.get(CONF_TARGET_TEMPERATURE_STEP))
+        self._attr_target_temperature_step = float(config_options.get(CONF_TARGET_TEMPERATURE_STEP))
         self._dynamic_minimum_setpoint = bool(config_options.get(CONF_DYNAMIC_MINIMUM_SETPOINT))
         self._sync_climates_with_mode = bool(config_options.get(CONF_SYNC_CLIMATES_WITH_MODE))
         self._sync_climates_with_preset = bool(config_options.get(CONF_SYNC_CLIMATES_WITH_PRESET))
@@ -299,9 +298,9 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         # Create a PWM controller with given configuration options
         self.pwm = create_pwm_controller(
             self.heating_curve,
-            coordinator.supports_relative_modulation_management,
             config_entry.data,
             config_options,
+            supports_relative_modulation_management=coordinator.supports_relative_modulation_management,
         )
 
         if self._simulation:
@@ -438,7 +437,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
                 self._hvac_mode = restored.hvac_mode
 
             if restored.target_temperature is not None:
-                self._target_temperature = float(restored.target_temperature)
+                self._attr_target_temperature = float(restored.target_temperature)
 
             if restored.preset_mode in self.preset_modes:
                 self._attr_preset_mode = restored.preset_mode
@@ -454,14 +453,14 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             self.pwm.restore(old_state)
             self.pid.restore(old_state)
 
-            if self._target_temperature is None:
+            if self.target_temperature is None:
                 if old_state.attributes.get(ATTR_TEMPERATURE) is None:
-                    self._target_temperature = float(self._presets[PRESET_HOME])
+                    self._attr_target_temperature = float(self._presets[PRESET_HOME])
                     _LOGGER.warning(
-                        "Undefined target temperature, falling back to %s", self._target_temperature
+                        "Undefined target temperature, falling back to %s", self.target_temperature
                     )
                 else:
-                    self._target_temperature = float(old_state.attributes[ATTR_TEMPERATURE])
+                    self._attr_target_temperature = float(old_state.attributes[ATTR_TEMPERATURE])
 
             if self._hvac_mode is None:
                 self._hvac_mode = old_state.state
@@ -494,18 +493,18 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             if self._rooms is None:
                 await self._async_update_rooms_from_climates()
 
-            if self._target_temperature is None:
-                self._target_temperature = float(self._presets[PRESET_HOME])
+            if self.target_temperature is None:
+                self._attr_target_temperature = float(self._presets[PRESET_HOME])
                 _LOGGER.info(
                     "Nothing to restore, starting at the home temperature %s",
-                    self._target_temperature,
+                    self.target_temperature,
                 )
 
             if not self._hvac_mode:
                 self._hvac_mode = self._default_hvac_mode
 
         if self._attr_preset_mode != PRESET_NONE and self._pre_custom_temperature is None:
-            self._pre_custom_temperature = self._target_temperature
+            self._pre_custom_temperature = self.target_temperature
 
         self.async_write_ha_state()
 
@@ -547,16 +546,10 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
 
     @override
     @property
-    def unique_id(self):
-        """Return a unique ID to use for this entity."""
-        return self._attr_id
-
-    @override
-    @property
     def extra_restore_state_data(self) -> SatClimateExtraStoredData:
         return SatClimateExtraStoredData(
             self._hvac_mode,
-            self._target_temperature,
+            self.target_temperature,
             self._attr_preset_mode,
             self._pre_custom_temperature,
         )
@@ -633,12 +626,6 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
 
         return self._get_entity_state_float(self.humidity_sensor_entity_id)
 
-    @override
-    @property
-    def target_temperature(self):
-        """Return the temperature we try to reach."""
-        return self._target_temperature
-
     @property
     def error(self):
         """Return the error value."""
@@ -663,12 +650,6 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
                 return float_value(state.attributes.get("temperature"))
 
         return None
-
-    @override
-    @property
-    def target_temperature_step(self):
-        """Return the target temperature step to control the thermostat"""
-        return self._target_temperature_step
 
     @override
     @property
@@ -1108,7 +1089,9 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             return
 
         # Update relative modulation state
-        await self.relative_modulation.update(self.pulse_width_modulation_enabled)
+        await self.relative_modulation.update(
+            pulse_width_modulation_enabled=self.pulse_width_modulation_enabled
+        )
 
         # Retrieve the relative modulation
         relative_modulation_value = self.relative_modulation_value
@@ -1256,9 +1239,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             self._inputs_missing_released = False
 
             # Control the heating through the coordinator
-            await self._coordinator.async_control_heating_loop(
-                climate=self, pwm_state=self.pwm.state
-            )
+            await self._coordinator.async_control_heating_loop(pwm_state=self.pwm.state)
 
             if self._calculated_setpoint is None:
                 # Default to the calculated setpoint
@@ -1458,7 +1439,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         else:
             # Save the current target temperature if the preset mode is being set for the first time
             if self._attr_preset_mode == PRESET_NONE:
-                self._pre_custom_temperature = self._target_temperature
+                self._pre_custom_temperature = self.target_temperature
 
             # Set the preset mode and target temperature
             self._attr_preset_mode = preset_mode
@@ -1483,11 +1464,11 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
 
     async def async_set_target_temperature(self, temperature: float, cascade: bool = True) -> None:
         """Set the temperature setpoint for all main climates."""
-        if self._target_temperature == temperature:
+        if self.target_temperature == temperature:
             return
 
         # Set the new target temperature
-        self._target_temperature = temperature
+        self._attr_target_temperature = temperature
 
         if cascade:
             # Set the target temperature for each main climate

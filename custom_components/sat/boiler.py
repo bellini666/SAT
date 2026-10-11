@@ -16,7 +16,10 @@ STABLE_DERIVATIVE = 0.005
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class BoilerState:
-    """Represents the operational state of a boiler, including activity, flame status, hot water usage, and current temperature."""
+    """Represents the operational state of a boiler.
+
+    Includes activity, flame status, hot water usage, and current temperature.
+    """
 
     is_active: bool
     is_inactive: bool
@@ -32,23 +35,24 @@ class BoilerState:
 
 
 class BoilerTemperatureTracker:
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the BoilerTemperatureTracker."""
         self._active = False
         self._warming_up = False
         self._adjusting_to_lower_setpoint = False
 
-        self._last_setpoint = None
-        self._last_boiler_temperature = None
+        self._last_setpoint: float | None = None
+        self._last_boiler_temperature: float | None = None
 
     def update(
         self,
+        *,
         boiler_temperature: float,
         boiler_temperature_derivative: float,
         flame_active: bool,
         setpoint: float,
-    ):
-        """Update the tracker based on the current boiler temperature, flame status, and setpoint."""
+    ) -> None:
+        """Update the tracker based on the boiler temperature, flame status, and setpoint."""
         if setpoint == MINIMUM_SETPOINT:
             return
 
@@ -73,7 +77,7 @@ class BoilerTemperatureTracker:
         self._last_setpoint = setpoint
         self._last_boiler_temperature = boiler_temperature
 
-    def _handle_setpoint_decrease(self):
+    def _handle_setpoint_decrease(self) -> None:
         if self._adjusting_to_lower_setpoint:
             return
 
@@ -83,7 +87,7 @@ class BoilerTemperatureTracker:
 
         _LOGGER.debug("Setpoint decreased. Entering stabilization mode.")
 
-    def _handle_flame_inactive(self):
+    def _handle_flame_inactive(self) -> None:
         """Handle the case where the flame is inactive."""
         if self._active:
             return
@@ -105,6 +109,7 @@ class BoilerTemperatureTracker:
 
         if (
             setpoint > boiler_temperature
+            and self._last_boiler_temperature is not None
             and setpoint - STABILIZATION_MARGIN
             < boiler_temperature + 1
             < self._last_boiler_temperature
@@ -131,31 +136,39 @@ class BoilerTemperatureTracker:
 
     def _stop_adjusting_to_lower_setpoint(
         self, reason: str, boiler_temperature: float, setpoint: float
-    ):
+    ) -> None:
         """Stop the adjustment to a lower setpoint and log the reason."""
         self._adjusting_to_lower_setpoint = False
 
         _LOGGER.debug(
-            f"Adjustment to lower setpoint stopped: {reason} "
-            f"(Setpoint: {setpoint}, Current: {boiler_temperature})."
+            "Adjustment to lower setpoint stopped: %s (Setpoint: %s, Current: %s).",
+            reason,
+            setpoint,
+            boiler_temperature,
         )
 
-    def _stop_warming_up(self, reason: str, boiler_temperature: float, setpoint: float):
+    def _stop_warming_up(self, reason: str, boiler_temperature: float, setpoint: float) -> None:
         """Stop the warming-up phase and log the reason."""
         self._warming_up = False
 
         _LOGGER.debug(
-            f"Warming up stopped: {reason} "
-            f"(Setpoint: {setpoint}, Current: {boiler_temperature}, Last: {self._last_boiler_temperature})."
+            "Warming up stopped: %s (Setpoint: %s, Current: %s, Last: %s).",
+            reason,
+            setpoint,
+            boiler_temperature,
+            self._last_boiler_temperature,
         )
 
-    def _stop_tracking(self, reason: str, boiler_temperature: float, setpoint: float):
+    def _stop_tracking(self, reason: str, boiler_temperature: float, setpoint: float) -> None:
         """Deactivate tracking and log the reason."""
         self._active = False
 
         _LOGGER.debug(
-            f"Tracking stopped: {reason} "
-            f"(Setpoint: {setpoint}, Current: {boiler_temperature}, Last: {self._last_boiler_temperature})."
+            "Tracking stopped: %s (Setpoint: %s, Current: %s, Last: %s).",
+            reason,
+            setpoint,
+            boiler_temperature,
+            self._last_boiler_temperature,
         )
 
     @property

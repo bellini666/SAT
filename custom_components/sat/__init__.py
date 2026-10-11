@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import logging
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP, Platform
@@ -18,7 +21,6 @@ from homeassistant.helpers import (
     issue_registry as ir,
 )
 from homeassistant.helpers.storage import Store
-from homeassistant.helpers.typing import ConfigType
 from homeassistant.util import dt as dt_util
 
 from .climate import SatClimate
@@ -29,8 +31,13 @@ from .const import (
     DOMAIN,
     SETUP_FAILED_ISSUE_DELAY,
 )
-from .coordinator import SatDataUpdateCoordinator, SatDataUpdateCoordinatorFactory
+from .coordinator import SatDataUpdateCoordinatorFactory
 from .services import async_setup_services
+
+if TYPE_CHECKING:
+    from homeassistant.helpers.typing import ConfigType
+
+    from .coordinator import SatDataUpdateCoordinator
 
 _LOGGER: logging.Logger = logging.getLogger(__name__)
 PLATFORMS = [
@@ -58,7 +65,7 @@ async def async_setup(hass: HomeAssistant, _config: ConfigType) -> bool:
     return True
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: SatConfigEntry):
+async def async_setup_entry(hass: HomeAssistant, entry: SatConfigEntry) -> bool:
     """Set up this integration using the UI.
 
     This function is called by Home Assistant when the integration is set up with the UI.
@@ -68,10 +75,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: SatConfigEntry):
         hass=hass,
         data=entry.data,
         options=entry.options,
-        mode=entry.data.get(CONF_MODE),
-        device=entry.data.get(CONF_DEVICE),
+        mode=entry.data[CONF_MODE],
+        device=entry.data[CONF_DEVICE],
     )
-    entry.async_on_unload(lambda: coordinator.async_will_remove_from_hass())
+
+    async def async_remove_coordinator() -> None:
+        await coordinator.async_will_remove_from_hass()
+
+    entry.async_on_unload(async_remove_coordinator)
 
     # Making sure everything is loaded
     issue_id = f"setup_failed_{entry.entry_id}"
@@ -185,25 +196,23 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 new_data["sync_with_thermostat"] = sync_with_thermostat
                 new_options.pop("sync_with_thermostat")
 
-        if entry.version < 4:
-            if entry.data.get("window_sensor") is not None:
-                new_data["window_sensors"] = [entry.data.get("window_sensor")]
-                del new_options["window_sensor"]
+        if entry.version < 4 and entry.data.get("window_sensor") is not None:
+            new_data["window_sensors"] = [entry.data.get("window_sensor")]
+            del new_options["window_sensor"]
 
-        if entry.version < 5:
-            if entry.options.get("overshoot_protection") is not None:
-                new_data["overshoot_protection"] = entry.options.get("overshoot_protection")
-                del new_options["overshoot_protection"]
+        if entry.version < 5 and entry.options.get("overshoot_protection") is not None:
+            new_data["overshoot_protection"] = entry.options.get("overshoot_protection")
+            del new_options["overshoot_protection"]
 
         if entry.version < 7:
             new_options["pid_controller_version"] = 1
 
-        if entry.version < 8:
-            if (
-                entry.options.get("heating_curve_version") is not None
-                and int(entry.options.get("heating_curve_version")) < 2
-            ):
-                new_options["heating_curve_version"] = 3
+        if (
+            entry.version < 8
+            and (heating_curve_version := entry.options.get("heating_curve_version")) is not None
+            and int(heating_curve_version) < 2
+        ):
+            new_options["heating_curve_version"] = 3
 
         if entry.version < 9:
             if entry.data.get("heating_system") == "heat_pump":
@@ -212,16 +221,19 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             if entry.data.get("heating_system") == "radiators":
                 new_options["cycles_per_hour"] = 3
 
-        if entry.version < 10:
-            if entry.data.get("mode") == "mqtt":
-                device = device_registry.async_get(hass).async_get(entry.data.get("device"))
+        if entry.version < 10 and entry.data.get("mode") == "mqtt":
+            device = device_registry.async_get(hass).async_get(entry.data["device"])
+            if device is None:
+                _LOGGER.error(
+                    "Cannot migrate, MQTT device %s no longer exists", entry.data["device"]
+                )
+                return False
 
-                new_data["mode"] = "mqtt_opentherm"
-                new_data["device"] = list(device.identifiers)[0][1]
+            new_data["mode"] = "mqtt_opentherm"
+            new_data["device"] = next(iter(device.identifiers))[1]
 
-        if entry.version < 11:
-            if entry.data.get("sync_with_thermostat") is not None:
-                new_data["push_setpoint_to_thermostat"] = entry.data.get("sync_with_thermostat")
+        if entry.version < 11 and entry.data.get("sync_with_thermostat") is not None:
+            new_data["push_setpoint_to_thermostat"] = entry.data.get("sync_with_thermostat")
 
         if entry.version < 12:
             if "push_setpoint_to_thermostat" in new_data:
@@ -240,9 +252,8 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
                 for prefix in prefixes:
                     if entity_entry.unique_id.startswith(prefix):
-                        return {
-                            "new_unique_id": f"{entry.entry_id}-{entity_entry.unique_id.removeprefix(prefix)}"
-                        }
+                        suffix = entity_entry.unique_id.removeprefix(prefix)
+                        return {"new_unique_id": f"{entry.entry_id}-{suffix}"}
 
                 return None
 

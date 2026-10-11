@@ -1,18 +1,22 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable, Mapping
-from typing import Any, override
+from typing import TYPE_CHECKING, Any, override
 
 from homeassistant.components import binary_sensor, mqtt, number, sensor, switch
-from homeassistant.core import Event, EventStateChangedData, HomeAssistant
+from homeassistant.exceptions import ConfigEntryError
 from homeassistant.helpers import device_registry, entity_registry
-from homeassistant.helpers.device_registry import DeviceEntry
-from homeassistant.helpers.entity_registry import EntityRegistry, RegistryEntry
 from homeassistant.helpers.event import async_track_state_change_event
 
 from ..coordinator import DeviceState, SatDataUpdateCoordinator, SatEntityCoordinator
 from ..helpers import float_value, int_value
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Mapping
+
+    from homeassistant.core import Event, EventStateChangedData, HomeAssistant
+    from homeassistant.helpers.device_registry import DeviceEntry
+    from homeassistant.helpers.entity_registry import EntityRegistry, RegistryEntry
 
 # Sensors
 DATA_FLAME_ACTIVE = "flame_on"
@@ -54,8 +58,13 @@ class SatEspHomeCoordinator(SatDataUpdateCoordinator, SatEntityCoordinator):
     ) -> None:
         super().__init__(hass, config_data, options)
 
-        self._device: DeviceEntry = device_registry.async_get(hass).async_get(device_id)
-        self._mac_address: str = list(self._device.connections)[0][1]
+        registry = device_registry.async_get(hass)
+        if (device := registry.async_get(device_id, include_child_devices=False)) is None:
+            message = f"ESPHome device {device_id} is not in the device registry"
+            raise ConfigEntryError(message)
+
+        self._device: DeviceEntry = device
+        self._mac_address: str = next(iter(self._device.connections))[1]
 
         self._entity_registry: EntityRegistry = entity_registry.async_get(hass)
         self._entities: list[RegistryEntry] = entity_registry.async_entries_for_device(
@@ -75,22 +84,22 @@ class SatEspHomeCoordinator(SatDataUpdateCoordinator, SatEntityCoordinator):
 
     @override
     @property
-    def supports_setpoint_management(self):
+    def supports_setpoint_management(self) -> bool:
         return True
 
     @override
     @property
-    def supports_hot_water_setpoint_management(self):
+    def supports_hot_water_setpoint_management(self) -> bool:
         return True
 
     @override
     @property
-    def supports_maximum_setpoint_management(self):
+    def supports_maximum_setpoint_management(self) -> bool:
         return True
 
     @override
     @property
-    def supports_relative_modulation(self):
+    def supports_relative_modulation(self) -> bool:
         return True
 
     @override
@@ -179,26 +188,25 @@ class SatEspHomeCoordinator(SatDataUpdateCoordinator, SatEntityCoordinator):
         await mqtt.async_wait_for_mqtt_client(self.hass)
 
         # Create a list of entities that we track
-        entities = list(
-            filter(
-                lambda entity: entity is not None,
-                [
-                    self._get_entity_id(binary_sensor.DOMAIN, DATA_FLAME_ACTIVE),
-                    self._get_entity_id(binary_sensor.DOMAIN, DATA_DHW_ACTIVE),
-                    self._get_entity_id(sensor.DOMAIN, DATA_REL_MOD_LEVEL),
-                    self._get_entity_id(sensor.DOMAIN, DATA_SLAVE_MEMBERID),
-                    self._get_entity_id(sensor.DOMAIN, DATA_BOILER_TEMPERATURE),
-                    self._get_entity_id(sensor.DOMAIN, DATA_RETURN_TEMPERATURE),
-                    self._get_entity_id(sensor.DOMAIN, DATA_DHW_SETPOINT_MINIMUM),
-                    self._get_entity_id(sensor.DOMAIN, DATA_DHW_SETPOINT_MAXIMUM),
-                    self._get_entity_id(switch.DOMAIN, DATA_DHW_ENABLE),
-                    self._get_entity_id(switch.DOMAIN, DATA_CENTRAL_HEATING),
-                    self._get_entity_id(number.DOMAIN, DATA_DHW_SETPOINT),
-                    self._get_entity_id(number.DOMAIN, DATA_CONTROL_SETPOINT),
-                    self._get_entity_id(number.DOMAIN, DATA_MAX_REL_MOD_LEVEL_SETTING),
-                ],
+        entities = [
+            entity_id
+            for entity_id in (
+                self._get_entity_id(binary_sensor.DOMAIN, DATA_FLAME_ACTIVE),
+                self._get_entity_id(binary_sensor.DOMAIN, DATA_DHW_ACTIVE),
+                self._get_entity_id(sensor.DOMAIN, DATA_REL_MOD_LEVEL),
+                self._get_entity_id(sensor.DOMAIN, DATA_SLAVE_MEMBERID),
+                self._get_entity_id(sensor.DOMAIN, DATA_BOILER_TEMPERATURE),
+                self._get_entity_id(sensor.DOMAIN, DATA_RETURN_TEMPERATURE),
+                self._get_entity_id(sensor.DOMAIN, DATA_DHW_SETPOINT_MINIMUM),
+                self._get_entity_id(sensor.DOMAIN, DATA_DHW_SETPOINT_MAXIMUM),
+                self._get_entity_id(switch.DOMAIN, DATA_DHW_ENABLE),
+                self._get_entity_id(switch.DOMAIN, DATA_CENTRAL_HEATING),
+                self._get_entity_id(number.DOMAIN, DATA_DHW_SETPOINT),
+                self._get_entity_id(number.DOMAIN, DATA_CONTROL_SETPOINT),
+                self._get_entity_id(number.DOMAIN, DATA_MAX_REL_MOD_LEVEL_SETTING),
             )
-        )
+            if entity_id is not None
+        ]
 
         # Track those entities so the coordinator can be updated when something changes
         self._unsub_state_changes = async_track_state_change_event(
@@ -215,7 +223,7 @@ class SatEspHomeCoordinator(SatDataUpdateCoordinator, SatEntityCoordinator):
 
         await super().async_will_remove_from_hass()
 
-    async def async_state_change_event(self, _event: Event[EventStateChangedData]):
+    async def async_state_change_event(self, _event: Event[EventStateChangedData]) -> None:
         await self.async_notify_listeners()
 
     @override
@@ -232,7 +240,7 @@ class SatEspHomeCoordinator(SatDataUpdateCoordinator, SatEntityCoordinator):
 
     @override
     async def async_set_heater_state(self, state: DeviceState) -> None:
-        await self._send_command_state(DATA_CENTRAL_HEATING, state == DeviceState.ON)
+        await self._send_command_state(DATA_CENTRAL_HEATING, value=state == DeviceState.ON)
 
         await super().async_set_heater_state(state)
 
@@ -249,25 +257,29 @@ class SatEspHomeCoordinator(SatDataUpdateCoordinator, SatEntityCoordinator):
         await super().async_set_control_max_setpoint(value)
 
     @override
-    def _get_entity_id(self, domain: str, key: str):
+    def _get_entity_id(self, domain: str, key: str) -> str | None:
         unique_id = f"{self._mac_address.upper()}-{domain}-{key}"
-        _LOGGER.debug(f"Attempting to find the unique_id of {unique_id}")
+        _LOGGER.debug("Attempting to find the unique_id of %s", unique_id)
         return self._entity_registry.async_get_entity_id(domain, ESPHOME_DOMAIN, unique_id)
 
-    async def _send_command(self, domain: str, service: str, _key: str, payload: dict):
-        """Helper method to send a command to a specified domain and service."""
+    async def _send_command(
+        self, domain: str, service: str, _key: str, payload: dict[str, str | float | None]
+    ) -> None:
+        """Send a command to a specified domain and service."""
         if not self._simulation:
             await self.hass.services.async_call(domain, service, payload, blocking=True)
 
-        _LOGGER.debug(f"Sending '{payload}' to {service} in {domain}.")
+        _LOGGER.debug("Sending '%s' to %s in %s.", payload, service, domain)
 
-    async def _send_command_state(self, key: str, value: bool):
+    async def _send_command_state(self, key: str, *, value: bool) -> None:
         """Send a command to turn a switch on or off."""
         service = switch.SERVICE_TURN_ON if value else switch.SERVICE_TURN_OFF
-        payload = {"entity_id": self._get_entity_id(switch.DOMAIN, key)}
+        payload: dict[str, str | float | None] = {
+            "entity_id": self._get_entity_id(switch.DOMAIN, key)
+        }
         await self._send_command(switch.DOMAIN, service, key, payload)
 
-    async def _send_command_value(self, key: str, value: float):
+    async def _send_command_value(self, key: str, value: float) -> None:
         """Send a command to set a numerical value."""
         payload = {"entity_id": self._get_entity_id(number.DOMAIN, key), "value": value}
         await self._send_command(number.DOMAIN, number.SERVICE_SET_VALUE, key, payload)

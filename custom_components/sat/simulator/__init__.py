@@ -1,10 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
 from time import monotonic
 from typing import TYPE_CHECKING, Any, override
-
-from homeassistant.core import HomeAssistant
 
 from ..const import (
     CONF_MAXIMUM_SETPOINT,
@@ -12,13 +9,17 @@ from ..const import (
     CONF_SIMULATED_HEATING,
     CONF_SIMULATED_WARMING_UP,
     MINIMUM_SETPOINT,
-    PWMStatus,
 )
 from ..coordinator import DeviceState, SatDataUpdateCoordinator
 from ..helpers import convert_time_str_to_seconds
 
 if TYPE_CHECKING:
-    from ..climate import SatClimate
+    from collections.abc import Mapping
+    from datetime import datetime
+
+    from homeassistant.core import HomeAssistant
+
+    from ..pwm import PWMState
 
 
 class SatSimulatorCoordinator(SatDataUpdateCoordinator):
@@ -31,14 +32,14 @@ class SatSimulatorCoordinator(SatDataUpdateCoordinator):
         """Initialize."""
         super().__init__(hass, config_data, options)
 
-        self._setpoint = MINIMUM_SETPOINT
-        self._boiler_temperature = MINIMUM_SETPOINT
+        self._setpoint: float = MINIMUM_SETPOINT
+        self._boiler_temperature: float = MINIMUM_SETPOINT
 
         self._device_state = DeviceState.OFF
-        self._heating = config_data.get(CONF_SIMULATED_HEATING)
-        self._cooling = config_data.get(CONF_SIMULATED_COOLING)
+        self._heating: float = config_data[CONF_SIMULATED_HEATING]
+        self._cooling: float = config_data[CONF_SIMULATED_COOLING]
         self._maximum_setpoint = config_data.get(CONF_MAXIMUM_SETPOINT)
-        self._warming_up = convert_time_str_to_seconds(config_data.get(CONF_SIMULATED_WARMING_UP))
+        self._warming_up = convert_time_str_to_seconds(config_data[CONF_SIMULATED_WARMING_UP])
 
     @override
     @property
@@ -57,12 +58,12 @@ class SatSimulatorCoordinator(SatDataUpdateCoordinator):
 
     @override
     @property
-    def supports_maximum_setpoint_management(self):
+    def supports_maximum_setpoint_management(self) -> bool:
         return True
 
     @override
     @property
-    def supports_relative_modulation(self) -> float | None:
+    def supports_relative_modulation(self) -> bool:
         return True
 
     @override
@@ -114,16 +115,18 @@ class SatSimulatorCoordinator(SatDataUpdateCoordinator):
     @override
     async def async_control_heating_loop(
         self,
-        climate: SatClimate | None = None,
-        pwm_state: PWMStatus | None = None,
-        _time=None,
+        pwm_state: PWMState | None = None,
+        _time: datetime | None = None,
     ) -> None:
-        await super().async_control_heating_loop(climate, pwm_state, _time)
+        await super().async_control_heating_loop(pwm_state, _time)
 
         # Calculate the difference, so we know when to slowdown
         difference = abs(self._boiler_temperature - self.target)
         self.logger.debug(
-            f"Target: {self.target}, Current: {self._boiler_temperature}, Difference: {difference}"
+            "Target: %s, Current: %s, Difference: %s",
+            self.target,
+            self._boiler_temperature,
+            difference,
         )
 
         # Heating
@@ -133,7 +136,7 @@ class SatSimulatorCoordinator(SatDataUpdateCoordinator):
                 self.logger.debug("Reached boiler temperature")
             else:
                 self._boiler_temperature += self._heating
-                self.logger.debug(f"Increasing boiler temperature with {self._heating}")
+                self.logger.debug("Increasing boiler temperature with %s", self._heating)
 
         # Cooling
         elif self._boiler_temperature >= self.target:
@@ -142,19 +145,22 @@ class SatSimulatorCoordinator(SatDataUpdateCoordinator):
                 self.logger.debug("Reached boiler temperature")
             else:
                 self._boiler_temperature -= self._cooling
-                self.logger.debug(f"Decreasing boiler temperature with {self._cooling}")
+                self.logger.debug("Decreasing boiler temperature with %s", self._cooling)
 
         # Notify listeners to ensure the entities are updated
         self.hass.async_create_task(self.async_notify_listeners())
 
     @property
-    def target(self):
+    def target(self) -> float:
         # Overshoot
         if self.minimum_setpoint >= self.setpoint:
             return self.minimum_setpoint
 
         # State check
-        if not self._device_on_since or (monotonic() - self._device_on_since) < self._warming_up:
+        if (
+            self._device_on_since is None
+            or (monotonic() - self._device_on_since) < self._warming_up
+        ):
             return MINIMUM_SETPOINT
 
         return self.setpoint

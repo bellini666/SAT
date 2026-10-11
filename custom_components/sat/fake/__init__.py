@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Mapping
-from typing import Any, override
-
-from homeassistant.core import HomeAssistant
+from typing import TYPE_CHECKING, Any, override
 
 from ..coordinator import DeviceState, SatDataUpdateCoordinator
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
+
+    from homeassistant.core import HomeAssistant
 
 _LOGGER: logging.Logger = logging.getLogger(__name__)
 
@@ -14,11 +16,12 @@ _LOGGER: logging.Logger = logging.getLogger(__name__)
 class SatFakeConfig:
     def __init__(
         self,
+        *,
         supports_setpoint_management: bool = False,
         supports_maximum_setpoint_management: bool = False,
         supports_hot_water_setpoint_management: bool = False,
         supports_relative_modulation_management: bool = False,
-    ):
+    ) -> None:
         self.supports_setpoint_management = supports_setpoint_management
         self.supports_maximum_setpoint_management = supports_maximum_setpoint_management
         self.supports_hot_water_setpoint_management = supports_hot_water_setpoint_management
@@ -47,7 +50,7 @@ class SatFakeCoordinator(SatDataUpdateCoordinator):
         config_data: Mapping[str, Any],
         options: Mapping[str, Any] | None = None,
     ) -> None:
-        self.config = SatFakeConfig(True)
+        self.config = SatFakeConfig(supports_setpoint_management=True)
 
         self._setpoint = None
         self._maximum_setpoint = None
@@ -80,39 +83,27 @@ class SatFakeCoordinator(SatDataUpdateCoordinator):
 
     @override
     @property
-    def supports_setpoint_management(self):
-        if self.config is None:
-            return super().supports_setpoint_management
-
+    def supports_setpoint_management(self) -> bool:
         return self.config.supports_setpoint_management
 
     @override
     @property
-    def supports_hot_water_setpoint_management(self):
-        if self.config is None:
-            return super().supports_hot_water_setpoint_management
-
+    def supports_hot_water_setpoint_management(self) -> bool:
         return self.config.supports_hot_water_setpoint_management
 
     @override
     @property
-    def supports_maximum_setpoint_management(self):
-        if self.config is None:
-            return super().supports_maximum_setpoint_management
-
+    def supports_maximum_setpoint_management(self) -> bool:
         return self.config.supports_maximum_setpoint_management
 
     @override
     @property
-    def supports_relative_modulation_management(self):
-        if self.config is None:
-            return super().supports_relative_modulation_management
-
+    def supports_relative_modulation_management(self) -> bool:
         return self.config.supports_relative_modulation_management
 
     @override
     @property
-    def supports_relative_modulation(self):
+    def supports_relative_modulation(self) -> bool:
         return self.supports_relative_modulation_management
 
     async def async_set_boiler_temperature(self, value: float) -> None:

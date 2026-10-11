@@ -5,6 +5,7 @@ import typing
 from typing import override
 
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -26,19 +27,32 @@ class SatEntity(CoordinatorEntity):
         self._coordinator = coordinator
         self._config_entry = config_entry
 
-    @override
-    @property
-    def device_info(self):
         manufacturer = "Unknown"
-        if self._coordinator.manufacturer is not None:
-            manufacturer = self._coordinator.manufacturer.friendly_name
+        if coordinator.manufacturer is not None:
+            manufacturer = coordinator.manufacturer.friendly_name
 
-        return DeviceInfo(
-            name=self._config_entry.title,
+        self._attr_device_info = DeviceInfo(
+            name=config_entry.title,
             manufacturer=manufacturer,
-            model=self._coordinator.device_type,
-            identifiers={(DOMAIN, self._config_entry.entry_id)},
+            model=coordinator.device_type,
+            identifiers={(DOMAIN, config_entry.entry_id)},
         )
+
+    @override
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+
+        self._update_attrs()
+
+    @override
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        self._update_attrs()
+
+        super()._handle_coordinator_update()
+
+    def _update_attrs(self) -> None:
+        """Set the dynamic `_attr_*` values right before a state write."""
 
 
 class SatClimateEntity(SatEntity):
@@ -50,7 +64,13 @@ class SatClimateEntity(SatEntity):
     @override
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
-        self.async_on_remove(self._climate.async_add_state_listener(self.async_write_ha_state))
+        self.async_on_remove(self._climate.async_add_state_listener(self._async_climate_updated))
+
+    @callback
+    def _async_climate_updated(self) -> None:
+        self._update_attrs()
+
+        self.async_write_ha_state()
 
     @property
     def climate_added(self) -> bool:

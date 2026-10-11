@@ -2,11 +2,15 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import override
+from typing import TYPE_CHECKING, override
 
+from ..const import MINIMUM_SETPOINT
 from ..coordinator import DeviceState
 from ..helpers import float_value
 from . import SatMqttCoordinator
+
+if TYPE_CHECKING:
+    from homeassistant.helpers.service_info.mqtt import ReceivePayloadType
 
 DATA_ON = "on"
 DATA_OFF = "off"
@@ -130,7 +134,7 @@ class SatEmsMqttCoordinator(SatMqttCoordinator):
     @override
     async def async_set_control_setpoint(self, value: float) -> None:
         await self._publish_command(
-            f'{{"cmd": "selflowtemp", "value": {0 if value == 10 else value}}}'
+            f'{{"cmd": "selflowtemp", "value": {0 if value == MINIMUM_SETPOINT else value}}}'
         )
 
         await super().async_set_control_setpoint(value)
@@ -148,9 +152,8 @@ class SatEmsMqttCoordinator(SatMqttCoordinator):
 
     @override
     async def async_set_heater_state(self, state: DeviceState) -> None:
-        await self._publish_command(
-            f'{{"cmd": "heatingactivated", "value": "{DATA_ON if state == DeviceState.ON else DATA_OFF}"}}'
-        )
+        value = DATA_ON if state == DeviceState.ON else DATA_OFF
+        await self._publish_command(f'{{"cmd": "heatingactivated", "value": "{value}"}}')
 
         await super().async_set_heater_state(state)
 
@@ -175,8 +178,8 @@ class SatEmsMqttCoordinator(SatMqttCoordinator):
         return f"{self._topic}/boiler"
 
     @override
-    def _process_message_payload(self, key: str, value: str):
+    def _process_message_payload(self, key: str, value: ReceivePayloadType) -> None:
         try:
             self.async_set_updated_data(json.loads(value))
-        except json.JSONDecodeError as error:
-            _LOGGER.error("Failed to decode JSON payload: %s. Error: %s", value, error)
+        except json.JSONDecodeError:
+            _LOGGER.exception("Failed to decode JSON payload: %s", value)

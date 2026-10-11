@@ -1,8 +1,11 @@
 import math
 from dataclasses import dataclass, field
-from datetime import datetime
+from typing import TYPE_CHECKING
 
 from homeassistant.util import utcnow
+
+if TYPE_CHECKING:
+    from datetime import datetime
 
 
 @dataclass(frozen=True, slots=True)
@@ -11,8 +14,9 @@ class State:
     last_changed: datetime = field(default_factory=utcnow)
 
 
-def update_state(previous: State, new_value: float | None, tolerance=1e-3) -> State:
+def update_state(previous: State, new_value: float | None, tolerance: float = 1e-3) -> State:
     """Return a new State if the value changed beyond tolerance; otherwise return the existing one.
+
     Always timezone-aware and safe for float comparisons.
     """
     if new_value is None:

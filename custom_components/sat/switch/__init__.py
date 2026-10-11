@@ -1,16 +1,19 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
-from typing import Any, override
+from typing import TYPE_CHECKING, Any, override
 
 from homeassistant.components.input_boolean import DOMAIN as INPUT_BOOLEAN_DOMAIN
 from homeassistant.components.switch import DOMAIN as SWITCH_DOMAIN
 from homeassistant.const import ATTR_ENTITY_ID, SERVICE_TURN_OFF, SERVICE_TURN_ON, STATE_ON
-from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry
-from homeassistant.helpers.entity_registry import RegistryEntry
 
 from ..coordinator import DeviceState, SatDataUpdateCoordinator
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
+
+    from homeassistant.core import HomeAssistant
+    from homeassistant.helpers.entity_registry import RegistryEntry
 
 DOMAIN_SERVICE = {SWITCH_DOMAIN: SWITCH_DOMAIN, INPUT_BOOLEAN_DOMAIN: INPUT_BOOLEAN_DOMAIN}
 
@@ -67,7 +70,7 @@ class SatSwitchCoordinator(SatDataUpdateCoordinator):
             domain_service = DOMAIN_SERVICE.get(self._entity.domain)
             state_service = SERVICE_TURN_ON if state == DeviceState.ON else SERVICE_TURN_OFF
 
-            if domain_service:
+            if domain_service is not None:
                 await self.hass.services.async_call(
                     domain_service,
                     state_service,
