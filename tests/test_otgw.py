@@ -12,7 +12,6 @@ from homeassistant.const import (
     EVENT_HOMEASSISTANT_STOP,
     STATE_OFF,
     STATE_ON,
-    STATE_UNKNOWN,
 )
 from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import (
@@ -621,7 +620,7 @@ async def test_hot_water_setpoint_stays_settable_while_its_value_is_stale(
 
     state = hass.states.get(entity_id)
     assert state is not None
-    assert state.state == STATE_UNKNOWN
+    assert state.state == "60.0"
 
     await hass.services.async_call(
         "number", "set_value", {"entity_id": entity_id, "value": 55}, blocking=True

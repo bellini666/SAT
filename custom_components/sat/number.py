@@ -42,7 +42,7 @@ class SatHotWaterSetpointEntity(SatEntity, NumberEntity):
     @property
     def available(self) -> bool:
         """Return availability of the sensor."""
-        return self._coordinator.online
+        return self._coordinator.online and self._coordinator.hot_water_setpoint is not None
 
     @override
     def _update_attrs(self) -> None:

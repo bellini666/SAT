@@ -144,6 +144,9 @@ class SatOpenThermMqttCoordinator(SatMqttCoordinator):
         if self._hot_water_setpoint is not None:
             return self._hot_water_setpoint
 
+        if (setpoint := float_value(self.data.get(DATA_DHW_SETPOINT))) is not None:
+            return setpoint
+
         return super().hot_water_setpoint
 
     @override
