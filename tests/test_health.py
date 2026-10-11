@@ -3,7 +3,7 @@
 from datetime import timedelta
 from typing import TYPE_CHECKING
 
-from homeassistant.components.climate import HVACMode
+from homeassistant.components.climate import HVACAction, HVACMode
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import STATE_OFF, STATE_ON
 from homeassistant.core import CoreState, HomeAssistant
@@ -285,6 +285,9 @@ async def test_central_heating_synchro_follows_the_boiler_between_climate_writes
     await coordinator.async_set_heater_state(DeviceState.OFF)
     await climate.async_control_heating_loop()
     assert climate.setpoint is not None
+    await coordinator.async_set_heater_state(DeviceState.OFF)
+    climate.async_write_ha_state()
+    assert climate.hvac_action == HVACAction.IDLE
 
     await coordinator.async_set_heater_state(DeviceState.ON)
     coordinator.async_update_listeners()
