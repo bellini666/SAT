@@ -1,7 +1,8 @@
-from __future__ import annotations, annotations
+from __future__ import annotations
 
 import logging
-from typing import Mapping, Any
+from collections.abc import Mapping
+from typing import Any
 
 from homeassistant.core import HomeAssistant
 

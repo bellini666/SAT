@@ -6,12 +6,12 @@ from datetime import timedelta
 from unittest.mock import patch
 
 import pytest
-from homeassistant.components.climate import HVACMode, PRESET_ACTIVITY
-from homeassistant.config_entries import ConfigEntryState
+from homeassistant.components.climate import PRESET_ACTIVITY, HVACMode
+from homeassistant.config_entries import SOURCE_DHCP, ConfigEntryState
 from homeassistant.const import Platform
-from homeassistant.config_entries import SOURCE_DHCP
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import device_registry as dr, entity_registry as er
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.service_info.dhcp import DhcpServiceInfo
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import (
@@ -22,7 +22,6 @@ from pytest_homeassistant_custom_component.common import (
 from pytest_homeassistant_custom_component.typing import MqttMockHAClient
 
 from custom_components import sat
-from custom_components.sat.coordinator import SatDataUpdateCoordinatorFactory
 from custom_components.sat.const import (
     CONF_DEVICE,
     CONF_MODE,
@@ -34,6 +33,7 @@ from custom_components.sat.const import (
     MODE_ESPHOME,
     MODE_MQTT_OPENTHERM,
 )
+from custom_components.sat.coordinator import SatDataUpdateCoordinatorFactory
 from tests.const import DEFAULT_USER_DATA
 
 

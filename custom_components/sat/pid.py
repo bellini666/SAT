@@ -1,6 +1,5 @@
 import logging
 from time import monotonic
-from typing import Optional
 
 from homeassistant.core import State
 
@@ -28,11 +27,10 @@ class PID:
         deadband: float = DEADBAND,
         automatic_gains: bool = False,
         integral_time_limit: float = 300,
-        sample_time_limit: Optional[float] = 10,
+        sample_time_limit: float | None = 10,
         version: int = 3,
     ) -> None:
-        """
-        Initialize the PID controller.
+        """Initialize the PID controller.
 
         :param heating_system: The type of heating system, either "underfloor" or "radiator"
         :param automatic_gain_value: The value to fine-tune the aggression value.
@@ -59,7 +57,7 @@ class PID:
 
         self._last_interval_updated: float = monotonic()
         self._integral_time_limit: float = max(integral_time_limit, 1)
-        self._sample_time_limit: Optional[float] = (
+        self._sample_time_limit: float | None = (
             max(sample_time_limit, 1) if sample_time_limit is not None else None
         )
 
@@ -84,8 +82,7 @@ class PID:
         self._raw_derivative: float = 0.0
 
     def update(self, error: Error, heating_curve_value: float, boiler_temperature: float) -> None:
-        """
-        Update the PID controller with the current error and heating curve value.
+        """Update the PID controller with the current error and heating curve value.
 
         :param error: The max error between all the target temperatures and the current temperatures.
         :param heating_curve_value: The current heating curve value.
@@ -120,9 +117,8 @@ class PID:
         self._last_boiler_temperature = boiler_temperature
         self._last_heating_curve_value = heating_curve_value
 
-    def update_reset(self, error: Error, heating_curve_value: Optional[float]) -> None:
-        """
-        Update the PID controller with resetting.
+    def update_reset(self, error: Error, heating_curve_value: float | None) -> None:
+        """Update the PID controller with resetting.
 
         :param error: The error value for the PID controller to use in the update.
         :param heating_curve_value: The current value of the heating curve.
@@ -146,8 +142,7 @@ class PID:
     def update_integral(
         self, error: Error, heating_curve_value: float, force: bool = False
     ) -> None:
-        """
-        Update the integral value in the PID controller.
+        """Update the integral value in the PID controller.
 
         :param error: The error value for the current iteration.
         :param heating_curve_value: The current value of the heating curve.
@@ -182,8 +177,7 @@ class PID:
         self._last_interval_updated = monotonic()
 
     def update_derivative(self, error: Error, alpha1: float = 0.8, alpha2: float = 0.6) -> None:
-        """
-        Update the derivative term of the PID controller based on the latest error.
+        """Update the derivative term of the PID controller based on the latest error.
 
         The derivative term is calculated as the slope between the previous and current
         error values over time, then filtered twice using low-pass filters with

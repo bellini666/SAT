@@ -1,8 +1,9 @@
 import asyncio
 import logging
-from collections import deque
 from abc import abstractmethod
-from typing import Any, Callable, Mapping
+from collections import deque
+from collections.abc import Callable, Mapping
+from typing import Any
 
 from homeassistant.components import mqtt
 from homeassistant.core import HomeAssistant, callback
@@ -92,22 +93,18 @@ class SatMqttCoordinator(SatDataUpdateCoordinator):
     @abstractmethod
     def get_tracked_entities(self) -> list[str]:
         """Method to be overridden in subclasses to provide specific entities to track."""
-        pass
 
     @abstractmethod
     def _get_topic_for_subscription(self, key: str) -> str:
         """Method to be overridden in subclasses to provide a specific topic for subscribing."""
-        pass
 
     @abstractmethod
     def _get_topic_for_publishing(self) -> str:
         """Method to be overridden in subclasses to provide a specific topic for publishing."""
-        pass
 
     @abstractmethod
     async def boot(self) -> None:
         """Method to be overridden in subclasses to provide specific boot functionality."""
-        pass
 
     def _create_message_handler(self, key: str):
         """Create a message handler to process incoming MQTT messages."""

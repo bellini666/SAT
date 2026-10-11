@@ -1,29 +1,25 @@
 from __future__ import annotations
 
 import logging
-import typing
 
-from homeassistant.components.sensor import SensorEntity, SensorDeviceClass
+from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfPower, UnitOfTemperature, UnitOfVolume
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
+    CONF_MAXIMUM_CONSUMPTION,
+    CONF_MINIMUM_CONSUMPTION,
     CONF_MODE,
     MODE_MQTT_OPENTHERM,
     MODE_SERIAL,
     MODE_SIMULATOR,
-    CONF_MINIMUM_CONSUMPTION,
-    CONF_MAXIMUM_CONSUMPTION,
 )
 from .coordinator import SatDataUpdateCoordinator
-from .entity import SatEntity, SatClimateEntity
+from .entity import SatClimateEntity, SatEntity
 from .serial import sensor as serial_sensor
 from .simulator import sensor as simulator_sensor
-
-if typing.TYPE_CHECKING:
-    pass
 
 _LOGGER: logging.Logger = logging.getLogger(__name__)
 
@@ -31,9 +27,7 @@ _LOGGER: logging.Logger = logging.getLogger(__name__)
 async def async_setup_entry(
     _hass: HomeAssistant, _config_entry: ConfigEntry, _async_add_entities: AddEntitiesCallback
 ):
-    """
-    Add sensors for the serial protocol if the integration is set to use it.
-    """
+    """Add sensors for the serial protocol if the integration is set to use it."""
     climate = _config_entry.runtime_data.climate
     coordinator = _config_entry.runtime_data.coordinator
 
@@ -130,7 +124,6 @@ class SatCurrentConsumptionSensor(SatEntity, SensorEntity):
 
         In this case, the state represents the current consumption of the boiler in m³/h.
         """
-
         if not self._coordinator.device_active:
             return 0
 

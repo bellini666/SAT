@@ -2,16 +2,17 @@ from __future__ import annotations
 
 import logging
 from collections import deque
+from collections.abc import Iterable
 from dataclasses import dataclass
 from statistics import median
 from time import monotonic
-from typing import Deque, Optional, Tuple, Iterable, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from .const import CONTROL_LOOP_STALL_TIME, BoilerStatus, FlameStatus, PWMStatus
 
 if TYPE_CHECKING:
-    from .pwm import PWMState
     from .boiler import BoilerState
+    from .pwm import PWMState
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -22,17 +23,17 @@ class FlameState:
     is_inactive: bool
     health_status: str
 
-    latest_on_time_seconds: Optional[float]
-    average_on_time_seconds: Optional[float]
-    last_cycle_duration_seconds: Optional[float]
+    latest_on_time_seconds: float | None
+    average_on_time_seconds: float | None
+    last_cycle_duration_seconds: float | None
 
     sample_count_4h: int
     cycles_last_hour: float
     duty_ratio_last_15m: float
-    median_on_duration_seconds_4h: Optional[float]
+    median_on_duration_seconds_4h: float | None
 
-    last_cut_short_peak_flow: Optional[float]
-    last_cut_short_setpoint: Optional[float]
+    last_cut_short_peak_flow: float | None
+    last_cut_short_setpoint: float | None
 
 
 class Flame:
@@ -82,30 +83,30 @@ class Flame:
 
         # Timing internals
         self._latest_on_time_seconds: float = 0.0
-        self._average_on_time_seconds: Optional[float] = None
-        self._last_cycle_duration_seconds: Optional[float] = None
+        self._average_on_time_seconds: float | None = None
+        self._last_cycle_duration_seconds: float | None = None
 
         self._has_completed_first_cycle: bool = False
-        self._flame_on_monotonic: Optional[float] = None
-        self._flame_off_monotonic: Optional[float] = None
-        self._demand_since_monotonic: Optional[float] = None
-        self._pwm_planned_on_seconds: Optional[float] = None
-        self._burn_peak_flow: Optional[float] = None
-        self._burn_setpoint: Optional[float] = None
-        self._last_cut_short_peak_flow: Optional[float] = None
-        self._last_cut_short_setpoint: Optional[float] = None
+        self._flame_on_monotonic: float | None = None
+        self._flame_off_monotonic: float | None = None
+        self._demand_since_monotonic: float | None = None
+        self._pwm_planned_on_seconds: float | None = None
+        self._burn_peak_flow: float | None = None
+        self._burn_setpoint: float | None = None
+        self._last_cut_short_peak_flow: float | None = None
+        self._last_cut_short_setpoint: float | None = None
 
         # Stored states
-        self._last_boiler_state: Optional[BoilerState] = None
-        self._last_pulse_width_modulation_state: Optional[PWMState] = None
-        self._pwm_state_updated_monotonic: Optional[float] = None
+        self._last_boiler_state: BoilerState | None = None
+        self._last_pulse_width_modulation_state: PWMState | None = None
+        self._pwm_state_updated_monotonic: float | None = None
 
         # Rolling windows
-        self._last_update_monotonic: Optional[float] = None
-        self._cycle_end_times_window: Deque[float] = deque()
-        self._on_deltas_window: Deque[Tuple[float, float]] = deque()
-        self._on_durations_window: Deque[Tuple[float, float]] = deque()
-        self._pwm_burns_cut_short: Deque[Tuple[float, bool]] = deque(maxlen=3)
+        self._last_update_monotonic: float | None = None
+        self._cycle_end_times_window: deque[float] = deque()
+        self._on_deltas_window: deque[tuple[float, float]] = deque()
+        self._on_durations_window: deque[tuple[float, float]] = deque()
+        self._pwm_burns_cut_short: deque[tuple[float, bool]] = deque(maxlen=3)
 
         # Health
         self._health_status: str = FlameStatus.INSUFFICIENT_DATA
@@ -123,40 +124,40 @@ class Flame:
         return not self._is_flame_active_internal()
 
     @property
-    def on_since(self) -> Optional[float]:
+    def on_since(self) -> float | None:
         if self._is_flame_active_internal() and self._flame_on_monotonic is not None:
             return self._flame_on_monotonic
 
         return None
 
     @property
-    def off_since(self) -> Optional[float]:
+    def off_since(self) -> float | None:
         if not self._is_flame_active_internal() and self._flame_off_monotonic is not None:
             return self._flame_off_monotonic
 
         return None
 
     @property
-    def latest_on_time_seconds(self) -> Optional[float]:
+    def latest_on_time_seconds(self) -> float | None:
         if self._is_flame_active_internal() and self._flame_on_monotonic is not None:
             return self._latest_on_time_seconds
 
         return None
 
     @property
-    def average_on_time_seconds(self) -> Optional[float]:
+    def average_on_time_seconds(self) -> float | None:
         return self._average_on_time_seconds if self._has_completed_first_cycle else None
 
     @property
-    def last_cycle_duration_seconds(self) -> Optional[float]:
+    def last_cycle_duration_seconds(self) -> float | None:
         return self._last_cycle_duration_seconds
 
     @property
-    def last_cut_short_peak_flow(self) -> Optional[float]:
+    def last_cut_short_peak_flow(self) -> float | None:
         return self._last_cut_short_peak_flow
 
     @property
-    def last_cut_short_setpoint(self) -> Optional[float]:
+    def last_cut_short_setpoint(self) -> float | None:
         return self._last_cut_short_setpoint
 
     @property
@@ -168,7 +169,7 @@ class Flame:
         return self._duty_ratio_last_window(monotonic())
 
     @property
-    def median_on_duration_seconds_4h(self) -> Optional[float]:
+    def median_on_duration_seconds_4h(self) -> float | None:
         median_value, _ = self._median_on_duration(monotonic())
         return median_value
 
@@ -177,7 +178,7 @@ class Flame:
         _, count = self._median_on_duration(monotonic())
         return count
 
-    def update(self, boiler_state: BoilerState, pwm_state: Optional[PWMState] = None) -> None:
+    def update(self, boiler_state: BoilerState, pwm_state: PWMState | None = None) -> None:
 
         now = monotonic()
 
@@ -448,7 +449,7 @@ class Flame:
 
         self._health_status = FlameStatus.HEALTHY
 
-    def _fresh_pulse_width_modulation_state(self, now: float) -> Optional[PWMState]:
+    def _fresh_pulse_width_modulation_state(self, now: float) -> PWMState | None:
         # Only the control loop sends the PWM state, so it goes stale while SAT is off, paused or offline
         if (
             self._pwm_state_updated_monotonic is None
@@ -482,7 +483,7 @@ class Flame:
         self._prune_cycles_window(now)
         return float(len(self._cycle_end_times_window))
 
-    def _median_on_duration(self, now: float) -> Tuple[Optional[float], int]:
+    def _median_on_duration(self, now: float) -> tuple[float | None, int]:
         self._prune_median_window(now)
         if not self._on_durations_window:
             return None, 0

@@ -3,21 +3,20 @@
 from __future__ import annotations
 
 import logging
-import typing
 
 from homeassistant.components.binary_sensor import (
-    BinarySensorEntity,
-    BinarySensorDeviceClass,
     ENTITY_ID_FORMAT,
+    BinarySensorDeviceClass,
+    BinarySensorEntity,
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import async_generate_entity_id
 from pyotgw.vars import *
 
-from . import TRANSLATE_SOURCE, SatSerialCoordinator
 from ..const import *
 from ..entity import SatEntity
+from . import TRANSLATE_SOURCE, SatSerialCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -25,9 +24,9 @@ _LOGGER = logging.getLogger(__name__)
 class SatBinarySensorInfo:
     def __init__(
         self,
-        device_class: typing.Optional[str],
+        device_class: str | None,
         friendly_name_format: str,
-        status_sources: typing.List[str],
+        status_sources: list[str],
     ):
         self.device_class = device_class
         self.status_sources = status_sources

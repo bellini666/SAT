@@ -1,10 +1,11 @@
-from __future__ import annotations, annotations
+from __future__ import annotations
 
 import logging
-from typing import Any, Callable, Mapping
+from collections.abc import Callable, Mapping
+from typing import Any
 
-from homeassistant.components import mqtt, binary_sensor, number, sensor, switch
-from homeassistant.core import HomeAssistant, Event, EventStateChangedData
+from homeassistant.components import binary_sensor, mqtt, number, sensor, switch
+from homeassistant.core import Event, EventStateChangedData, HomeAssistant
 from homeassistant.helpers import device_registry, entity_registry
 from homeassistant.helpers.device_registry import DeviceEntry
 from homeassistant.helpers.entity_registry import EntityRegistry, RegistryEntry

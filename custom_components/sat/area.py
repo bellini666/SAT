@@ -2,17 +2,17 @@ from types import MappingProxyType
 from typing import Any
 
 from homeassistant.components.climate import HVACMode
-from homeassistant.const import STATE_UNKNOWN, STATE_UNAVAILABLE
+from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import HomeAssistant, State
 
 from .const import CONF_ROOMS
-from .errors import Errors, Error
+from .errors import Error, Errors
 from .heating_curve import HeatingCurve
 from .helpers import float_value
 from .pid import PID
 from .util import (
-    create_pid_controller,
     create_heating_curve_controller,
+    create_pid_controller,
 )
 
 SENSOR_TEMPERATURE_ID = "sensor_temperature_id"
@@ -87,8 +87,7 @@ class Area:
 
     @property
     def weight(self) -> float | None:
-        """
-        Room heating demand weight (0-2 range).
+        """Room heating demand weight (0-2 range).
         Based on the difference between target and current temperature.
         """
         target_temperature = self.target_temperature

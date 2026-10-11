@@ -1,9 +1,8 @@
-from homeassistant.components.number import NumberEntity, NumberDeviceClass
+from homeassistant.components.number import NumberDeviceClass, NumberEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
 from .const import *
-from .coordinator import SatDataUpdateCoordinator
 from .entity import SatEntity
 
 

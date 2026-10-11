@@ -1,16 +1,17 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from time import monotonic
-from typing import Optional, TYPE_CHECKING, Mapping, Any
+from typing import TYPE_CHECKING, Any, Optional
 
 from homeassistant.core import HomeAssistant
 
 from ..const import (
-    CONF_SIMULATED_HEATING,
-    CONF_SIMULATED_COOLING,
-    MINIMUM_SETPOINT,
-    CONF_SIMULATED_WARMING_UP,
     CONF_MAXIMUM_SETPOINT,
+    CONF_SIMULATED_COOLING,
+    CONF_SIMULATED_HEATING,
+    CONF_SIMULATED_WARMING_UP,
+    MINIMUM_SETPOINT,
     PWMStatus,
 )
 from ..coordinator import DeviceState, SatDataUpdateCoordinator
@@ -98,8 +99,8 @@ class SatSimulatorCoordinator(SatDataUpdateCoordinator):
 
     async def async_control_heating_loop(
         self,
-        climate: Optional[SatClimate] = None,
-        pwm_state: Optional[PWMStatus] = None,
+        climate: SatClimate | None = None,
+        pwm_state: PWMStatus | None = None,
         _time=None,
     ) -> None:
         await super().async_control_heating_loop(climate, pwm_state, _time)
@@ -114,7 +115,7 @@ class SatSimulatorCoordinator(SatDataUpdateCoordinator):
         if self.target >= self._boiler_temperature:
             if self._heating >= difference:
                 self._boiler_temperature = self.target
-                self.logger.debug(f"Reached boiler temperature")
+                self.logger.debug("Reached boiler temperature")
             else:
                 self._boiler_temperature += self._heating
                 self.logger.debug(f"Increasing boiler temperature with {self._heating}")
@@ -123,7 +124,7 @@ class SatSimulatorCoordinator(SatDataUpdateCoordinator):
         elif self._boiler_temperature >= self.target:
             if self._cooling >= difference:
                 self._boiler_temperature = self.target
-                self.logger.debug(f"Reached boiler temperature")
+                self.logger.debug("Reached boiler temperature")
             else:
                 self._boiler_temperature -= self._cooling
                 self.logger.debug(f"Decreasing boiler temperature with {self._cooling}")

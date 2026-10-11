@@ -2,11 +2,10 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Optional
 
-from . import SatMqttCoordinator
 from ..coordinator import DeviceState
 from ..helpers import float_value
+from . import SatMqttCoordinator
 
 DATA_ON = "on"
 DATA_OFF = "off"
@@ -65,39 +64,39 @@ class SatEmsMqttCoordinator(SatMqttCoordinator):
         return self.data.get(DATA_DHW_ENABLE) == DATA_ON
 
     @property
-    def setpoint(self) -> Optional[float]:
+    def setpoint(self) -> float | None:
         return float_value(self.data.get(DATA_CONTROL_SETPOINT))
 
     @property
-    def hot_water_setpoint(self) -> Optional[float]:
+    def hot_water_setpoint(self) -> float | None:
         return float_value(self.data.get(DATA_DHW_SETPOINT))
 
     @property
-    def boiler_temperature(self) -> Optional[float]:
+    def boiler_temperature(self) -> float | None:
         return float_value(self.data.get(DATA_BOILER_TEMPERATURE))
 
     @property
-    def return_temperature(self) -> Optional[float]:
+    def return_temperature(self) -> float | None:
         return float_value(self.data.get(DATA_RETURN_TEMPERATURE))
 
     @property
-    def relative_modulation_value(self) -> Optional[float]:
+    def relative_modulation_value(self) -> float | None:
         return float_value(self.data.get(DATA_REL_MOD_LEVEL))
 
     @property
-    def boiler_capacity(self) -> Optional[float]:
+    def boiler_capacity(self) -> float | None:
         return float_value(self.data.get(DATA_BOILER_CAPACITY))
 
     @property
-    def minimum_relative_modulation_value(self) -> Optional[float]:
+    def minimum_relative_modulation_value(self) -> float | None:
         return float_value(self.data.get(DATA_REL_MIN_MOD_LEVEL))
 
     @property
-    def maximum_relative_modulation_value(self) -> Optional[float]:
+    def maximum_relative_modulation_value(self) -> float | None:
         return float_value(self.data.get(DATA_MAX_REL_MOD_LEVEL_SETTING))
 
     @property
-    def member_id(self) -> Optional[int]:
+    def member_id(self) -> int | None:
         # Not supported (yet)
         return None
 

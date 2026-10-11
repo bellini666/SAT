@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from typing import Optional, List, Type
 
 from .helpers import snake_case
 
@@ -41,7 +40,7 @@ class Manufacturer(ABC):
 
 class ManufacturerFactory:
     @staticmethod
-    def resolve_by_name(name: str) -> Optional[Manufacturer]:
+    def resolve_by_name(name: str) -> Manufacturer | None:
         """Resolve a Manufacturer instance by its name."""
         if name not in MANUFACTURERS:
             return None
@@ -49,7 +48,7 @@ class ManufacturerFactory:
         return ManufacturerFactory._import_class(snake_case(name), name)()
 
     @staticmethod
-    def resolve_by_member_id(member_id: int) -> List[Manufacturer]:
+    def resolve_by_member_id(member_id: int) -> list[Manufacturer]:
         """Resolve a list of Manufacturer instances by member ID."""
         return [
             ManufacturerFactory._import_class(snake_case(name), name)()
@@ -58,7 +57,7 @@ class ManufacturerFactory:
         ]
 
     @staticmethod
-    def _import_class(module_name: str, class_name: str) -> Type[Manufacturer]:
+    def _import_class(module_name: str, class_name: str) -> type[Manufacturer]:
         """Dynamically import and return a Manufacturer class."""
         return getattr(
             __import__(f"custom_components.sat.manufacturers.{module_name}", fromlist=[class_name]),

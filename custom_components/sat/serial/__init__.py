@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Optional, Any, Mapping
+from collections.abc import Mapping
+from typing import Any, Optional
 
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
-from pyotgw import vars as gw_vars, OpenThermGateway
+from pyotgw import OpenThermGateway
+from pyotgw import vars as gw_vars
 from pyotgw.vars import *
 from serial import SerialException
 
@@ -79,28 +81,28 @@ class SatSerialCoordinator(SatDataUpdateCoordinator):
         return True
 
     @property
-    def setpoint(self) -> Optional[float]:
+    def setpoint(self) -> float | None:
         if (setpoint := self.get(DATA_CONTROL_SETPOINT)) is not None:
             return float(setpoint)
 
         return None
 
     @property
-    def hot_water_setpoint(self) -> Optional[float]:
+    def hot_water_setpoint(self) -> float | None:
         if (setpoint := self.get(DATA_DHW_SETPOINT)) is not None:
             return float(setpoint)
 
         return super().hot_water_setpoint
 
     @property
-    def boiler_temperature(self) -> Optional[float]:
+    def boiler_temperature(self) -> float | None:
         if (value := self.get(DATA_CH_WATER_TEMP)) is not None:
             return float(value)
 
         return super().boiler_temperature
 
     @property
-    def return_temperature(self) -> Optional[float]:
+    def return_temperature(self) -> float | None:
         if (value := self.get(DATA_RETURN_WATER_TEMP)) is not None:
             return float(value)
 
@@ -121,35 +123,35 @@ class SatSerialCoordinator(SatDataUpdateCoordinator):
         return super().maximum_hot_water_setpoint
 
     @property
-    def relative_modulation_value(self) -> Optional[float]:
+    def relative_modulation_value(self) -> float | None:
         if (value := self.get(DATA_REL_MOD_LEVEL)) is not None:
             return float(value)
 
         return super().relative_modulation_value
 
     @property
-    def boiler_capacity(self) -> Optional[float]:
+    def boiler_capacity(self) -> float | None:
         if (value := self.get(DATA_SLAVE_MAX_CAPACITY)) is not None:
             return float(value)
 
         return super().boiler_capacity
 
     @property
-    def minimum_relative_modulation_value(self) -> Optional[float]:
+    def minimum_relative_modulation_value(self) -> float | None:
         if (value := self.get(DATA_SLAVE_MIN_MOD_LEVEL)) is not None:
             return float(value)
 
         return super().minimum_relative_modulation_value
 
     @property
-    def maximum_relative_modulation_value(self) -> Optional[float]:
+    def maximum_relative_modulation_value(self) -> float | None:
         if (value := self.get(DATA_SLAVE_MAX_RELATIVE_MOD)) is not None:
             return float(value)
 
         return super().maximum_relative_modulation_value
 
     @property
-    def member_id(self) -> Optional[int]:
+    def member_id(self) -> int | None:
         if (value := self.get(DATA_SLAVE_MEMBERID)) is not None:
             return int(value)
 
@@ -159,14 +161,14 @@ class SatSerialCoordinator(SatDataUpdateCoordinator):
     def flame_active(self) -> bool:
         return bool(self.get(DATA_SLAVE_FLAME_ON))
 
-    def get(self, key: str) -> Optional[Any]:
+    def get(self, key: str) -> Any | None:
         """Get the value for the given `key` from the boiler data."""
         return self.data[BOILER].get(key)
 
     async def async_connect(self) -> SatSerialCoordinator:
         try:
             await self._api.connect(port=self._port, timeout=5)
-        except (asyncio.TimeoutError, ConnectionError, SerialException) as exception:
+        except (TimeoutError, ConnectionError, SerialException) as exception:
             raise ConfigEntryNotReady(
                 f"Could not connect to gateway at {self._port}: {exception}"
             ) from exception

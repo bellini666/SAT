@@ -7,22 +7,28 @@ from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import (
     config_validation as cv,
+)
+from homeassistant.helpers import (
     device_registry,
+)
+from homeassistant.helpers import (
     entity_registry as er,
+)
+from homeassistant.helpers import (
     issue_registry as ir,
 )
-from homeassistant.helpers.typing import ConfigType
 from homeassistant.helpers.storage import Store
+from homeassistant.helpers.typing import ConfigType
 from homeassistant.util import dt as dt_util
 
+from .climate import SatClimate
 from .const import (
-    DOMAIN,
+    CONF_DEVICE,
     CONF_MODE,
     CONF_NAME,
-    CONF_DEVICE,
+    DOMAIN,
     SETUP_FAILED_ISSUE_DELAY,
 )
-from .climate import SatClimate
 from .coordinator import SatDataUpdateCoordinator, SatDataUpdateCoordinatorFactory
 from .services import async_setup_services
 
@@ -53,8 +59,7 @@ async def async_setup(hass: HomeAssistant, _config: ConfigType) -> bool:
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: SatConfigEntry):
-    """
-    Set up this integration using the UI.
+    """Set up this integration using the UI.
 
     This function is called by Home Assistant when the integration is set up with the UI.
     """
@@ -105,8 +110,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: SatConfigEntry):
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: SatConfigEntry) -> bool:
-    """
-    Handle removal of an entry.
+    """Handle removal of an entry.
 
     This function is called by Home Assistant when the integration is being removed.
     """

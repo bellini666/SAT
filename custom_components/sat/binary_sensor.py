@@ -4,7 +4,7 @@ import logging
 from datetime import datetime, timedelta
 from time import monotonic
 
-from homeassistant.components.binary_sensor import BinarySensorEntity, BinarySensorDeviceClass
+from homeassistant.components.binary_sensor import BinarySensorDeviceClass, BinarySensorEntity
 from homeassistant.components.climate import HVACAction, HVACMode
 from homeassistant.components.group.binary_sensor import BinarySensorGroup
 from homeassistant.config_entries import ConfigEntry
@@ -16,11 +16,11 @@ from homeassistant.helpers.event import async_track_state_change_event, async_tr
 from .climate import SatClimate
 from .const import (
     CONF_MODE,
+    CONF_WINDOW_SENSORS,
     MODE_MQTT_OPENTHERM,
     MODE_SERIAL,
-    CONF_WINDOW_SENSORS,
-    FlameStatus,
     BoilerStatus,
+    FlameStatus,
 )
 from .entity import SatClimateEntity, SatEntity
 from .helpers import seconds_since
@@ -32,9 +32,7 @@ _LOGGER: logging.Logger = logging.getLogger(__name__)
 async def async_setup_entry(
     _hass: HomeAssistant, _config_entry: ConfigEntry, _async_add_entities: AddEntitiesCallback
 ):
-    """
-    Add binary sensors for the serial protocol if the integration is set to use it.
-    """
+    """Add binary sensors for the serial protocol if the integration is set to use it."""
     climate = _config_entry.runtime_data.climate
     coordinator = _config_entry.runtime_data.coordinator
 

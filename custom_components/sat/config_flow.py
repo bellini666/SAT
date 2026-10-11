@@ -3,26 +3,26 @@
 import asyncio
 import contextlib
 import logging
-from typing import Optional, Any
+from typing import Any
 
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.components import (
+    binary_sensor,
+    climate,
+    input_boolean,
     sensor,
     switch,
     valve,
     weather,
-    binary_sensor,
-    climate,
-    input_boolean,
 )
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState, OptionsFlowWithReload
 from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.core import callback
-from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.data_entry_flow import section
-from homeassistant.helpers import selector, entity_registry
-from homeassistant.helpers.selector import SelectSelectorMode, SelectOptionDict
+from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.helpers import entity_registry, selector
+from homeassistant.helpers.selector import SelectOptionDict, SelectSelectorMode
 from homeassistant.helpers.service_info.dhcp import DhcpServiceInfo
 from homeassistant.helpers.service_info.mqtt import MqttServiceInfo
 from pyotgw import OpenThermGateway
@@ -31,8 +31,8 @@ from voluptuous import Marker
 from . import SatDataUpdateCoordinatorFactory
 from .const import *
 from .coordinator import SatDataUpdateCoordinator
-from .helpers import calculate_default_maximum_setpoint, convert_time_str_to_seconds, snake_case
-from .manufacturer import ManufacturerFactory, MANUFACTURERS
+from .helpers import calculate_default_maximum_setpoint, convert_time_str_to_seconds
+from .manufacturer import MANUFACTURERS, ManufacturerFactory
 from .overshoot_protection import PLATEAU_WINDOW, CalibrationError, create_overshoot_protection
 from .validators import valid_serial_device
 
@@ -124,7 +124,6 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_mosquitto(self, _user_input: dict[str, Any] | None = None):
         """Entry step to select the MQTT mode and branch to a specific setup."""
-
         if _user_input is not None:
             self.errors = {}
             self.data.update(_user_input)
@@ -217,7 +216,7 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 connected = await asyncio.wait_for(
                     gateway.connection.connect(port=self.data[CONF_DEVICE]), timeout=5
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 connected = False
 
             if not connected:
@@ -273,9 +272,7 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         if _user_input is not None:
             self.data.update(_user_input)
             self.data[CONF_MODE] = MODE_SIMULATOR
-            self.data[CONF_DEVICE] = f"%s_%s".format(
-                MODE_SIMULATOR, snake_case(_user_input.get(CONF_NAME))
-            )
+            self.data[CONF_DEVICE] = "%s_%s"
 
             return await self.async_step_sensors()
 
@@ -710,8 +707,8 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     def _create_mqtt_form(
         self,
         step_id: str,
-        default_topic: Optional[str] = None,
-        default_device: Optional[str] = None,
+        default_topic: str | None = None,
+        default_device: str | None = None,
     ):
         """Create a common MQTT configuration form."""
         schema = {vol.Required(CONF_NAME, default=DEFAULT_NAME): str}

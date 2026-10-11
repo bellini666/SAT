@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Optional
 
 from .const import MINIMUM_SETPOINT, BoilerStatus
 
@@ -17,9 +16,7 @@ STABLE_DERIVATIVE = 0.005
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class BoilerState:
-    """
-    Represents the operational state of a boiler, including activity, flame status, hot water usage, and current temperature.
-    """
+    """Represents the operational state of a boiler, including activity, flame status, hot water usage, and current temperature."""
 
     is_active: bool
     is_inactive: bool
@@ -28,10 +25,10 @@ class BoilerState:
     flame_active: bool
     hot_water_active: bool
 
-    setpoint: Optional[float]
-    flow_temperature: Optional[float]
-    return_temperature: Optional[float]
-    relative_modulation_level: Optional[float]
+    setpoint: float | None
+    flow_temperature: float | None
+    return_temperature: float | None
+    relative_modulation_level: float | None
 
 
 class BoilerTemperatureTracker:

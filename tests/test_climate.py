@@ -4,7 +4,7 @@ from datetime import timedelta
 
 import pytest
 from freezegun.api import FrozenDateTimeFactory
-from homeassistant.components.climate import HVACMode, PRESET_AWAY
+from homeassistant.components.climate import PRESET_AWAY, HVACMode
 from homeassistant.components.sensor import DOMAIN as SENSOR_DOMAIN
 from homeassistant.components.template import DOMAIN as TEMPLATE_DOMAIN
 from homeassistant.core import HomeAssistant

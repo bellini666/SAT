@@ -9,8 +9,7 @@ _LOGGER = logging.getLogger(__name__)
 
 class HeatingCurve:
     def __init__(self, heating_system: str, coefficient: float):
-        """
-        :param heating_system: The type of heating system, either "underfloor" or "radiator"
+        """:param heating_system: The type of heating system, either "underfloor" or "radiator"
         :param coefficient: The coefficient used to adjust the heating curve
         """
         self._coefficient = coefficient

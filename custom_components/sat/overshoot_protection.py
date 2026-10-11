@@ -3,10 +3,11 @@ from __future__ import annotations
 import asyncio
 import logging
 import math
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from statistics import fmean, linear_regression
-from typing import Any, Mapping
+from typing import Any
 
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.util import dt as dt_util

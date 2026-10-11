@@ -5,8 +5,7 @@ from homeassistant.util.unit_conversion import TemperatureConverter
 class SummerSimmer:
     @staticmethod
     def index(temperature: float, humidity: float) -> float | None:
-        """
-        Calculate the Summer Simmer Index.
+        """Calculate the Summer Simmer Index.
 
         The Summer Simmer Index is a measure of heat and humidity.
 
@@ -15,6 +14,7 @@ class SummerSimmer:
 
         Returns:
             float: Summer Simmer Index in Celsius.
+
         """
         # Make sure we have a valid value
         if temperature is None or humidity is None:
@@ -46,21 +46,20 @@ class SummerSimmer:
 
         if index is None:
             return "Unknown"
-        elif index < 21.1:
+        if index < 21.1:
             return "Cool"
-        elif index < 25.0:
+        if index < 25.0:
             return "Slightly Cool"
-        elif index < 28.3:
+        if index < 28.3:
             return "Comfortable"
-        elif index < 32.8:
+        if index < 32.8:
             return "Slightly Warm"
-        elif index < 37.8:
+        if index < 37.8:
             return "Increasing Discomfort"
-        elif index < 44.4:
+        if index < 44.4:
             return "Extremely Warm"
-        elif index < 51.7:
+        if index < 51.7:
             return "Danger Of Heatstroke"
-        elif index < 65.6:
+        if index < 65.6:
             return "Extreme Danger Of Heatstroke"
-        else:
-            return "Circulatory Collapse Imminent"
+        return "Circulatory Collapse Imminent"

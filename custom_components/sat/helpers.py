@@ -1,7 +1,6 @@
 import math
 from re import sub
 from time import monotonic
-from typing import Optional, Union
 
 from homeassistant.core import State
 from homeassistant.util import dt
@@ -22,7 +21,7 @@ def state_age_seconds(state: State) -> float:
     return (dt.utcnow() - state.last_reported).total_seconds()
 
 
-def is_state_stale(state: Optional[State], max_age_seconds: float) -> bool:
+def is_state_stale(state: State | None, max_age_seconds: float) -> bool:
     """Return True when the state is older than max_age_seconds."""
     if state is None or max_age_seconds <= 0:
         return False
@@ -70,7 +69,7 @@ def snake_case(value: str) -> str:
     ).lower()
 
 
-def float_value(value: Union[int, float, str, None]) -> Optional[float]:
+def float_value(value: float | str | None) -> float | None:
     """Safely convert a value to a finite float, returning None if the conversion fails."""
     if value is None:
         return None
@@ -82,25 +81,25 @@ def float_value(value: Union[int, float, str, None]) -> Optional[float]:
         return None
 
 
-def to_float(value: Union[int, float, str, None], default: float = 0.0) -> float:
+def to_float(value: float | str | None, default: float = 0.0) -> float:
     """Convert to float, returning default if the conversion fails or the result is None."""
     result = float_value(value)
     return float(result) if result is not None else float(default)
 
 
-def int_value(value: Union[int, float, str, None]) -> Optional[int]:
+def int_value(value: float | str | None) -> int | None:
     """Safely convert a value to an int, returning None if the conversion fails."""
     result = float_value(value)
     return int(result) if result is not None else None
 
 
-def to_int(value: Union[int, float, str, None], default: int = 0) -> int:
+def to_int(value: float | str | None, default: int = 0) -> int:
     """Convert to int, returning default if the conversion fails or the result is None."""
     result = int_value(value)
     return int(result) if result is not None else int(default)
 
 
-def clamp(value: float, low: float, high: Optional[float] = None) -> float:
+def clamp(value: float, low: float, high: float | None = None) -> float:
     """Clamp to [low, high] if high is given, else to [low, +inf]."""
     if high is None:
         return max(low, value)

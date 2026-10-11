@@ -1,25 +1,24 @@
 """Sensor platform for SAT."""
 
 import logging
-from typing import Optional, List
 
 from homeassistant.components import sensor
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
-    UnitOfPower,
-    UnitOfTemperature,
     PERCENTAGE,
+    UnitOfPower,
     UnitOfPressure,
-    UnitOfVolume,
+    UnitOfTemperature,
     UnitOfTime,
+    UnitOfVolume,
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import async_generate_entity_id
 from pyotgw.vars import *
 
-from . import TRANSLATE_SOURCE, SatSerialCoordinator
 from ..const import *
 from ..entity import SatEntity
+from . import TRANSLATE_SOURCE, SatSerialCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -27,10 +26,10 @@ _LOGGER = logging.getLogger(__name__)
 class SatSensorInfo:
     def __init__(
         self,
-        device_class: Optional[str],
-        unit: Optional[str],
+        device_class: str | None,
+        unit: str | None,
         friendly_name_format: str,
-        status_sources: List[str],
+        status_sources: list[str],
     ):
         self.unit = unit
         self.device_class = device_class

@@ -1,8 +1,7 @@
 """Tests for the flame cycle statistics."""
 
-from datetime import timedelta
-
 import logging
+from datetime import timedelta
 
 import pytest
 from freezegun.api import FrozenDateTimeFactory

@@ -2,7 +2,7 @@ import logging
 import math
 from dataclasses import dataclass
 from time import monotonic
-from typing import Optional, Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from homeassistant.core import State
 
@@ -11,17 +11,15 @@ from .heating_curve import HeatingCurve
 from .setpoint_adjuster import SetpointAdjuster
 
 if TYPE_CHECKING:
-    from .flame import FlameState
     from .boiler import BoilerState
+    from .flame import FlameState
 
 _LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class CycleConfig:
-    """
-    Encapsulates settings related to cycle time and maximum cycles.
-    """
+    """Encapsulates settings related to cycle time and maximum cycles."""
 
     maximum_time: int
     maximum_count: int
@@ -29,13 +27,11 @@ class CycleConfig:
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class PWMState:
-    """
-    Encapsulates the state of the PWM control.
-    """
+    """Encapsulates the state of the PWM control."""
 
     enabled: bool
     status: PWMStatus
-    duty_cycle: Optional[Tuple[int, int]]
+    duty_cycle: tuple[int, int] | None
 
 
 class PWM:
@@ -72,7 +68,7 @@ class PWM:
         self._max_duty_cycle_percentage: float = 1 - self._min_duty_cycle_percentage
 
         # Initialize some helpers
-        self._setpoint: Optional[float] = None
+        self._setpoint: float | None = None
         self._setpoint_adjuster = SetpointAdjuster()
         self._setpoint_offset: int = 0.5 if supports_relative_modulation_management else 1
 
@@ -94,7 +90,7 @@ class PWM:
         self._enabled = False
         self._status: PWMStatus = PWMStatus.IDLE
         self._last_update: float = monotonic()
-        self._duty_cycle: Tuple[int, int] | None = None
+        self._duty_cycle: tuple[int, int] | None = None
         self._last_duty_cycle_percentage: float | None = None
 
     def restore(self, state: State) -> None:
@@ -114,7 +110,7 @@ class PWM:
         self._setpoint_adjuster.reset()
 
     async def update(
-        self, boiler: "BoilerState", flame: "FlameState", requested_setpoint: float
+        self, boiler: BoilerState, flame: FlameState, requested_setpoint: float
     ) -> None:
         """Update the PWM state based on the output of a PID controller."""
         if (
@@ -240,8 +236,8 @@ class PWM:
         _LOGGER.debug("Cycle time elapsed: %.0f seconds in state: %s", elapsed, self._status)
 
     def _calculate_duty_cycle(
-        self, requested_setpoint: float, boiler: "BoilerState"
-    ) -> Tuple[int, int]:
+        self, requested_setpoint: float, boiler: BoilerState
+    ) -> tuple[int, int]:
         """Calculate the duty cycle in seconds based on the output of a PID controller and a heating curve value."""
         base_offset = self._heating_curve.base_offset
         boiler_temperature = self._last_boiler_temperature
@@ -362,12 +358,12 @@ class PWM:
         return PWMState(status=self._status, enabled=self._enabled, duty_cycle=self._duty_cycle)
 
     @property
-    def duty_cycle(self) -> Optional[Tuple[int, int]]:
+    def duty_cycle(self) -> tuple[int, int] | None:
         """Current duty cycle as a tuple of (on_time, off_time) in seconds, or None if inactive."""
         return self._duty_cycle
 
     @property
-    def last_duty_cycle_percentage(self) -> Optional[float]:
+    def last_duty_cycle_percentage(self) -> float | None:
         """Returns the last calculated duty cycle percentage."""
         return (
             round(self._last_duty_cycle_percentage * 100, 2)
