@@ -313,8 +313,8 @@ class SatOpenThermMqttCoordinator(SatMqttCoordinator):
 
     @override
     async def async_set_control_hot_water_setpoint(self, value: float) -> None:
-        await self._publish_command(f"SW={value}")
-        self._hot_water_setpoint = value
+        if await self._publish_command(f"SW={value}"):
+            self._hot_water_setpoint = value
 
         await super().async_set_control_hot_water_setpoint(value)
 

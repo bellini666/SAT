@@ -13,6 +13,7 @@ from homeassistant.const import (
     STATE_OFF,
     STATE_ON,
 )
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
@@ -627,4 +628,21 @@ async def test_hot_water_setpoint_stays_settable_while_its_value_is_stale(
     )
 
     assert "SW=55.0" in commands(mqtt_mock)
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_a_failed_hot_water_setpoint_publish_is_not_shown(
+    hass: HomeAssistant, mqtt_mock: MqttMockHAClient, hass_storage: dict[str, Any]
+) -> None:
+    hass_storage[STORAGE_KEY] = {"version": 1, "key": STORAGE_KEY, "data": {"TdhwSet": "60.0"}}
+    entry = otgw_entry(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    coordinator = entry.runtime_data.coordinator
+    mqtt_mock.async_publish.side_effect = HomeAssistantError
+
+    await coordinator.async_set_control_hot_water_setpoint(55.0)
+
+    assert coordinator.hot_water_setpoint == 60.0
+    mqtt_mock.async_publish.side_effect = None
     assert await hass.config_entries.async_unload(entry.entry_id)
