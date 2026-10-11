@@ -9,7 +9,14 @@ from homeassistant.const import UnitOfPower, UnitOfTemperature, UnitOfVolume
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import CONF_MODE, MODE_MQTT_OPENTHERM, MODE_SERIAL, MODE_SIMULATOR, CONF_MINIMUM_CONSUMPTION, CONF_MAXIMUM_CONSUMPTION
+from .const import (
+    CONF_MODE,
+    MODE_MQTT_OPENTHERM,
+    MODE_SERIAL,
+    MODE_SIMULATOR,
+    CONF_MINIMUM_CONSUMPTION,
+    CONF_MAXIMUM_CONSUMPTION,
+)
 from .coordinator import SatDataUpdateCoordinator
 from .entity import SatEntity, SatClimateEntity
 from .serial import sensor as serial_sensor
@@ -21,7 +28,9 @@ if typing.TYPE_CHECKING:
 _LOGGER: logging.Logger = logging.getLogger(__name__)
 
 
-async def async_setup_entry(_hass: HomeAssistant, _config_entry: ConfigEntry, _async_add_entities: AddEntitiesCallback):
+async def async_setup_entry(
+    _hass: HomeAssistant, _config_entry: ConfigEntry, _async_add_entities: AddEntitiesCallback
+):
     """
     Add sensors for the serial protocol if the integration is set to use it.
     """
@@ -39,24 +48,28 @@ async def async_setup_entry(_hass: HomeAssistant, _config_entry: ConfigEntry, _a
     if _config_entry.data.get(CONF_MODE) == MODE_MQTT_OPENTHERM:
         _async_add_entities([SatBoilerFaultCodeSensor(coordinator, _config_entry)])
 
-    _async_add_entities([
-        SatFlameSensor(coordinator, _config_entry),
-        SatBoilerSensor(coordinator, _config_entry),
-        SatManufacturerSensor(coordinator, _config_entry),
-        SatErrorValueSensor(coordinator, _config_entry, climate),
-        SatHeatingCurveSensor(coordinator, _config_entry, climate),
-    ])
+    _async_add_entities(
+        [
+            SatFlameSensor(coordinator, _config_entry),
+            SatBoilerSensor(coordinator, _config_entry),
+            SatManufacturerSensor(coordinator, _config_entry),
+            SatErrorValueSensor(coordinator, _config_entry, climate),
+            SatHeatingCurveSensor(coordinator, _config_entry, climate),
+        ]
+    )
 
     if coordinator.supports_relative_modulation_management:
         _async_add_entities([SatCurrentPowerSensor(coordinator, _config_entry)])
 
-        if float(_config_entry.options.get(CONF_MINIMUM_CONSUMPTION) or 0) > 0 and float(_config_entry.options.get(CONF_MAXIMUM_CONSUMPTION) or 0) > 0:
+        if (
+            float(_config_entry.options.get(CONF_MINIMUM_CONSUMPTION) or 0) > 0
+            and float(_config_entry.options.get(CONF_MAXIMUM_CONSUMPTION) or 0) > 0
+        ):
             _async_add_entities([SatCurrentConsumptionSensor(coordinator, _config_entry)])
 
 
 class SatCurrentPowerSensor(SatEntity, SensorEntity):
     _attr_translation_key = "boiler_power"
-
 
     @property
     def device_class(self):
@@ -96,7 +109,6 @@ class SatCurrentConsumptionSensor(SatEntity, SensorEntity):
         self._minimum_consumption = self._config_entry.options.get(CONF_MINIMUM_CONSUMPTION)
         self._maximum_consumption = self._config_entry.options.get(CONF_MAXIMUM_CONSUMPTION)
 
-
     @property
     def device_class(self):
         """Return the device class."""
@@ -128,7 +140,11 @@ class SatCurrentConsumptionSensor(SatEntity, SensorEntity):
         differential_gas_consumption = self._maximum_consumption - self._minimum_consumption
         relative_modulation_value = self._coordinator.relative_modulation_value
 
-        return round(self._minimum_consumption + ((relative_modulation_value / 100) * differential_gas_consumption), 3)
+        return round(
+            self._minimum_consumption
+            + ((relative_modulation_value / 100) * differential_gas_consumption),
+            3,
+        )
 
     @property
     def unique_id(self) -> str:
@@ -138,7 +154,6 @@ class SatCurrentConsumptionSensor(SatEntity, SensorEntity):
 
 class SatHeatingCurveSensor(SatClimateEntity, SensorEntity):
     _attr_translation_key = "heating_curve"
-
 
     @property
     def device_class(self):
@@ -171,7 +186,6 @@ class SatHeatingCurveSensor(SatClimateEntity, SensorEntity):
 
 class SatErrorValueSensor(SatClimateEntity, SensorEntity):
     _attr_translation_key = "error_value"
-
 
     @property
     def device_class(self):

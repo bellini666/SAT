@@ -11,7 +11,13 @@ from homeassistant.helpers import issue_registry as ir
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed
 
-from custom_components.sat.const import CONF_DEVICE, CONF_MODE, CONF_MQTT_TOPIC, DOMAIN, MODE_MQTT_OPENTHERM
+from custom_components.sat.const import (
+    CONF_DEVICE,
+    CONF_MODE,
+    CONF_MQTT_TOPIC,
+    DOMAIN,
+    MODE_MQTT_OPENTHERM,
+)
 from custom_components.sat.coordinator import DeviceState
 from tests.const import DEFAULT_USER_DATA
 
@@ -47,7 +53,9 @@ async def test_healthy_while_controlling(hass: HomeAssistant) -> None:
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
-async def test_flags_a_stalled_control_loop(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+async def test_flags_a_stalled_control_loop(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
     entry = await setup_heating(hass)
 
     freezer.tick(timedelta(minutes=3))
@@ -74,7 +82,9 @@ async def test_healthy_while_paused(hass: HomeAssistant, freezer: FrozenDateTime
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
-async def test_healthy_right_after_turning_on(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+async def test_healthy_right_after_turning_on(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
     entry = await setup_heating(hass)
     climate = entry.runtime_data.climate
 
@@ -89,7 +99,9 @@ async def test_healthy_right_after_turning_on(hass: HomeAssistant, freezer: Froz
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
-async def test_healthy_while_home_assistant_starts(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+async def test_healthy_while_home_assistant_starts(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
     hass.set_state(CoreState.starting)
     hass.states.async_set("sensor.test_inside_sensor", "19.5")
     hass.states.async_set("sensor.test_outside_sensor", "5.0")
@@ -121,7 +133,9 @@ async def test_flags_missing_inputs_and_recovers(hass: HomeAssistant) -> None:
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
-async def test_flags_missing_boiler_data(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+async def test_flags_missing_boiler_data(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
     entry = await setup_heating(hass)
     freezer.tick(timedelta(minutes=3))
 
@@ -133,7 +147,9 @@ async def test_flags_missing_boiler_data(hass: HomeAssistant, freezer: FrozenDat
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
-async def test_healthy_while_the_first_boiler_data_arrives(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+async def test_healthy_while_the_first_boiler_data_arrives(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
     hass.states.async_set("sensor.test_inside_sensor", "19.5")
     hass.states.async_set("sensor.test_outside_sensor", "5.0")
     entry = MockConfigEntry(domain=DOMAIN, data={**DEFAULT_USER_DATA, "minimum_setpoint": 45})
@@ -159,11 +175,18 @@ async def test_healthy_while_the_first_boiler_data_arrives(hass: HomeAssistant, 
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
-async def test_failed_setup_raises_a_repair_issue_after_retrying(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+async def test_failed_setup_raises_a_repair_issue_after_retrying(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
     entry = MockConfigEntry(
         domain=DOMAIN,
         unique_id="otgw",
-        data={**DEFAULT_USER_DATA, CONF_MODE: MODE_MQTT_OPENTHERM, CONF_DEVICE: "otgw", CONF_MQTT_TOPIC: "OTGW"},
+        data={
+            **DEFAULT_USER_DATA,
+            CONF_MODE: MODE_MQTT_OPENTHERM,
+            CONF_DEVICE: "otgw",
+            CONF_MQTT_TOPIC: "OTGW",
+        },
     )
     entry.add_to_hass(hass)
 
@@ -187,7 +210,14 @@ async def test_failed_setup_raises_a_repair_issue_after_retrying(hass: HomeAssis
 async def test_successful_setup_clears_the_repair_issue(hass: HomeAssistant) -> None:
     entry = MockConfigEntry(domain=DOMAIN, data=DEFAULT_USER_DATA)
     entry.add_to_hass(hass)
-    ir.async_create_issue(hass, DOMAIN, f"setup_failed_{entry.entry_id}", is_fixable=False, severity=ir.IssueSeverity.ERROR, translation_key="setup_failed")
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        f"setup_failed_{entry.entry_id}",
+        is_fixable=False,
+        severity=ir.IssueSeverity.ERROR,
+        translation_key="setup_failed",
+    )
 
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
@@ -196,7 +226,9 @@ async def test_successful_setup_clears_the_repair_issue(hass: HomeAssistant) -> 
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
-async def test_synchro_sensors_ignore_the_room_thermostat_while_off(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+async def test_synchro_sensors_ignore_the_room_thermostat_while_off(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
     entry = await setup_heating(hass)
     climate = entry.runtime_data.climate
     coordinator = entry.runtime_data.coordinator

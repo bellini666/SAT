@@ -13,10 +13,12 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
     coordinator = config_entry.runtime_data.coordinator
 
     # Add all devices
-    async_add_entities([
-        SatSetpointSensor(coordinator, config_entry),
-        SatBoilerTemperatureSensor(coordinator, config_entry),
-    ])
+    async_add_entities(
+        [
+            SatSetpointSensor(coordinator, config_entry),
+            SatBoilerTemperatureSensor(coordinator, config_entry),
+        ]
+    )
 
 
 class SatSetpointSensor(SatEntity, sensor.SensorEntity):
@@ -27,7 +29,9 @@ class SatSetpointSensor(SatEntity, sensor.SensorEntity):
 
         self._config_entry = config_entry
         self.entity_id = async_generate_entity_id(
-            sensor.DOMAIN + ".{}", f"{config_entry.data.get(CONF_NAME).lower()}_setpoint", hass=coordinator.hass
+            sensor.DOMAIN + ".{}",
+            f"{config_entry.data.get(CONF_NAME).lower()}_setpoint",
+            hass=coordinator.hass,
         )
 
     @property
@@ -69,7 +73,9 @@ class SatBoilerTemperatureSensor(SatEntity, sensor.SensorEntity):
 
         self._config_entry = config_entry
         self.entity_id = async_generate_entity_id(
-            sensor.DOMAIN + ".{}", f"{config_entry.data.get(CONF_NAME).lower()}_boiler_temperature", hass=coordinator.hass
+            sensor.DOMAIN + ".{}",
+            f"{config_entry.data.get(CONF_NAME).lower()}_boiler_temperature",
+            hass=coordinator.hass,
         )
 
     @property

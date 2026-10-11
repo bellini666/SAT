@@ -9,7 +9,12 @@ from freezegun.api import FrozenDateTimeFactory
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import async_fire_time_changed
 
-from custom_components.sat.const import CONF_MAXIMUM_SETPOINT, HEATING_SYSTEM_RADIATORS, MINIMUM_SETPOINT, OPTIONS_DEFAULTS
+from custom_components.sat.const import (
+    CONF_MAXIMUM_SETPOINT,
+    HEATING_SYSTEM_RADIATORS,
+    MINIMUM_SETPOINT,
+    OPTIONS_DEFAULTS,
+)
 from custom_components.sat.coordinator import DeviceState
 from custom_components.sat.manufacturer import Manufacturer
 from custom_components.sat.manufacturers.geminox import Geminox
@@ -59,16 +64,30 @@ async def tick(hass: HomeAssistant, freezer: FrozenDateTimeFactory, count: int =
         await hass.async_block_till_done()
 
 
-def start(hass: HomeAssistant, boiler: Boiler, **kwargs) -> tuple[OvershootProtection, asyncio.Task]:
-    protection = OvershootProtection(boiler, HEATING_SYSTEM_RADIATORS, maximum_setpoint=55, **kwargs)
+def start(
+    hass: HomeAssistant, boiler: Boiler, **kwargs
+) -> tuple[OvershootProtection, asyncio.Task]:
+    protection = OvershootProtection(
+        boiler, HEATING_SYSTEM_RADIATORS, maximum_setpoint=55, **kwargs
+    )
     return protection, hass.async_create_background_task(protection.calculate(), "calibration")
 
 
 def released(boiler: Boiler) -> bool:
-    return boiler.commands[-3:] == [("CH", DeviceState.OFF), ("CS", MINIMUM_SETPOINT), ("release", None)]
+    return boiler.commands[-3:] == [
+        ("CH", DeviceState.OFF),
+        ("CS", MINIMUM_SETPOINT),
+        ("release", None),
+    ]
 
 
-async def heat_to_plateau(hass: HomeAssistant, freezer: FrozenDateTimeFactory, boiler: Boiler, flow: float, modulation: float) -> None:
+async def heat_to_plateau(
+    hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
+    boiler: Boiler,
+    flow: float,
+    modulation: float,
+) -> None:
     boiler.flame_active = True
     boiler.relative_modulation_value = 60
     for temperature in (35, 40, 44):
@@ -87,12 +106,23 @@ async def test_capped_at_the_maximum_setpoint(hass: HomeAssistant) -> None:
     assert protection.setpoint == 55
 
 
-@pytest.mark.parametrize(("flow", "modulation", "method", "low", "high"), [
-    (45.0, 13, "minimum_modulation", 45.0, 45.3),
-    (47.0, 0, "zero_modulation", 47.0, 47.3),
-    (54.8, 40, "formula", 33.0, 33.0),
-])
-async def test_measures_the_plateau(hass: HomeAssistant, freezer: FrozenDateTimeFactory, flow: float, modulation: float, method: str, low: float, high: float) -> None:
+@pytest.mark.parametrize(
+    ("flow", "modulation", "method", "low", "high"),
+    [
+        (45.0, 13, "minimum_modulation", 45.0, 45.3),
+        (47.0, 0, "zero_modulation", 47.0, 47.3),
+        (54.8, 40, "formula", 33.0, 33.0),
+    ],
+)
+async def test_measures_the_plateau(
+    hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
+    flow: float,
+    modulation: float,
+    method: str,
+    low: float,
+    high: float,
+) -> None:
     boiler = Boiler(hass)
     _protection, task = start(hass, boiler)
     await hass.async_block_till_done()
@@ -107,11 +137,25 @@ async def test_measures_the_plateau(hass: HomeAssistant, freezer: FrozenDateTime
     assert released(boiler)
 
 
-@pytest.mark.parametrize(("flows", "low", "high"), [
-    ([43.5 + step * 0.05 for step in range(30)] + [45.0 + offset for offset in (0.0, 0.2, 0.3, 0.1, 0.2, 0.3, 0.0, 0.2, 0.1, 0.3, 0.2, 0.1)], 45.0, 45.3),
-    ([35, 40, 44, 46, 47, 48, 47, 48, 47, 47, 48, 47, 48, 48, 47, 48, 47], 47.0, 48.0),
-], ids=["slow_rise_is_not_a_plateau", "whole_degree_flicker_is_a_plateau"])
-async def test_plateau_detection(hass: HomeAssistant, freezer: FrozenDateTimeFactory, flows: list[float], low: float, high: float) -> None:
+@pytest.mark.parametrize(
+    ("flows", "low", "high"),
+    [
+        (
+            [43.5 + step * 0.05 for step in range(30)]
+            + [
+                45.0 + offset
+                for offset in (0.0, 0.2, 0.3, 0.1, 0.2, 0.3, 0.0, 0.2, 0.1, 0.3, 0.2, 0.1)
+            ],
+            45.0,
+            45.3,
+        ),
+        ([35, 40, 44, 46, 47, 48, 47, 48, 47, 47, 48, 47, 48, 48, 47, 48, 47], 47.0, 48.0),
+    ],
+    ids=["slow_rise_is_not_a_plateau", "whole_degree_flicker_is_a_plateau"],
+)
+async def test_plateau_detection(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory, flows: list[float], low: float, high: float
+) -> None:
     boiler = Boiler(hass)
     _protection, task = start(hass, boiler)
 
@@ -127,11 +171,22 @@ async def test_plateau_detection(hass: HomeAssistant, freezer: FrozenDateTimeFac
     assert low <= result.value <= high
 
 
-@pytest.mark.parametrize(("minimum", "ramp", "plateau", "method", "value"), [
-    (14.0, 0, 16, "formula", 46.2),
-    (None, 13, 13, "minimum_modulation", 45.2),
-])
-async def test_modulation_floor_is_the_lowest_level_seen(hass: HomeAssistant, freezer: FrozenDateTimeFactory, minimum: float | None, ramp: float, plateau: float, method: str, value: float) -> None:
+@pytest.mark.parametrize(
+    ("minimum", "ramp", "plateau", "method", "value"),
+    [
+        (14.0, 0, 16, "formula", 46.2),
+        (None, 13, 13, "minimum_modulation", 45.2),
+    ],
+)
+async def test_modulation_floor_is_the_lowest_level_seen(
+    hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
+    minimum: float | None,
+    ramp: float,
+    plateau: float,
+    method: str,
+    value: float,
+) -> None:
     boiler = Boiler(hass)
     boiler.minimum_relative_modulation_value = minimum
     _protection, task = start(hass, boiler)
@@ -151,7 +206,9 @@ async def test_modulation_floor_is_the_lowest_level_seen(hass: HomeAssistant, fr
     assert (result.method, result.value) == (method, value)
 
 
-async def test_fails_when_the_floor_plateau_reaches_the_setpoint(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+async def test_fails_when_the_floor_plateau_reaches_the_setpoint(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
     boiler = Boiler(hass)
     _protection, task = start(hass, boiler)
 
@@ -162,7 +219,9 @@ async def test_fails_when_the_floor_plateau_reaches_the_setpoint(hass: HomeAssis
     assert released(boiler)
 
 
-async def test_hot_water_pauses_the_measurement(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+async def test_hot_water_pauses_the_measurement(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
     boiler = Boiler(hass)
     protection, task = start(hass, boiler, plateau_timeout=timedelta(minutes=10))
 
@@ -186,7 +245,9 @@ async def test_hot_water_pauses_the_measurement(hass: HomeAssistant, freezer: Fr
     assert result.method == "minimum_modulation"
 
 
-async def test_times_out_without_a_plateau(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+async def test_times_out_without_a_plateau(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
     boiler = Boiler(hass)
     _protection, task = start(hass, boiler, plateau_timeout=timedelta(minutes=10))
 
@@ -201,8 +262,12 @@ async def test_times_out_without_a_plateau(hass: HomeAssistant, freezer: FrozenD
     assert released(boiler)
 
 
-@pytest.mark.parametrize(("modulation", "suggested"), [(0, True), (60, False)], ids=["minimum_modulation", "modulating"])
-async def test_a_timeout_suggests_the_flow_reached_at_minimum_modulation(hass: HomeAssistant, freezer: FrozenDateTimeFactory, modulation: float, suggested: bool) -> None:
+@pytest.mark.parametrize(
+    ("modulation", "suggested"), [(0, True), (60, False)], ids=["minimum_modulation", "modulating"]
+)
+async def test_a_timeout_suggests_the_flow_reached_at_minimum_modulation(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory, modulation: float, suggested: bool
+) -> None:
     boiler = Boiler(hass)
     _protection, task = start(hass, boiler, plateau_timeout=timedelta(minutes=10))
 
@@ -219,7 +284,9 @@ async def test_a_timeout_suggests_the_flow_reached_at_minimum_modulation(hass: H
     assert error.value.value == (math.ceil(boiler.boiler_temperature) if suggested else None)
 
 
-async def test_a_timeout_right_after_a_flame_loss_suggests_nothing(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+async def test_a_timeout_right_after_a_flame_loss_suggests_nothing(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
     boiler = Boiler(hass)
     _protection, task = start(hass, boiler, plateau_timeout=timedelta(minutes=10))
 
@@ -237,10 +304,14 @@ async def test_a_timeout_right_after_a_flame_loss_suggests_nothing(hass: HomeAss
     assert error.value.value is None
 
 
-async def test_hot_water_counts_towards_the_overall_deadline(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+async def test_hot_water_counts_towards_the_overall_deadline(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
     boiler = Boiler(hass)
     boiler.hot_water_active = True
-    _protection, task = start(hass, boiler, flame_timeout=timedelta(minutes=5), plateau_timeout=timedelta(minutes=10))
+    _protection, task = start(
+        hass, boiler, flame_timeout=timedelta(minutes=5), plateau_timeout=timedelta(minutes=10)
+    )
 
     await tick(hass, freezer, 59)
     assert not task.done()
@@ -252,7 +323,9 @@ async def test_hot_water_counts_towards_the_overall_deadline(hass: HomeAssistant
     assert released(boiler)
 
 
-async def test_fails_early_without_modulation(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+async def test_fails_early_without_modulation(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
     boiler = Boiler(hass)
     boiler.relative_modulation_value = None
     _protection, task = start(hass, boiler)
@@ -278,7 +351,9 @@ async def test_fails_without_a_flame(hass: HomeAssistant, freezer: FrozenDateTim
     assert released(boiler)
 
 
-async def test_fails_after_repeated_flame_losses(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+async def test_fails_after_repeated_flame_losses(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
     boiler = Boiler(hass)
     _protection, task = start(hass, boiler)
 
@@ -293,7 +368,9 @@ async def test_fails_after_repeated_flame_losses(hass: HomeAssistant, freezer: F
     assert released(boiler)
 
 
-async def test_abort_releases_the_overrides(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+async def test_abort_releases_the_overrides(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
     boiler = Boiler(hass)
     _protection, task = start(hass, boiler)
     await tick(hass, freezer, 2)
@@ -305,7 +382,9 @@ async def test_abort_releases_the_overrides(hass: HomeAssistant, freezer: Frozen
     assert released(boiler)
 
 
-async def test_refreshes_the_control_setpoint_every_tick(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+async def test_refreshes_the_control_setpoint_every_tick(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
     boiler = Boiler(hass)
     _protection, task = start(hass, boiler)
     await hass.async_block_till_done()
@@ -317,7 +396,9 @@ async def test_refreshes_the_control_setpoint_every_tick(hass: HomeAssistant, fr
         await task
 
 
-async def test_release_waits_for_a_running_tick(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+async def test_release_waits_for_a_running_tick(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
     boiler = Boiler(hass)
     _protection, task = start(hass, boiler)
     await tick(hass, freezer)
@@ -337,7 +418,9 @@ async def test_release_waits_for_a_running_tick(hass: HomeAssistant, freezer: Fr
     assert released(boiler)
 
 
-async def test_gateway_error_ends_the_calibration(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+async def test_gateway_error_ends_the_calibration(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
     boiler = Boiler(hass)
     _protection, task = start(hass, boiler)
     await tick(hass, freezer)
@@ -350,7 +433,9 @@ async def test_gateway_error_ends_the_calibration(hass: HomeAssistant, freezer: 
     assert released(boiler)
 
 
-async def test_simulator_heats_during_calibration(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+async def test_simulator_heats_during_calibration(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
     simulator = SatSimulatorCoordinator(hass, {**OPTIONS_DEFAULTS, CONF_MAXIMUM_SETPOINT: 55})
     _protection, task = start(hass, simulator)
 
@@ -362,7 +447,9 @@ async def test_simulator_heats_during_calibration(hass: HomeAssistant, freezer: 
         await task
 
 
-async def test_geminox_gets_the_climate_modulation_clamp(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+async def test_geminox_gets_the_climate_modulation_clamp(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
     boiler = Boiler(hass)
     boiler.manufacturer = Geminox()
     _protection, task = start(hass, boiler)

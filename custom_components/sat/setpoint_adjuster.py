@@ -41,7 +41,9 @@ class SetpointAdjuster:
 
         _LOGGER.info(
             "Setpoint updated: %.1f°C -> %.1f°C (Target: %.1f°C)",
-            previous_setpoint, self._current, target_setpoint
+            previous_setpoint,
+            self._current,
+            target_setpoint,
         )
 
         return self._current

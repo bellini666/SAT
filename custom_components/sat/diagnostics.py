@@ -12,7 +12,9 @@ from .const import CONF_DEVICE
 TO_REDACT = {CONF_DEVICE}
 
 
-async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: SatConfigEntry) -> dict[str, Any]:
+async def async_get_config_entry_diagnostics(
+    hass: HomeAssistant, entry: SatConfigEntry
+) -> dict[str, Any]:
     climate = entry.runtime_data.climate
     coordinator = entry.runtime_data.coordinator
 
@@ -37,7 +39,13 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: SatConf
             "flame": asdict(coordinator.flame),
             "data": dict(coordinator.data),
             "messages": [
-                {**message, "topic": "/".join(REDACTED if part == entry.data[CONF_DEVICE] else part for part in message["topic"].split("/"))}
+                {
+                    **message,
+                    "topic": "/".join(
+                        REDACTED if part == entry.data[CONF_DEVICE] else part
+                        for part in message["topic"].split("/")
+                    ),
+                }
                 for message in coordinator.messages
             ],
         },

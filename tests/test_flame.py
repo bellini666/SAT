@@ -16,7 +16,13 @@ PWM_ON = PWMState(enabled=True, status=PWMStatus.ON, duty_cycle=(900, 300))
 PWM_OFF = PWMState(enabled=True, status=PWMStatus.OFF, duty_cycle=(900, 300))
 
 
-def boiler_state(flame_active: bool, demand: bool = True, hot_water: bool = False, setpoint: float = 50.0, flow: float = 50.0) -> BoilerState:
+def boiler_state(
+    flame_active: bool,
+    demand: bool = True,
+    hot_water: bool = False,
+    setpoint: float = 50.0,
+    flow: float = 50.0,
+) -> BoilerState:
     if hot_water:
         status = BoilerStatus.HOT_WATER
     elif not demand:
@@ -64,15 +70,23 @@ def idle(flame: Flame, freezer: FrozenDateTimeFactory, seconds: int) -> None:
         flame.update(boiler_state(False, demand=False))
 
 
-def wait_for_flame(flame: Flame, freezer: FrozenDateTimeFactory, seconds: int, hot_water: bool = False) -> None:
+def wait_for_flame(
+    flame: Flame, freezer: FrozenDateTimeFactory, seconds: int, hot_water: bool = False
+) -> None:
     flame.update(boiler_state(False, hot_water=hot_water))
     for _ in range(seconds // 10):
         freezer.tick(timedelta(seconds=10))
         flame.update(boiler_state(False, hot_water=hot_water))
 
 
-@pytest.mark.parametrize(("cycles", "hot_water"), [(1, False), (3, False), (3, True)], ids=["thin_history", "full_history", "hot_water"])
-def test_demand_after_a_long_idle_is_not_stuck_off(freezer: FrozenDateTimeFactory, cycles: int, hot_water: bool) -> None:
+@pytest.mark.parametrize(
+    ("cycles", "hot_water"),
+    [(1, False), (3, False), (3, True)],
+    ids=["thin_history", "full_history", "hot_water"],
+)
+def test_demand_after_a_long_idle_is_not_stuck_off(
+    freezer: FrozenDateTimeFactory, cycles: int, hot_water: bool
+) -> None:
     flame = Flame()
     for _ in range(cycles):
         run_cycle(flame, freezer, 300)
@@ -106,7 +120,13 @@ def test_stuck_off_clears_when_the_flame_lights(freezer: FrozenDateTimeFactory) 
     assert flame.health_status != FlameStatus.STUCK_OFF
 
 
-def run_pwm_cycle(flame: Flame, freezer: FrozenDateTimeFactory, on_seconds: int, pwm_on: PWMState = PWM_ON, cut: bool = False) -> None:
+def run_pwm_cycle(
+    flame: Flame,
+    freezer: FrozenDateTimeFactory,
+    on_seconds: int,
+    pwm_on: PWMState = PWM_ON,
+    cut: bool = False,
+) -> None:
     flame.update(boiler_state(True), pwm_on)
     for _ in range(on_seconds // 10):
         freezer.tick(timedelta(seconds=10))
@@ -158,7 +178,9 @@ def test_a_burn_pwm_ends_early_is_not_cut_short(freezer: FrozenDateTimeFactory) 
     assert flame.health_status == FlameStatus.HEALTHY
 
 
-def test_full_duty_burns_the_boiler_ends_early_are_pwm_short(freezer: FrozenDateTimeFactory) -> None:
+def test_full_duty_burns_the_boiler_ends_early_are_pwm_short(
+    freezer: FrozenDateTimeFactory,
+) -> None:
     flame = Flame()
     full = PWMState(enabled=True, status=PWMStatus.ON, duty_cycle=(1800, 0))
     run_pwm_cycle(flame, freezer, 1800, pwm_on=full, cut=True)
@@ -171,7 +193,9 @@ def test_full_duty_burns_the_boiler_ends_early_are_pwm_short(freezer: FrozenDate
     assert flame.health_status == FlameStatus.PWM_SHORT
 
 
-def test_hot_water_burns_during_pwm_are_not_cut_short(freezer: FrozenDateTimeFactory, caplog: pytest.LogCaptureFixture) -> None:
+def test_hot_water_burns_during_pwm_are_not_cut_short(
+    freezer: FrozenDateTimeFactory, caplog: pytest.LogCaptureFixture
+) -> None:
     flame = Flame()
     run_pwm_cycle(flame, freezer, 900)
 
@@ -189,7 +213,9 @@ def test_hot_water_burns_during_pwm_are_not_cut_short(freezer: FrozenDateTimeFac
     assert "overshoot protection" not in caplog.text
 
 
-def test_a_stale_pwm_state_does_not_judge_burns(freezer: FrozenDateTimeFactory, caplog: pytest.LogCaptureFixture) -> None:
+def test_a_stale_pwm_state_does_not_judge_burns(
+    freezer: FrozenDateTimeFactory, caplog: pytest.LogCaptureFixture
+) -> None:
     flame = Flame()
     run_pwm_cycle(flame, freezer, 900)
     flame.update(boiler_state(False), PWM_ON)
@@ -228,11 +254,15 @@ def ignition_spike(flame: Flame, freezer: FrozenDateTimeFactory, pwm_off_first: 
         flame.update(boiler_state(True, setpoint=40.0, flow=flow), PWM_ON)
         freezer.tick(timedelta(seconds=10))
 
-    flame.update(boiler_state(False, setpoint=40.0, flow=43.0), PWM_OFF if pwm_off_first else PWM_ON)
+    flame.update(
+        boiler_state(False, setpoint=40.0, flow=43.0), PWM_OFF if pwm_off_first else PWM_ON
+    )
 
 
 @pytest.mark.parametrize("pwm_off_first", [False, True], ids=["boiler_cut", "pwm_ended"])
-def test_an_ignition_spike_warns_only_when_the_boiler_cuts_the_burn(freezer: FrozenDateTimeFactory, caplog: pytest.LogCaptureFixture, pwm_off_first: bool) -> None:
+def test_an_ignition_spike_warns_only_when_the_boiler_cuts_the_burn(
+    freezer: FrozenDateTimeFactory, caplog: pytest.LogCaptureFixture, pwm_off_first: bool
+) -> None:
     flame = Flame()
 
     with caplog.at_level(logging.WARNING):

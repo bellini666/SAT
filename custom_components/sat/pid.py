@@ -17,19 +17,19 @@ class PID:
     """A proportional-integral-derivative (PID) controller."""
 
     def __init__(
-            self,
-            heating_system: str,
-            automatic_gain_value: float,
-            heating_curve_coefficient: float,
-            derivative_time_weight: float,
-            kp: float,
-            ki: float,
-            kd: float,
-            deadband: float = DEADBAND,
-            automatic_gains: bool = False,
-            integral_time_limit: float = 300,
-            sample_time_limit: Optional[float] = 10,
-            version: int = 3,
+        self,
+        heating_system: str,
+        automatic_gain_value: float,
+        heating_curve_coefficient: float,
+        derivative_time_weight: float,
+        kp: float,
+        ki: float,
+        kd: float,
+        deadband: float = DEADBAND,
+        automatic_gains: bool = False,
+        integral_time_limit: float = 300,
+        sample_time_limit: Optional[float] = 10,
+        version: int = 3,
     ) -> None:
         """
         Initialize the PID controller.
@@ -59,7 +59,9 @@ class PID:
 
         self._last_interval_updated: float = monotonic()
         self._integral_time_limit: float = max(integral_time_limit, 1)
-        self._sample_time_limit: Optional[float] = (max(sample_time_limit, 1) if sample_time_limit is not None else None)
+        self._sample_time_limit: Optional[float] = (
+            max(sample_time_limit, 1) if sample_time_limit is not None else None
+        )
 
         self.reset()
 
@@ -93,7 +95,10 @@ class PID:
 
         # If nothing changed, skip, but keep decaying the derivative inside the deadband
         if error.value == self._last_error:
-            if not self.derivative_enabled and (self._sample_time_limit is None or seconds_since(self._last_derivative_time) >= self._sample_time_limit):
+            if not self.derivative_enabled and (
+                self._sample_time_limit is None
+                or seconds_since(self._last_derivative_time) >= self._sample_time_limit
+            ):
                 self.update_derivative(error)
 
             return
@@ -134,9 +139,13 @@ class PID:
 
         self._last_error = error.value
         self._previous_error = error.value
-        self._last_heating_curve_value = heating_curve_value if heating_curve_value is not None else 0.0
+        self._last_heating_curve_value = (
+            heating_curve_value if heating_curve_value is not None else 0.0
+        )
 
-    def update_integral(self, error: Error, heating_curve_value: float, force: bool = False) -> None:
+    def update_integral(
+        self, error: Error, heating_curve_value: float, force: bool = False
+    ) -> None:
         """
         Update the integral value in the PID controller.
 
@@ -190,7 +199,9 @@ class PID:
             return
 
         # Inside the deadband the error counts as zero, so the filters decay the derivative toward zero without a step
-        derivative = (error.value - self._last_error) / time_diff if self.derivative_enabled else 0.0
+        derivative = (
+            (error.value - self._last_error) / time_diff if self.derivative_enabled else 0.0
+        )
 
         # First low-pass filter
         filtered_derivative = alpha1 * derivative + (1 - alpha1) * self._raw_derivative
@@ -255,10 +266,19 @@ class PID:
         if self._automatic_gains:
             if self._version == 3:
                 automatic_gain_value = 4 if self._heating_system == HEATING_SYSTEM_UNDERFLOOR else 3
-                return round((self._heating_curve_coefficient * self._last_heating_curve_value) / automatic_gain_value, 6)
+                return round(
+                    (self._heating_curve_coefficient * self._last_heating_curve_value)
+                    / automatic_gain_value,
+                    6,
+                )
 
-            automatic_gain_value = 0.243 if self._heating_system == HEATING_SYSTEM_UNDERFLOOR else 0.33
-            return round(self._automatic_gains_value * automatic_gain_value * self._last_heating_curve_value, 6)
+            automatic_gain_value = (
+                0.243 if self._heating_system == HEATING_SYSTEM_UNDERFLOOR else 0.33
+            )
+            return round(
+                self._automatic_gains_value * automatic_gain_value * self._last_heating_curve_value,
+                6,
+            )
 
         return float(self._kp)
 
@@ -273,7 +293,9 @@ class PID:
                 return round(self._last_heating_curve_value / 73900, 6)
 
             if self._version == 2:
-                return round(self._automatic_gains_value * (self._last_heating_curve_value / 7200), 6)
+                return round(
+                    self._automatic_gains_value * (self._last_heating_curve_value / 7200), 6
+                )
 
             if self._version == 3:
                 return round(self.kp / self._get_aggression_value(), 6)
@@ -292,7 +314,13 @@ class PID:
             if self._version == 3:
                 return round(0.07 * self._get_aggression_value() * self.kp, 6)
 
-            return round(self._automatic_gains_value * self._get_aggression_value() * self._derivative_time_weight * self._last_heating_curve_value, 6)
+            return round(
+                self._automatic_gains_value
+                * self._get_aggression_value()
+                * self._derivative_time_weight
+                * self._last_heating_curve_value,
+                6,
+            )
 
         return float(self._kd)
 

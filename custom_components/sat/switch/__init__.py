@@ -11,14 +11,17 @@ from homeassistant.helpers.entity_registry import RegistryEntry
 
 from ..coordinator import DeviceState, SatDataUpdateCoordinator
 
-DOMAIN_SERVICE = {
-    SWITCH_DOMAIN: SWITCH_DOMAIN,
-    INPUT_BOOLEAN_DOMAIN: INPUT_BOOLEAN_DOMAIN
-}
+DOMAIN_SERVICE = {SWITCH_DOMAIN: SWITCH_DOMAIN, INPUT_BOOLEAN_DOMAIN: INPUT_BOOLEAN_DOMAIN}
 
 
 class SatSwitchCoordinator(SatDataUpdateCoordinator):
-    def __init__(self, hass: HomeAssistant, entity_id: str, config_data: Mapping[str, Any], options: Mapping[str, Any] | None = None) -> None:
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        entity_id: str,
+        config_data: Mapping[str, Any],
+        options: Mapping[str, Any] | None = None,
+    ) -> None:
         """Initialize."""
         super().__init__(hass, config_data, options)
 
@@ -57,6 +60,11 @@ class SatSwitchCoordinator(SatDataUpdateCoordinator):
             state_service = SERVICE_TURN_ON if state == DeviceState.ON else SERVICE_TURN_OFF
 
             if domain_service:
-                await self.hass.services.async_call(domain_service, state_service, {ATTR_ENTITY_ID: self._entity.entity_id}, blocking=True)
+                await self.hass.services.async_call(
+                    domain_service,
+                    state_service,
+                    {ATTR_ENTITY_ID: self._entity.entity_id},
+                    blocking=True,
+                )
 
         await super().async_set_heater_state(state)

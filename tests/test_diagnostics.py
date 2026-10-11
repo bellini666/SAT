@@ -6,16 +6,27 @@ from homeassistant.components.diagnostics import REDACTED
 from homeassistant.core import HomeAssistant
 from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_mqtt_message
-from pytest_homeassistant_custom_component.components.diagnostics import get_diagnostics_for_config_entry
+from pytest_homeassistant_custom_component.components.diagnostics import (
+    get_diagnostics_for_config_entry,
+)
 from pytest_homeassistant_custom_component.typing import ClientSessionGenerator, MqttMockHAClient
 
-from custom_components.sat.const import CONF_DEVICE, CONF_MINIMUM_SETPOINT, CONF_MODE, CONF_MQTT_TOPIC, DOMAIN, MODE_MQTT_OPENTHERM
+from custom_components.sat.const import (
+    CONF_DEVICE,
+    CONF_MINIMUM_SETPOINT,
+    CONF_MODE,
+    CONF_MQTT_TOPIC,
+    DOMAIN,
+    MODE_MQTT_OPENTHERM,
+)
 from tests.const import DEFAULT_USER_DATA
 
 pytestmark = pytest.mark.usefixtures("instant_mqtt_command_delay")
 
 
-async def test_config_entry_diagnostics(hass: HomeAssistant, hass_client: ClientSessionGenerator, mqtt_mock: MqttMockHAClient) -> None:
+async def test_config_entry_diagnostics(
+    hass: HomeAssistant, hass_client: ClientSessionGenerator, mqtt_mock: MqttMockHAClient
+) -> None:
     assert await async_setup_component(hass, "diagnostics", {})
     hass.states.async_set("sensor.test_inside_sensor", "19.5")
     hass.states.async_set("sensor.test_outside_sensor", "5.0")
@@ -23,7 +34,13 @@ async def test_config_entry_diagnostics(hass: HomeAssistant, hass_client: Client
     entry = MockConfigEntry(
         domain=DOMAIN,
         unique_id="otgw",
-        data={**DEFAULT_USER_DATA, CONF_MODE: MODE_MQTT_OPENTHERM, CONF_DEVICE: "otgw", CONF_MQTT_TOPIC: "otgw_home", CONF_MINIMUM_SETPOINT: 45},
+        data={
+            **DEFAULT_USER_DATA,
+            CONF_MODE: MODE_MQTT_OPENTHERM,
+            CONF_DEVICE: "otgw",
+            CONF_MQTT_TOPIC: "otgw_home",
+            CONF_MINIMUM_SETPOINT: 45,
+        },
     )
     entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(entry.entry_id)
@@ -45,7 +62,9 @@ async def test_config_entry_diagnostics(hass: HomeAssistant, hass_client: Client
     assert diagnostics["climate"]["errors"] == [{"entity_id": "climate.mock_title", "value": -1.5}]
     assert diagnostics["coordinator"]["data"]["flame"] == "ON"
     assert diagnostics["coordinator"]["boiler"]["flow_temperature"] == 40.0
-    assert diagnostics["coordinator"]["messages"][-1]["topic"] == f"otgw_home/value/{REDACTED}/Tboiler"
+    assert (
+        diagnostics["coordinator"]["messages"][-1]["topic"] == f"otgw_home/value/{REDACTED}/Tboiler"
+    )
     assert diagnostics["coordinator"]["messages"][-1]["payload"] == "40.0"
 
     assert await hass.config_entries.async_unload(entry.entry_id)

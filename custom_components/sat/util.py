@@ -33,10 +33,11 @@ def create_pid_controller(config_data, config_options) -> PID:
         automatic_gain_value=automatic_gains_value,
         derivative_time_weight=derivative_time_weight,
         heating_curve_coefficient=heating_curve_coefficient,
-
-        kp=kp, ki=ki, kd=kd,
+        kp=kp,
+        ki=ki,
+        kd=kd,
         automatic_gains=automatic_gains,
-        sample_time_limit=sample_time_limit
+        sample_time_limit=sample_time_limit,
     )
 
 
@@ -46,7 +47,9 @@ def create_minimum_setpoint_controller(minimum_setpoint, config_options) -> Mini
     adjustment_factor = config_options.get(CONF_MINIMUM_SETPOINT_ADJUSTMENT_FACTOR)
 
     # Return a new Minimum Setpoint controller instance with the given configuration options
-    return MinimumSetpoint(configured_minimum_setpoint=minimum_setpoint, adjustment_factor=adjustment_factor)
+    return MinimumSetpoint(
+        configured_minimum_setpoint=minimum_setpoint, adjustment_factor=adjustment_factor
+    )
 
 
 def create_heating_curve_controller(config_data, config_options) -> HeatingCurve:
@@ -59,17 +62,29 @@ def create_heating_curve_controller(config_data, config_options) -> HeatingCurve
     return HeatingCurve(heating_system=heating_system, coefficient=coefficient)
 
 
-def create_pwm_controller(heating_curve: HeatingCurve, supports_relative_modulation_management: bool, config_data: MappingProxyType[str, Any], config_options: MappingProxyType[str, Any]) -> PWM | None:
+def create_pwm_controller(
+    heating_curve: HeatingCurve,
+    supports_relative_modulation_management: bool,
+    config_data: MappingProxyType[str, Any],
+    config_options: MappingProxyType[str, Any],
+) -> PWM | None:
     """Create and return a PWM controller instance with the given configuration options."""
     # Extract the configuration options
     max_duty_cycles = int(config_options.get(CONF_CYCLES_PER_HOUR))
     automatic_duty_cycle = bool(config_options.get(CONF_AUTOMATIC_DUTY_CYCLE))
     max_cycle_time = int(convert_time_str_to_seconds(config_options.get(CONF_DUTY_CYCLE)))
-    force = bool(config_data.get(CONF_MODE) == MODE_SWITCH) or bool(config_options.get(CONF_FORCE_PULSE_WIDTH_MODULATION))
+    force = bool(config_data.get(CONF_MODE) == MODE_SWITCH) or bool(
+        config_options.get(CONF_FORCE_PULSE_WIDTH_MODULATION)
+    )
 
     # Extra settings
     cycles = CycleConfig(maximum_count=max_duty_cycles, maximum_time=max_cycle_time)
 
     # Return a new PWM controller instance with the given configuration options
-    return PWM(heating_curve=heating_curve, cycles=cycles, automatic_duty_cycle=automatic_duty_cycle, supports_relative_modulation_management=supports_relative_modulation_management, force=force)
-
+    return PWM(
+        heating_curve=heating_curve,
+        cycles=cycles,
+        automatic_duty_cycle=automatic_duty_cycle,
+        supports_relative_modulation_management=supports_relative_modulation_management,
+        force=force,
+    )

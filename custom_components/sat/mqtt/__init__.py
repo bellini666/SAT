@@ -23,7 +23,13 @@ STORAGE_SAVE_DELAY = 60
 class SatMqttCoordinator(SatDataUpdateCoordinator):
     """Base class to manage fetching data using MQTT."""
 
-    def __init__(self, hass: HomeAssistant, device_id: str, config_data: Mapping[str, Any], options: Mapping[str, Any] | None = None) -> None:
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        device_id: str,
+        config_data: Mapping[str, Any],
+        options: Mapping[str, Any] | None = None,
+    ) -> None:
         super().__init__(hass, config_data, options)
 
         self._device_id: str = device_id
@@ -31,7 +37,9 @@ class SatMqttCoordinator(SatDataUpdateCoordinator):
         self._subscriptions: list[Callable[[], None]] = []
         self._messages: deque[dict[str, str]] = deque(maxlen=50)
         self._stale_keys: set[str] = set()
-        self._store: Store = Store(hass, STORAGE_VERSION, snake_case(f"{self.__class__.__name__}_{device_id}"))
+        self._store: Store = Store(
+            hass, STORAGE_VERSION, snake_case(f"{self.__class__.__name__}_{device_id}")
+        )
 
     @property
     def device_id(self) -> str:
@@ -48,11 +56,13 @@ class SatMqttCoordinator(SatDataUpdateCoordinator):
             raise ConfigEntryNotReady("MQTT is not available")
 
         for key in self.get_tracked_entities():
-            self._subscriptions.append(await mqtt.async_subscribe(
-                self.hass,
-                self._get_topic_for_subscription(key),
-                self._create_message_handler(key)
-            ))
+            self._subscriptions.append(
+                await mqtt.async_subscribe(
+                    self.hass,
+                    self._get_topic_for_subscription(key),
+                    self._create_message_handler(key),
+                )
+            )
 
     async def async_added_to_hass(self) -> None:
         await self.boot()
@@ -105,7 +115,13 @@ class SatMqttCoordinator(SatDataUpdateCoordinator):
         @callback
         def message_handler(message):
             """Handle an incoming MQTT message and schedule an update."""
-            self._messages.append({"received": dt_util.utcnow().isoformat(), "topic": message.topic, "payload": message.payload})
+            self._messages.append(
+                {
+                    "received": dt_util.utcnow().isoformat(),
+                    "topic": message.topic,
+                    "payload": message.payload,
+                }
+            )
 
             try:
                 # Process the payload and update the data property
@@ -135,7 +151,12 @@ class SatMqttCoordinator(SatDataUpdateCoordinator):
         """Publish a command to the MQTT topic."""
         topic = self._get_topic_for_publishing()
 
-        _LOGGER.debug("Publishing MQTT command: payload='%s', topic='%s', simulation='%s'", payload, topic, self._simulation)
+        _LOGGER.debug(
+            "Publishing MQTT command: payload='%s', topic='%s', simulation='%s'",
+            payload,
+            topic,
+            self._simulation,
+        )
 
         if self._simulation:
             return

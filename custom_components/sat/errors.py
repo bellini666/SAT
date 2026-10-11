@@ -36,5 +36,6 @@ class Errors:
 @dataclass(frozen=True, slots=True)
 class Error:
     """Represents an error value associated with an entity or area."""
+
     entity_id: str
     value: float

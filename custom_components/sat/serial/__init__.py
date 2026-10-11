@@ -25,7 +25,13 @@ TRANSLATE_SOURCE = {
 class SatSerialCoordinator(SatDataUpdateCoordinator):
     """Class to manage to fetch data from the OTGW Gateway using pyotgw."""
 
-    def __init__(self, hass: HomeAssistant, port: str, config_data: Mapping[str, Any], options: Mapping[str, Any] | None = None) -> None:
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        port: str,
+        config_data: Mapping[str, Any],
+        options: Mapping[str, Any] | None = None,
+    ) -> None:
         """Initialize."""
         super().__init__(hass, config_data, options)
         self.async_set_updated_data(DEFAULT_STATUS)
@@ -161,7 +167,9 @@ class SatSerialCoordinator(SatDataUpdateCoordinator):
         try:
             await self._api.connect(port=self._port, timeout=5)
         except (asyncio.TimeoutError, ConnectionError, SerialException) as exception:
-            raise ConfigEntryNotReady(f"Could not connect to gateway at {self._port}: {exception}") from exception
+            raise ConfigEntryNotReady(
+                f"Could not connect to gateway at {self._port}: {exception}"
+            ) from exception
 
         return self
 

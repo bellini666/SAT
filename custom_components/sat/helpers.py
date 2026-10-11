@@ -65,10 +65,9 @@ def calculate_default_maximum_setpoint(heating_system: str) -> int:
 
 def snake_case(value: str) -> str:
     """Transform a string from CamelCase or kebab-case to snake_case."""
-    return '_'.join(
-        sub('([A-Z][a-z]+)', r' \1',
-            sub('([A-Z]+)', r' \1',
-                value.replace('-', ' '))).split()).lower()
+    return "_".join(
+        sub("([A-Z][a-z]+)", r" \1", sub("([A-Z]+)", r" \1", value.replace("-", " "))).split()
+    ).lower()
 
 
 def float_value(value: Union[int, float, str, None]) -> Optional[float]:
@@ -79,7 +78,7 @@ def float_value(value: Union[int, float, str, None]) -> Optional[float]:
     try:
         result = float(value)
         return result if math.isfinite(result) else None
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
 
 

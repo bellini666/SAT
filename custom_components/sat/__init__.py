@@ -5,7 +5,12 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP, Platform
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryNotReady
-from homeassistant.helpers import config_validation as cv, device_registry, entity_registry as er, issue_registry as ir
+from homeassistant.helpers import (
+    config_validation as cv,
+    device_registry,
+    entity_registry as er,
+    issue_registry as ir,
+)
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
@@ -22,7 +27,13 @@ from .coordinator import SatDataUpdateCoordinator, SatDataUpdateCoordinatorFacto
 from .services import async_setup_services
 
 _LOGGER: logging.Logger = logging.getLogger(__name__)
-PLATFORMS = [Platform.CLIMATE, Platform.SENSOR, Platform.NUMBER, Platform.BINARY_SENSOR, Platform.BUTTON]
+PLATFORMS = [
+    Platform.CLIMATE,
+    Platform.SENSOR,
+    Platform.NUMBER,
+    Platform.BINARY_SENSOR,
+    Platform.BUTTON,
+]
 
 
 @dataclass
@@ -49,7 +60,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: SatConfigEntry):
     """
     # Resolve the coordinator by using the factory according to the mode
     coordinator = SatDataUpdateCoordinatorFactory().resolve(
-        hass=hass, data=entry.data, options=entry.options, mode=entry.data.get(CONF_MODE), device=entry.data.get(CONF_DEVICE)
+        hass=hass,
+        data=entry.data,
+        options=entry.options,
+        mode=entry.data.get(CONF_MODE),
+        device=entry.data.get(CONF_DEVICE),
     )
     entry.async_on_unload(lambda: coordinator.async_will_remove_from_hass())
 
@@ -115,6 +130,7 @@ async def async_remove_entry(hass: HomeAssistant, entry: SatConfigEntry) -> None
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Migrate old entry."""
     from .config_flow import SatFlowHandler
+
     _LOGGER.debug("Migrating from version %s", entry.version)
 
     if entry.version < SatFlowHandler.VERSION:
@@ -127,7 +143,9 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 store = Store(hass, 1, DOMAIN)
                 new_data["minimum_setpoint"] = 10
 
-                if (data := await store.async_load()) and (overshoot_protection_value := data.get("overshoot_protection_value")):
+                if (data := await store.async_load()) and (
+                    overshoot_protection_value := data.get("overshoot_protection_value")
+                ):
                     new_data["minimum_setpoint"] = overshoot_protection_value
 
             if entry.options.get("heating_system") == "underfloor":
@@ -177,7 +195,10 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             new_options["pid_controller_version"] = 1
 
         if entry.version < 8:
-            if entry.options.get("heating_curve_version") is not None and int(entry.options.get("heating_curve_version")) < 2:
+            if (
+                entry.options.get("heating_curve_version") is not None
+                and int(entry.options.get("heating_curve_version")) < 2
+            ):
                 new_options["heating_curve_version"] = 3
 
         if entry.version < 9:
@@ -200,7 +221,9 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         if entry.version < 12:
             if "push_setpoint_to_thermostat" in new_data:
-                new_options["push_setpoint_to_thermostat"] = new_data.pop("push_setpoint_to_thermostat")
+                new_options["push_setpoint_to_thermostat"] = new_data.pop(
+                    "push_setpoint_to_thermostat"
+                )
 
             # Matches the str() the v11 climate unique id used
             name = str(entry.data.get(CONF_NAME))
@@ -213,7 +236,9 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
                 for prefix in prefixes:
                     if entity_entry.unique_id.startswith(prefix):
-                        return {"new_unique_id": f"{entry.entry_id}-{entity_entry.unique_id.removeprefix(prefix)}"}
+                        return {
+                            "new_unique_id": f"{entry.entry_id}-{entity_entry.unique_id.removeprefix(prefix)}"
+                        }
 
                 return None
 
@@ -228,9 +253,10 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 if key in new_data and key not in new_options:
                     new_options[key] = new_data[key]
 
-        hass.config_entries.async_update_entry(entry, version=SatFlowHandler.VERSION, data=new_data, options=new_options)
+        hass.config_entries.async_update_entry(
+            entry, version=SatFlowHandler.VERSION, data=new_data, options=new_options
+        )
 
     _LOGGER.info("Migration to version %s successful", entry.version)
 
     return True
-

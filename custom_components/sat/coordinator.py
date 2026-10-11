@@ -61,40 +61,66 @@ class SatData(dict):
 
 class SatDataUpdateCoordinatorFactory:
     @staticmethod
-    def resolve(hass: HomeAssistant, mode: str, device: str, data: Mapping[str, Any], options: Mapping[str, Any] | None = None) -> SatDataUpdateCoordinator:
+    def resolve(
+        hass: HomeAssistant,
+        mode: str,
+        device: str,
+        data: Mapping[str, Any],
+        options: Mapping[str, Any] | None = None,
+    ) -> SatDataUpdateCoordinator:
         if mode == MODE_FAKE:
             from .fake import SatFakeCoordinator
+
             return SatFakeCoordinator(hass=hass, config_data=data, options=options)
 
         if mode == MODE_SIMULATOR:
             from .simulator import SatSimulatorCoordinator
+
             return SatSimulatorCoordinator(hass=hass, config_data=data, options=options)
 
         if mode == MODE_SWITCH:
             from .switch import SatSwitchCoordinator
-            return SatSwitchCoordinator(hass=hass, entity_id=device, config_data=data, options=options)
+
+            return SatSwitchCoordinator(
+                hass=hass, entity_id=device, config_data=data, options=options
+            )
 
         if mode == MODE_ESPHOME:
             from .esphome import SatEspHomeCoordinator
-            return SatEspHomeCoordinator(hass=hass, device_id=device, config_data=data, options=options)
+
+            return SatEspHomeCoordinator(
+                hass=hass, device_id=device, config_data=data, options=options
+            )
 
         if mode == MODE_MQTT_EMS:
             from .mqtt.ems import SatEmsMqttCoordinator
-            return SatEmsMqttCoordinator(hass=hass, device_id=device, config_data=data, options=options)
+
+            return SatEmsMqttCoordinator(
+                hass=hass, device_id=device, config_data=data, options=options
+            )
 
         if mode == MODE_MQTT_OPENTHERM:
             from .mqtt.opentherm import SatOpenThermMqttCoordinator
-            return SatOpenThermMqttCoordinator(hass=hass, device_id=device, config_data=data, options=options)
+
+            return SatOpenThermMqttCoordinator(
+                hass=hass, device_id=device, config_data=data, options=options
+            )
 
         if mode == MODE_SERIAL:
             from .serial import SatSerialCoordinator
+
             return SatSerialCoordinator(hass=hass, port=device, config_data=data, options=options)
 
-        raise Exception(f'Invalid mode[{mode}]')
+        raise Exception(f"Invalid mode[{mode}]")
 
 
 class SatDataUpdateCoordinator(DataUpdateCoordinator):
-    def __init__(self, hass: HomeAssistant, config_data: Mapping[str, Any], options: Mapping[str, Any] | None = None) -> None:
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        config_data: Mapping[str, Any],
+        options: Mapping[str, Any] | None = None,
+    ) -> None:
         """Initialize."""
         super().__init__(hass, _LOGGER, name=DOMAIN)
         self.data: SatData = SatData()
@@ -115,10 +141,14 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
         self._control_max_relative_modulation: Optional[int] = None
         self._control_thermostat_setpoint: Optional[float] = None
         self._simulation: bool = bool(self._options.get(CONF_SIMULATION))
-        self._heating_system: str = str(config_data.get(CONF_HEATING_SYSTEM, HEATING_SYSTEM_UNKNOWN))
+        self._heating_system: str = str(
+            config_data.get(CONF_HEATING_SYSTEM, HEATING_SYSTEM_UNKNOWN)
+        )
 
         if config_data.get(CONF_MANUFACTURER) is not None:
-            self._manufacturer = ManufacturerFactory.resolve_by_name(config_data.get(CONF_MANUFACTURER))
+            self._manufacturer = ManufacturerFactory.resolve_by_name(
+                config_data.get(CONF_MANUFACTURER)
+            )
 
         self.async_add_listener(lambda: self._flame.update(boiler_state=self.boiler))
 
@@ -144,7 +174,11 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
     @property
     def awaiting_boiler_data(self) -> bool:
         """Return True while the first boiler values after setup are still on their way."""
-        return self.online and self.boiler_temperature is None and seconds_since(self._created_at) < CONTROL_LOOP_STALL_TIME.total_seconds()
+        return (
+            self.online
+            and self.boiler_temperature is None
+            and seconds_since(self._created_at) < CONTROL_LOOP_STALL_TIME.total_seconds()
+        )
 
     @property
     def device_status(self) -> BoilerStatus:
@@ -159,11 +193,20 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
             return BoilerStatus.IDLE
 
         if self.device_active:
-            if self.boiler_temperature_cold is not None and self.boiler_temperature_cold > self.boiler_temperature:
-                if self.boiler_temperature_derivative is not None and self.boiler_temperature_derivative < STABLE_DERIVATIVE:
+            if (
+                self.boiler_temperature_cold is not None
+                and self.boiler_temperature_cold > self.boiler_temperature
+            ):
+                if (
+                    self.boiler_temperature_derivative is not None
+                    and self.boiler_temperature_derivative < STABLE_DERIVATIVE
+                ):
                     return BoilerStatus.PUMP_STARTING
 
-                if self._boiler_temperature_tracker.active and self.setpoint > self.boiler_temperature:
+                if (
+                    self._boiler_temperature_tracker.active
+                    and self.setpoint > self.boiler_temperature
+                ):
                     return BoilerStatus.PREHEATING
 
         # We assume space-heating mode with a valid setpoint.
@@ -207,11 +250,9 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
         return BoilerState(
             flame_active=self.flame_active,
             hot_water_active=self.hot_water_active,
-
             status=self.device_status,
             is_active=self.device_active,
             is_inactive=not self.device_active,
-
             setpoint=self.setpoint,
             flow_temperature=self.boiler_temperature,
             return_temperature=self.return_temperature,
@@ -224,16 +265,13 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
             is_active=self._flame.is_active,
             is_inactive=self._flame.is_inactive,
             health_status=self._flame.health_status,
-
             latest_on_time_seconds=self._flame.latest_on_time_seconds,
             average_on_time_seconds=self._flame.average_on_time_seconds,
             last_cycle_duration_seconds=self._flame.last_cycle_duration_seconds,
-
             sample_count_4h=self._flame.sample_count_4h,
             cycles_last_hour=self._flame.cycles_last_hour,
             duty_ratio_last_15m=self._flame.duty_ratio_last_15m,
             median_on_duration_seconds_4h=self._flame.median_on_duration_seconds_4h,
-
             last_cut_short_peak_flow=self._flame.last_cut_short_peak_flow,
             last_cut_short_setpoint=self._flame.last_cut_short_setpoint,
         )
@@ -297,7 +335,8 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
 
         # Some noise filtering on the boiler temperature
         difference_boiler_temperature_sum = sum(
-            abs(j[1] - i[1]) for i, j in zip(self._boiler_temperatures, self._boiler_temperatures[1:])
+            abs(j[1] - i[1])
+            for i, j in zip(self._boiler_temperatures, self._boiler_temperatures[1:])
         )
 
         # Average it and return it
@@ -372,7 +411,9 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
         if not self.flame_active:
             return 0
 
-        return minimum_boiler_capacity + ((boiler_capacity - minimum_boiler_capacity) * (relative_modulation_value / 100))
+        return minimum_boiler_capacity + (
+            (boiler_capacity - minimum_boiler_capacity) * (relative_modulation_value / 100)
+        )
 
     @property
     def minimum_relative_modulation_value(self) -> Optional[float]:
@@ -395,7 +436,9 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
     @property
     def minimum_setpoint(self) -> float:
         """Return the minimum setpoint temperature before the device starts to overshoot."""
-        return float(self._options.get(CONF_MINIMUM_SETPOINT, self._config_data.get(CONF_MINIMUM_SETPOINT)))
+        return float(
+            self._options.get(CONF_MINIMUM_SETPOINT, self._config_data.get(CONF_MINIMUM_SETPOINT))
+        )
 
     @property
     def maximum_setpoint(self) -> float:
@@ -470,7 +513,9 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
     def update_flame(self, pwm_state: PWMState) -> None:
         self._flame.update(boiler_state=self.boiler, pwm_state=pwm_state)
 
-    async def async_control_heating_loop(self, climate: Optional[SatClimate] = None, pwm_state: Optional[PWMState] = None, _time=None) -> None:
+    async def async_control_heating_loop(
+        self, climate: Optional[SatClimate] = None, pwm_state: Optional[PWMState] = None, _time=None
+    ) -> None:
         """Control the heating loop for the device."""
         # Update Flame State
         self._flame.update(boiler_state=self.boiler, pwm_state=pwm_state)
@@ -491,12 +536,16 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
             return
 
         # Handle the temperature tracker
-        if self.setpoint is not None and self.boiler_temperature_derivative is not None and self.device_status is not BoilerStatus.HOT_WATER:
+        if (
+            self.setpoint is not None
+            and self.boiler_temperature_derivative is not None
+            and self.device_status is not BoilerStatus.HOT_WATER
+        ):
             self._boiler_temperature_tracker.update(
                 flame_active=self.flame_active,
                 setpoint=round(self.setpoint, 0),
                 boiler_temperature=round(self.boiler_temperature, 0),
-                boiler_temperature_derivative=self.boiler_temperature_derivative
+                boiler_temperature_derivative=self.boiler_temperature_derivative,
             )
 
         # Append current boiler temperature if valid and unique
@@ -516,7 +565,9 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
         if boiler_temperature_cold := self._get_latest_boiler_cold_temperature():
             self._boiler_temperature_cold = boiler_temperature_cold
         elif self._boiler_temperature_cold is not None:
-            self._boiler_temperature_cold = min(self.boiler_temperature, self._boiler_temperature_cold)
+            self._boiler_temperature_cold = min(
+                self.boiler_temperature, self._boiler_temperature_cold
+            )
 
     async def async_set_heater_state(self, state: DeviceState) -> None:
         """Set the state of the device heater."""
@@ -578,7 +629,9 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
 
             # A scheduled run reads the latest data, so a busy bus still notifies every 5 seconds
             if self._listeners_unsub is None:
-                self._listeners_unsub = async_call_later(self.hass, 5, HassJob(self.async_notify_listeners))
+                self._listeners_unsub = async_call_later(
+                    self.hass, 5, HassJob(self.async_notify_listeners)
+                )
 
     def _get_latest_boiler_cold_temperature(self) -> Optional[float]:
         """Get the latest boiler cold temperature based on recent boiler temperatures."""
@@ -589,7 +642,11 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
             is_before_flame_on = self._flame.on_since is None or timestamp < self._flame.on_since
 
             if is_before_device_on and is_before_flame_on:
-                max_temperature = max(max_temperature, temperature) if max_temperature is not None else temperature
+                max_temperature = (
+                    max(max_temperature, temperature)
+                    if max_temperature is not None
+                    else temperature
+                )
 
         return max_temperature
 

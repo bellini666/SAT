@@ -33,7 +33,12 @@ class SummerSimmer:
             index = fahrenheit
 
         # Convert the result back to Celsius
-        return round(TemperatureConverter.convert(index, UnitOfTemperature.FAHRENHEIT, UnitOfTemperature.CELSIUS), 1)
+        return round(
+            TemperatureConverter.convert(
+                index, UnitOfTemperature.FAHRENHEIT, UnitOfTemperature.CELSIUS
+            ),
+            1,
+        )
 
     @staticmethod
     def perception(temperature: float, humidity: float) -> str:

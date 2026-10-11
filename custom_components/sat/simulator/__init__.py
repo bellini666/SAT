@@ -5,7 +5,14 @@ from typing import Optional, TYPE_CHECKING, Mapping, Any
 
 from homeassistant.core import HomeAssistant
 
-from ..const import CONF_SIMULATED_HEATING, CONF_SIMULATED_COOLING, MINIMUM_SETPOINT, CONF_SIMULATED_WARMING_UP, CONF_MAXIMUM_SETPOINT, PWMStatus
+from ..const import (
+    CONF_SIMULATED_HEATING,
+    CONF_SIMULATED_COOLING,
+    MINIMUM_SETPOINT,
+    CONF_SIMULATED_WARMING_UP,
+    CONF_MAXIMUM_SETPOINT,
+    PWMStatus,
+)
 from ..coordinator import DeviceState, SatDataUpdateCoordinator
 from ..helpers import convert_time_str_to_seconds
 
@@ -14,7 +21,12 @@ if TYPE_CHECKING:
 
 
 class SatSimulatorCoordinator(SatDataUpdateCoordinator):
-    def __init__(self, hass: HomeAssistant, config_data: Mapping[str, Any], options: Mapping[str, Any] | None = None) -> None:
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        config_data: Mapping[str, Any],
+        options: Mapping[str, Any] | None = None,
+    ) -> None:
         """Initialize."""
         super().__init__(hass, config_data, options)
 
@@ -29,7 +41,7 @@ class SatSimulatorCoordinator(SatDataUpdateCoordinator):
 
     @property
     def device_id(self) -> str:
-        return 'Simulator'
+        return "Simulator"
 
     @property
     def device_type(self) -> str:
@@ -84,12 +96,19 @@ class SatSimulatorCoordinator(SatDataUpdateCoordinator):
         self._maximum_setpoint = value
         await super().async_set_control_max_setpoint(value)
 
-    async def async_control_heating_loop(self, climate: Optional[SatClimate] = None, pwm_state: Optional[PWMStatus] = None, _time=None) -> None:
+    async def async_control_heating_loop(
+        self,
+        climate: Optional[SatClimate] = None,
+        pwm_state: Optional[PWMStatus] = None,
+        _time=None,
+    ) -> None:
         await super().async_control_heating_loop(climate, pwm_state, _time)
 
         # Calculate the difference, so we know when to slowdown
         difference = abs(self._boiler_temperature - self.target)
-        self.logger.debug(f"Target: {self.target}, Current: {self._boiler_temperature}, Difference: {difference}")
+        self.logger.debug(
+            f"Target: {self.target}, Current: {self._boiler_temperature}, Difference: {difference}"
+        )
 
         # Heating
         if self.target >= self._boiler_temperature:

@@ -19,13 +19,20 @@ SENSOR_TEMPERATURE_ID = "sensor_temperature_id"
 
 
 class Area:
-    def __init__(self, config_data: MappingProxyType[str, Any], config_options: MappingProxyType[str, Any], entity_id: str):
+    def __init__(
+        self,
+        config_data: MappingProxyType[str, Any],
+        config_options: MappingProxyType[str, Any],
+        entity_id: str,
+    ):
         self._entity_id: str = entity_id
         self._hass: HomeAssistant | None = None
 
         # Create controllers with the given configuration options
         self.pid: PID = create_pid_controller(config_data, config_options)
-        self.heating_curve: HeatingCurve = create_heating_curve_controller(config_data, config_options)
+        self.heating_curve: HeatingCurve = create_heating_curve_controller(
+            config_data, config_options
+        )
 
     @property
     def id(self) -> str:
@@ -37,7 +44,9 @@ class Area:
         if (self._hass is None) or (state := self._hass.states.get(self._entity_id)) is None:
             return None
 
-        return state if state.state not in [STATE_UNKNOWN, STATE_UNAVAILABLE, HVACMode.OFF] else None
+        return (
+            state if state.state not in [STATE_UNKNOWN, STATE_UNAVAILABLE, HVACMode.OFF] else None
+        )
 
     @property
     def target_temperature(self) -> float | None:
@@ -56,7 +65,11 @@ class Area:
         # Check if there is an overridden sensor temperature
         if sensor_temperature_id := state.attributes.get(SENSOR_TEMPERATURE_ID):
             sensor_state = self._hass.states.get(sensor_temperature_id)
-            if sensor_state and sensor_state.state not in [STATE_UNKNOWN, STATE_UNAVAILABLE, HVACMode.OFF]:
+            if sensor_state and sensor_state.state not in [
+                STATE_UNKNOWN,
+                STATE_UNAVAILABLE,
+                HVACMode.OFF,
+            ]:
                 return float_value(sensor_state.state)
 
         return float_value(state.attributes.get("current_temperature") or self.target_temperature)
@@ -103,10 +116,14 @@ class Area:
 
 
 class Areas:
-    def __init__(self, config_data: MappingProxyType[str, Any], config_options: MappingProxyType[str, Any]):
+    def __init__(
+        self, config_data: MappingProxyType[str, Any], config_options: MappingProxyType[str, Any]
+    ):
         """Initialize Areas with multiple Area instances using shared config data and options."""
         self._entity_ids: list[str] = config_data.get(CONF_ROOMS) or []
-        self._areas: list[Area] = [Area(config_data, config_options, entity_id) for entity_id in self._entity_ids]
+        self._areas: list[Area] = [
+            Area(config_data, config_options, entity_id) for entity_id in self._entity_ids
+        ]
 
     @property
     def errors(self) -> Errors:

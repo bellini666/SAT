@@ -39,7 +39,13 @@ _LOGGER: logging.Logger = logging.getLogger(__name__)
 class SatOpenThermMqttCoordinator(SatMqttCoordinator):
     """Class to manage to fetch data from the OTGW Gateway using mqtt."""
 
-    def __init__(self, hass: HomeAssistant, device_id: str, config_data: Mapping[str, Any], options: Mapping[str, Any] | None = None) -> None:
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        device_id: str,
+        config_data: Mapping[str, Any],
+        options: Mapping[str, Any] | None = None,
+    ) -> None:
         super().__init__(hass, device_id, config_data, options)
 
         self._online: Optional[bool] = None
@@ -189,7 +195,13 @@ class SatOpenThermMqttCoordinator(SatMqttCoordinator):
         await super().async_setup()
 
         # OTGW-firmware publishes its retained will message, "online" or "offline", on the bare value namespace
-        self._subscriptions.append(await mqtt.async_subscribe(self.hass, f"{self._topic}/value/{self._device_id}", self._async_availability_changed))
+        self._subscriptions.append(
+            await mqtt.async_subscribe(
+                self.hass,
+                f"{self._topic}/value/{self._device_id}",
+                self._async_availability_changed,
+            )
+        )
 
     async def _async_availability_changed(self, message) -> None:
         was_online = self._online
@@ -215,7 +227,9 @@ class SatOpenThermMqttCoordinator(SatMqttCoordinator):
         if self._control_max_relative_modulation is None:
             await self.async_release_control()
         else:
-            await self.async_set_control_max_relative_modulation(self._control_max_relative_modulation)
+            await self.async_set_control_max_relative_modulation(
+                self._control_max_relative_modulation
+            )
 
         if self._control_thermostat_setpoint is not None:
             await self.async_set_control_thermostat_setpoint(self._control_thermostat_setpoint)

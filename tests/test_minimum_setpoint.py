@@ -33,12 +33,16 @@ def test_missing_sensor_values_keep_the_last_minimum_setpoint() -> None:
     minimum_setpoint.warming_up(boiler_state(return_temperature=None))
     minimum_setpoint.calculate(boiler_state(relative_modulation_level=None), PWMStatus.IDLE)
     minimum_setpoint.calculate(boiler_state(return_temperature=None), PWMStatus.IDLE)
-    minimum_setpoint.calculate(boiler_state(flow_temperature=None, return_temperature=45.0), PWMStatus.IDLE)
+    minimum_setpoint.calculate(
+        boiler_state(flow_temperature=None, return_temperature=45.0), PWMStatus.IDLE
+    )
 
     assert minimum_setpoint.current == 41.0
 
 
-def test_missing_values_while_modulation_is_steady_keep_the_last_minimum_setpoint(freezer: FrozenDateTimeFactory) -> None:
+def test_missing_values_while_modulation_is_steady_keep_the_last_minimum_setpoint(
+    freezer: FrozenDateTimeFactory,
+) -> None:
     minimum_setpoint = MinimumSetpoint(adjustment_factor=0.2, configured_minimum_setpoint=40.0)
     minimum_setpoint.warming_up(boiler_state())
     minimum_setpoint.calculate(boiler_state(), PWMStatus.IDLE)
@@ -46,7 +50,11 @@ def test_missing_values_while_modulation_is_steady_keep_the_last_minimum_setpoin
     minimum_setpoint.calculate(boiler_state(), PWMStatus.IDLE)
     assert minimum_setpoint.current == 32.0
 
-    minimum_setpoint.calculate(boiler_state(relative_modulation_level=None, return_temperature=45.0), PWMStatus.IDLE)
-    minimum_setpoint.calculate(boiler_state(flow_temperature=None, return_temperature=45.0), PWMStatus.IDLE)
+    minimum_setpoint.calculate(
+        boiler_state(relative_modulation_level=None, return_temperature=45.0), PWMStatus.IDLE
+    )
+    minimum_setpoint.calculate(
+        boiler_state(flow_temperature=None, return_temperature=45.0), PWMStatus.IDLE
+    )
 
     assert minimum_setpoint.current == 41.0

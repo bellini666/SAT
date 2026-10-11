@@ -35,7 +35,7 @@ class SatEntity(CoordinatorEntity):
             name=self._config_entry.title,
             manufacturer=manufacturer,
             model=self._coordinator.device_type,
-            identifiers={(DOMAIN, self._config_entry.entry_id)}
+            identifiers={(DOMAIN, self._config_entry.entry_id)},
         )
 
 

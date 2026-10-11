@@ -44,14 +44,22 @@ _LOGGER: logging.Logger = logging.getLogger(__name__)
 class SatEspHomeCoordinator(SatDataUpdateCoordinator, SatEntityCoordinator):
     """Class to manage to fetch data from the OTGW Gateway using esphome."""
 
-    def __init__(self, hass: HomeAssistant, device_id: str, config_data: Mapping[str, Any], options: Mapping[str, Any] | None = None) -> None:
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        device_id: str,
+        config_data: Mapping[str, Any],
+        options: Mapping[str, Any] | None = None,
+    ) -> None:
         super().__init__(hass, config_data, options)
 
         self._device: DeviceEntry = device_registry.async_get(hass).async_get(device_id)
         self._mac_address: str = list(self._device.connections)[0][1]
 
         self._entity_registry: EntityRegistry = entity_registry.async_get(hass)
-        self._entities: list[RegistryEntry] = entity_registry.async_entries_for_device(self._entity_registry, self._device.id)
+        self._entities: list[RegistryEntry] = entity_registry.async_entries_for_device(
+            self._entity_registry, self._device.id
+        )
         self._unsub_state_changes: Callable[[], None] | None = None
 
     @property
@@ -104,11 +112,17 @@ class SatEspHomeCoordinator(SatDataUpdateCoordinator, SatEntityCoordinator):
 
     @property
     def minimum_hot_water_setpoint(self) -> float:
-        return float_value(self.get(sensor.DOMAIN, DATA_DHW_SETPOINT_MINIMUM)) or super().minimum_hot_water_setpoint
+        return (
+            float_value(self.get(sensor.DOMAIN, DATA_DHW_SETPOINT_MINIMUM))
+            or super().minimum_hot_water_setpoint
+        )
 
     @property
     def maximum_hot_water_setpoint(self) -> float:
-        return float_value(self.get(sensor.DOMAIN, DATA_DHW_SETPOINT_MAXIMUM)) or super().maximum_hot_water_setpoint
+        return (
+            float_value(self.get(sensor.DOMAIN, DATA_DHW_SETPOINT_MAXIMUM))
+            or super().maximum_hot_water_setpoint
+        )
 
     @property
     def boiler_temperature(self) -> float | None:
@@ -142,27 +156,31 @@ class SatEspHomeCoordinator(SatDataUpdateCoordinator, SatEntityCoordinator):
         await mqtt.async_wait_for_mqtt_client(self.hass)
 
         # Create a list of entities that we track
-        entities = list(filter(lambda entity: entity is not None, [
-            self._get_entity_id(binary_sensor.DOMAIN, DATA_FLAME_ACTIVE),
-            self._get_entity_id(binary_sensor.DOMAIN, DATA_DHW_ACTIVE),
-            self._get_entity_id(sensor.DOMAIN, DATA_REL_MOD_LEVEL),
-            self._get_entity_id(sensor.DOMAIN, DATA_SLAVE_MEMBERID),
-            self._get_entity_id(sensor.DOMAIN, DATA_BOILER_TEMPERATURE),
-            self._get_entity_id(sensor.DOMAIN, DATA_RETURN_TEMPERATURE),
-
-            self._get_entity_id(sensor.DOMAIN, DATA_DHW_SETPOINT_MINIMUM),
-            self._get_entity_id(sensor.DOMAIN, DATA_DHW_SETPOINT_MAXIMUM),
-
-            self._get_entity_id(switch.DOMAIN, DATA_DHW_ENABLE),
-            self._get_entity_id(switch.DOMAIN, DATA_CENTRAL_HEATING),
-
-            self._get_entity_id(number.DOMAIN, DATA_DHW_SETPOINT),
-            self._get_entity_id(number.DOMAIN, DATA_CONTROL_SETPOINT),
-            self._get_entity_id(number.DOMAIN, DATA_MAX_REL_MOD_LEVEL_SETTING),
-        ]))
+        entities = list(
+            filter(
+                lambda entity: entity is not None,
+                [
+                    self._get_entity_id(binary_sensor.DOMAIN, DATA_FLAME_ACTIVE),
+                    self._get_entity_id(binary_sensor.DOMAIN, DATA_DHW_ACTIVE),
+                    self._get_entity_id(sensor.DOMAIN, DATA_REL_MOD_LEVEL),
+                    self._get_entity_id(sensor.DOMAIN, DATA_SLAVE_MEMBERID),
+                    self._get_entity_id(sensor.DOMAIN, DATA_BOILER_TEMPERATURE),
+                    self._get_entity_id(sensor.DOMAIN, DATA_RETURN_TEMPERATURE),
+                    self._get_entity_id(sensor.DOMAIN, DATA_DHW_SETPOINT_MINIMUM),
+                    self._get_entity_id(sensor.DOMAIN, DATA_DHW_SETPOINT_MAXIMUM),
+                    self._get_entity_id(switch.DOMAIN, DATA_DHW_ENABLE),
+                    self._get_entity_id(switch.DOMAIN, DATA_CENTRAL_HEATING),
+                    self._get_entity_id(number.DOMAIN, DATA_DHW_SETPOINT),
+                    self._get_entity_id(number.DOMAIN, DATA_CONTROL_SETPOINT),
+                    self._get_entity_id(number.DOMAIN, DATA_MAX_REL_MOD_LEVEL_SETTING),
+                ],
+            )
+        )
 
         # Track those entities so the coordinator can be updated when something changes
-        self._unsub_state_changes = async_track_state_change_event(self.hass, entities, self.async_state_change_event)
+        self._unsub_state_changes = async_track_state_change_event(
+            self.hass, entities, self.async_state_change_event
+        )
 
         await super().async_added_to_hass()
 

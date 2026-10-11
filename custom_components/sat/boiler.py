@@ -20,6 +20,7 @@ class BoilerState:
     """
     Represents the operational state of a boiler, including activity, flame status, hot water usage, and current temperature.
     """
+
     is_active: bool
     is_inactive: bool
     status: BoilerStatus
@@ -43,7 +44,13 @@ class BoilerTemperatureTracker:
         self._last_setpoint = None
         self._last_boiler_temperature = None
 
-    def update(self, boiler_temperature: float, boiler_temperature_derivative: float, flame_active: bool, setpoint: float):
+    def update(
+        self,
+        boiler_temperature: float,
+        boiler_temperature_derivative: float,
+        flame_active: bool,
+        setpoint: float,
+    ):
         """Update the tracker based on the current boiler temperature, flame status, and setpoint."""
         if setpoint == MINIMUM_SETPOINT:
             return
@@ -60,7 +67,9 @@ class BoilerTemperatureTracker:
         if not flame_active:
             self._handle_flame_inactive()
         elif self._adjusting_to_lower_setpoint:
-            self._handle_adjusting_to_lower_setpoint(boiler_temperature, boiler_temperature_derivative, setpoint)
+            self._handle_adjusting_to_lower_setpoint(
+                boiler_temperature, boiler_temperature_derivative, setpoint
+            )
         elif self._active:
             self._handle_tracking(boiler_temperature, boiler_temperature_derivative, setpoint)
 
@@ -87,7 +96,9 @@ class BoilerTemperatureTracker:
 
         _LOGGER.debug("Flame inactive: Starting to track boiler temperature.")
 
-    def _handle_tracking(self, boiler_temperature: float, boiler_temperature_derivative: float, setpoint: float) -> None:
+    def _handle_tracking(
+        self, boiler_temperature: float, boiler_temperature_derivative: float, setpoint: float
+    ) -> None:
         """Handle boiler temperature tracking logic."""
         if not self._warming_up and abs(boiler_temperature_derivative) < STABLE_DERIVATIVE:
             return self._stop_tracking("Temperature not changing.", boiler_temperature, setpoint)
@@ -95,19 +106,35 @@ class BoilerTemperatureTracker:
         if boiler_temperature - EXCEED_SETPOINT_MARGIN > setpoint:
             return self._stop_tracking("Exceeds setpoint.", boiler_temperature, setpoint)
 
-        if setpoint > boiler_temperature and setpoint - STABILIZATION_MARGIN < boiler_temperature + 1 < self._last_boiler_temperature:
-            return self._stop_warming_up("Stabilizing below setpoint.", boiler_temperature, setpoint)
+        if (
+            setpoint > boiler_temperature
+            and setpoint - STABILIZATION_MARGIN
+            < boiler_temperature + 1
+            < self._last_boiler_temperature
+        ):
+            return self._stop_warming_up(
+                "Stabilizing below setpoint.", boiler_temperature, setpoint
+            )
 
         return None
 
-    def _handle_adjusting_to_lower_setpoint(self, boiler_temperature: float, boiler_temperature_derivative: float, setpoint: float) -> None:
+    def _handle_adjusting_to_lower_setpoint(
+        self, boiler_temperature: float, boiler_temperature_derivative: float, setpoint: float
+    ) -> None:
         """Handle stabilization when adjusting to a lower setpoint."""
-        if boiler_temperature <= setpoint and abs(boiler_temperature_derivative) < STABLE_DERIVATIVE:
-            return self._stop_adjusting_to_lower_setpoint("Setpoint stabilization complete.", boiler_temperature, setpoint)
+        if (
+            boiler_temperature <= setpoint
+            and abs(boiler_temperature_derivative) < STABLE_DERIVATIVE
+        ):
+            return self._stop_adjusting_to_lower_setpoint(
+                "Setpoint stabilization complete.", boiler_temperature, setpoint
+            )
 
         return None
 
-    def _stop_adjusting_to_lower_setpoint(self, reason: str, boiler_temperature: float, setpoint: float):
+    def _stop_adjusting_to_lower_setpoint(
+        self, reason: str, boiler_temperature: float, setpoint: float
+    ):
         """Stop the adjustment to a lower setpoint and log the reason."""
         self._adjusting_to_lower_setpoint = False
 

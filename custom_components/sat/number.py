@@ -17,7 +17,6 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
 class SatHotWaterSetpointEntity(SatEntity, NumberEntity):
     _attr_translation_key = "hot_water_setpoint"
 
-
     @property
     def device_class(self):
         """Return the device class."""

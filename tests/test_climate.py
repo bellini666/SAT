@@ -18,39 +18,48 @@ from custom_components.sat.fake import SatFakeCoordinator
 from tests.const import DEFAULT_USER_DATA
 
 
-@pytest.mark.parametrize(*[
-    "domains, data, options, config",
-    [(
-            [(TEMPLATE_DOMAIN, 1)],
-            {
-                CONF_MODE: MODE_FAKE,
-                CONF_HEATING_SYSTEM: HEATING_SYSTEM_RADIATORS,
-                CONF_MINIMUM_SETPOINT: 57,
-                CONF_MAXIMUM_SETPOINT: 75,
-            },
-            {
-                CONF_HEATING_CURVE_COEFFICIENT: 1.8,
-                CONF_FORCE_PULSE_WIDTH_MODULATION: True,
-            },
-            {
-                TEMPLATE_DOMAIN: [
-                    {
-                        SENSOR_DOMAIN: [
-                            {
-                                "name": "test_inside_sensor",
-                                "state": "{{ 20.9 | float }}",
-                            },
-                            {
-                                "name": "test_outside_sensor",
-                                "state": "{{ 9.9 | float }}",
-                            }
-                        ]
-                    },
-                ],
-            },
-    )],
-])
-async def test_scenario_1(hass: HomeAssistant, entry: MockConfigEntry, climate: SatClimate, coordinator: SatFakeCoordinator) -> None:
+@pytest.mark.parametrize(
+    *[
+        "domains, data, options, config",
+        [
+            (
+                [(TEMPLATE_DOMAIN, 1)],
+                {
+                    CONF_MODE: MODE_FAKE,
+                    CONF_HEATING_SYSTEM: HEATING_SYSTEM_RADIATORS,
+                    CONF_MINIMUM_SETPOINT: 57,
+                    CONF_MAXIMUM_SETPOINT: 75,
+                },
+                {
+                    CONF_HEATING_CURVE_COEFFICIENT: 1.8,
+                    CONF_FORCE_PULSE_WIDTH_MODULATION: True,
+                },
+                {
+                    TEMPLATE_DOMAIN: [
+                        {
+                            SENSOR_DOMAIN: [
+                                {
+                                    "name": "test_inside_sensor",
+                                    "state": "{{ 20.9 | float }}",
+                                },
+                                {
+                                    "name": "test_outside_sensor",
+                                    "state": "{{ 9.9 | float }}",
+                                },
+                            ]
+                        },
+                    ],
+                },
+            )
+        ],
+    ]
+)
+async def test_scenario_1(
+    hass: HomeAssistant,
+    entry: MockConfigEntry,
+    climate: SatClimate,
+    coordinator: SatFakeCoordinator,
+) -> None:
     await coordinator.async_set_boiler_temperature(57)
     await climate.async_set_target_temperature(21.0)
     await climate.async_set_hvac_mode(HVACMode.HEAT)
@@ -64,39 +73,48 @@ async def test_scenario_1(hass: HomeAssistant, entry: MockConfigEntry, climate: 
     assert climate.pwm.duty_cycle == (285, 914)
 
 
-@pytest.mark.parametrize(*[
-    "domains, data, options, config",
-    [(
-            [(TEMPLATE_DOMAIN, 1)],
-            {
-                CONF_MODE: MODE_FAKE,
-                CONF_HEATING_SYSTEM: HEATING_SYSTEM_RADIATORS,
-                CONF_MINIMUM_SETPOINT: 58,
-                CONF_MAXIMUM_SETPOINT: 75
-            },
-            {
-                CONF_HEATING_CURVE_COEFFICIENT: 1.3,
-                CONF_FORCE_PULSE_WIDTH_MODULATION: True,
-            },
-            {
-                TEMPLATE_DOMAIN: [
-                    {
-                        SENSOR_DOMAIN: [
-                            {
-                                "name": "test_inside_sensor",
-                                "state": "{{ 18.99 | float }}",
-                            },
-                            {
-                                "name": "test_outside_sensor",
-                                "state": "{{ 11.1 | float }}",
-                            }
-                        ]
-                    },
-                ],
-            },
-    )],
-])
-async def test_scenario_2(hass: HomeAssistant, entry: MockConfigEntry, climate: SatClimate, coordinator: SatFakeCoordinator) -> None:
+@pytest.mark.parametrize(
+    *[
+        "domains, data, options, config",
+        [
+            (
+                [(TEMPLATE_DOMAIN, 1)],
+                {
+                    CONF_MODE: MODE_FAKE,
+                    CONF_HEATING_SYSTEM: HEATING_SYSTEM_RADIATORS,
+                    CONF_MINIMUM_SETPOINT: 58,
+                    CONF_MAXIMUM_SETPOINT: 75,
+                },
+                {
+                    CONF_HEATING_CURVE_COEFFICIENT: 1.3,
+                    CONF_FORCE_PULSE_WIDTH_MODULATION: True,
+                },
+                {
+                    TEMPLATE_DOMAIN: [
+                        {
+                            SENSOR_DOMAIN: [
+                                {
+                                    "name": "test_inside_sensor",
+                                    "state": "{{ 18.99 | float }}",
+                                },
+                                {
+                                    "name": "test_outside_sensor",
+                                    "state": "{{ 11.1 | float }}",
+                                },
+                            ]
+                        },
+                    ],
+                },
+            )
+        ],
+    ]
+)
+async def test_scenario_2(
+    hass: HomeAssistant,
+    entry: MockConfigEntry,
+    climate: SatClimate,
+    coordinator: SatFakeCoordinator,
+) -> None:
     await coordinator.async_set_boiler_temperature(58)
     await climate.async_set_target_temperature(19.0)
     await climate.async_set_hvac_mode(HVACMode.HEAT)
@@ -111,39 +129,48 @@ async def test_scenario_2(hass: HomeAssistant, entry: MockConfigEntry, climate: 
     assert climate.pwm.duty_cycle == (0, 2400)
 
 
-@pytest.mark.parametrize(*[
-    "domains, data, options, config",
-    [(
-            [(TEMPLATE_DOMAIN, 1)],
-            {
-                CONF_MODE: MODE_FAKE,
-                CONF_HEATING_SYSTEM: HEATING_SYSTEM_RADIATORS,
-                CONF_MINIMUM_SETPOINT: 41,
-                CONF_MAXIMUM_SETPOINT: 75,
-            },
-            {
-                CONF_HEATING_CURVE_COEFFICIENT: 0.9,
-                CONF_FORCE_PULSE_WIDTH_MODULATION: True,
-            },
-            {
-                TEMPLATE_DOMAIN: [
-                    {
-                        SENSOR_DOMAIN: [
-                            {
-                                "name": "test_inside_sensor",
-                                "state": "{{ 19.9 | float }}",
-                            },
-                            {
-                                "name": "test_outside_sensor",
-                                "state": "{{ -2.2 | float }}",
-                            }
-                        ]
-                    },
-                ],
-            },
-    )],
-])
-async def test_scenario_3(hass: HomeAssistant, entry: MockConfigEntry, climate: SatClimate, coordinator: SatFakeCoordinator) -> None:
+@pytest.mark.parametrize(
+    *[
+        "domains, data, options, config",
+        [
+            (
+                [(TEMPLATE_DOMAIN, 1)],
+                {
+                    CONF_MODE: MODE_FAKE,
+                    CONF_HEATING_SYSTEM: HEATING_SYSTEM_RADIATORS,
+                    CONF_MINIMUM_SETPOINT: 41,
+                    CONF_MAXIMUM_SETPOINT: 75,
+                },
+                {
+                    CONF_HEATING_CURVE_COEFFICIENT: 0.9,
+                    CONF_FORCE_PULSE_WIDTH_MODULATION: True,
+                },
+                {
+                    TEMPLATE_DOMAIN: [
+                        {
+                            SENSOR_DOMAIN: [
+                                {
+                                    "name": "test_inside_sensor",
+                                    "state": "{{ 19.9 | float }}",
+                                },
+                                {
+                                    "name": "test_outside_sensor",
+                                    "state": "{{ -2.2 | float }}",
+                                },
+                            ]
+                        },
+                    ],
+                },
+            )
+        ],
+    ]
+)
+async def test_scenario_3(
+    hass: HomeAssistant,
+    entry: MockConfigEntry,
+    climate: SatClimate,
+    coordinator: SatFakeCoordinator,
+) -> None:
     await coordinator.async_set_boiler_temperature(41)
     await climate.async_set_target_temperature(20.0)
     await climate.async_set_hvac_mode(HVACMode.HEAT)
@@ -165,7 +192,12 @@ async def test_pid_uses_the_configured_heating_system(hass: HomeAssistant) -> No
     entry = MockConfigEntry(
         domain=DOMAIN,
         version=SatFlowHandler.VERSION,
-        data={**DEFAULT_USER_DATA, CONF_HEATING_SYSTEM: HEATING_SYSTEM_UNDERFLOOR, CONF_MINIMUM_SETPOINT: 10, CONF_MAXIMUM_SETPOINT: 55},
+        data={
+            **DEFAULT_USER_DATA,
+            CONF_HEATING_SYSTEM: HEATING_SYSTEM_UNDERFLOOR,
+            CONF_MINIMUM_SETPOINT: 10,
+            CONF_MAXIMUM_SETPOINT: 55,
+        },
         options={CONF_HEATING_CURVE_COEFFICIENT: 1.8},
     )
     entry.add_to_hass(hass)
@@ -173,7 +205,9 @@ async def test_pid_uses_the_configured_heating_system(hass: HomeAssistant) -> No
     await hass.async_block_till_done()
 
     climate = entry.runtime_data.climate
-    climate.pid.update_reset(error=Error("sensor.test_inside_sensor", 0.0), heating_curve_value=30.0)
+    climate.pid.update_reset(
+        error=Error("sensor.test_inside_sensor", 0.0), heating_curve_value=30.0
+    )
 
     assert climate.pid.kp == 13.5
 
@@ -181,11 +215,17 @@ async def test_pid_uses_the_configured_heating_system(hass: HomeAssistant) -> No
 ROOM = "climate.room"
 
 
-async def setup_rooms(hass: HomeAssistant, data: dict | None = None, options: dict | None = None) -> MockConfigEntry:
+async def setup_rooms(
+    hass: HomeAssistant, data: dict | None = None, options: dict | None = None
+) -> MockConfigEntry:
     hass.states.async_set("sensor.test_inside_sensor", "20.9")
     hass.states.async_set("sensor.test_outside_sensor", "9.9")
 
-    entry = MockConfigEntry(domain=DOMAIN, data={**DEFAULT_USER_DATA, CONF_ROOMS: [ROOM], **(data or {})}, options=options or {})
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={**DEFAULT_USER_DATA, CONF_ROOMS: [ROOM], **(data or {})},
+        options=options or {},
+    )
     entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
@@ -207,7 +247,10 @@ async def test_room_turned_off_adds_no_error(hass: HomeAssistant) -> None:
 
 async def test_missing_temperature_attributes_do_not_break_the_loop(hass: HomeAssistant) -> None:
     hass.states.async_set("climate.radiator", HVACMode.HEAT, {"current_temperature": 19.0})
-    entry = await setup_rooms(hass, {CONF_RADIATORS: ["climate.radiator"], CONF_OUTSIDE_SENSOR_ENTITY_ID: ["weather.home"]})
+    entry = await setup_rooms(
+        hass,
+        {CONF_RADIATORS: ["climate.radiator"], CONF_OUTSIDE_SENSOR_ENTITY_ID: ["weather.home"]},
+    )
     hass.states.async_set("weather.home", "sunny", {})
     climate = entry.runtime_data.climate
 
@@ -241,7 +284,9 @@ async def test_rooms_attribute_follows_the_room_targets(hass: HomeAssistant) -> 
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
-async def test_control_loop_applies_an_error_change_from_inside_the_sample_time(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+async def test_control_loop_applies_an_error_change_from_inside_the_sample_time(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
     entry = await setup_rooms(hass, {CONF_ROOMS: []})
     climate = entry.runtime_data.climate
     await entry.runtime_data.coordinator.async_set_boiler_temperature(40)
@@ -263,7 +308,9 @@ async def test_control_loop_applies_an_error_change_from_inside_the_sample_time(
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
-async def test_steady_error_keeps_the_integral(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+async def test_steady_error_keeps_the_integral(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
     entry = await setup_rooms(hass, {CONF_ROOMS: []})
     climate = entry.runtime_data.climate
     await entry.runtime_data.coordinator.async_set_boiler_temperature(40)
@@ -280,7 +327,9 @@ async def test_steady_error_keeps_the_integral(hass: HomeAssistant, freezer: Fro
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
-async def test_inside_sensor_reporting_the_same_value_is_not_stale(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+async def test_inside_sensor_reporting_the_same_value_is_not_stale(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
     entry = await setup_rooms(hass, {CONF_ROOMS: []})
     climate = entry.runtime_data.climate
     await entry.runtime_data.coordinator.async_set_boiler_temperature(40)
@@ -298,7 +347,9 @@ async def test_inside_sensor_reporting_the_same_value_is_not_stale(hass: HomeAss
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
-async def test_inside_sensor_outage_resets_the_integral(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+async def test_inside_sensor_outage_resets_the_integral(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
     entry = await setup_rooms(hass, {CONF_ROOMS: []})
     climate = entry.runtime_data.climate
     await entry.runtime_data.coordinator.async_set_boiler_temperature(40)

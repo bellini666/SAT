@@ -14,12 +14,26 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.helpers.service_info.dhcp import DhcpServiceInfo
 from homeassistant.util import dt as dt_util
-from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_mqtt_message, async_fire_time_changed
+from pytest_homeassistant_custom_component.common import (
+    MockConfigEntry,
+    async_fire_mqtt_message,
+    async_fire_time_changed,
+)
 from pytest_homeassistant_custom_component.typing import MqttMockHAClient
 
 from custom_components import sat
 from custom_components.sat.coordinator import SatDataUpdateCoordinatorFactory
-from custom_components.sat.const import CONF_DEVICE, CONF_MODE, CONF_MQTT_TOPIC, CONF_SIMULATION, CONF_WINDOW_MINIMUM_OPEN_TIME, CONF_WINDOW_SENSORS, DOMAIN, MODE_ESPHOME, MODE_MQTT_OPENTHERM
+from custom_components.sat.const import (
+    CONF_DEVICE,
+    CONF_MODE,
+    CONF_MQTT_TOPIC,
+    CONF_SIMULATION,
+    CONF_WINDOW_MINIMUM_OPEN_TIME,
+    CONF_WINDOW_SENSORS,
+    DOMAIN,
+    MODE_ESPHOME,
+    MODE_MQTT_OPENTHERM,
+)
 from tests.const import DEFAULT_USER_DATA
 
 
@@ -38,7 +52,9 @@ def errors(caplog: pytest.LogCaptureFixture) -> list[str]:
     return [record.getMessage() for record in caplog.records if record.levelno >= logging.ERROR]
 
 
-async def test_data_update_with_core_reload_reloads_once(hass: HomeAssistant, sat_entry: MockConfigEntry, caplog: pytest.LogCaptureFixture) -> None:
+async def test_data_update_with_core_reload_reloads_once(
+    hass: HomeAssistant, sat_entry: MockConfigEntry, caplog: pytest.LogCaptureFixture
+) -> None:
     caplog.clear()
 
     hass.config_entries.async_update_entry(sat_entry, data={**sat_entry.data, "device": "changed"})
@@ -50,7 +66,9 @@ async def test_data_update_with_core_reload_reloads_once(hass: HomeAssistant, sa
     assert len(hass.states.async_entity_ids("climate")) == 1
 
 
-async def test_concurrent_reloads(hass: HomeAssistant, sat_entry: MockConfigEntry, caplog: pytest.LogCaptureFixture) -> None:
+async def test_concurrent_reloads(
+    hass: HomeAssistant, sat_entry: MockConfigEntry, caplog: pytest.LogCaptureFixture
+) -> None:
     caplog.clear()
 
     await asyncio.gather(
@@ -64,20 +82,27 @@ async def test_concurrent_reloads(hass: HomeAssistant, sat_entry: MockConfigEntr
     assert len(hass.states.async_entity_ids("climate")) == 1
 
 
-async def test_options_flow_reloads_entry(hass: HomeAssistant, sat_entry: MockConfigEntry, caplog: pytest.LogCaptureFixture) -> None:
+async def test_options_flow_reloads_entry(
+    hass: HomeAssistant, sat_entry: MockConfigEntry, caplog: pytest.LogCaptureFixture
+) -> None:
     caplog.clear()
 
     result = await hass.config_entries.options.async_init(sat_entry.entry_id)
-    result = await hass.config_entries.options.async_configure(result["flow_id"], {"next_step_id": "presets"})
-    result = await hass.config_entries.options.async_configure(result["flow_id"], {
-        "activity_temperature": 10,
-        "away_temperature": 10,
-        "sleep_temperature": 15,
-        "home_temperature": 18,
-        "comfort_temperature": 20,
-        "sync_climates_with_preset": False,
-        "push_setpoint_to_thermostat": False,
-    })
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "presets"}
+    )
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {
+            "activity_temperature": 10,
+            "away_temperature": 10,
+            "sleep_temperature": 15,
+            "home_temperature": 18,
+            "comfort_temperature": 20,
+            "sync_climates_with_preset": False,
+            "push_setpoint_to_thermostat": False,
+        },
+    )
     await hass.async_block_till_done()
 
     assert result["type"] == "create_entry"
@@ -95,8 +120,14 @@ async def test_unload(hass: HomeAssistant, sat_entry: MockConfigEntry) -> None:
     assert all(state.state == "unavailable" for state in hass.states.async_all("climate"))
 
 
-async def test_setup_does_not_depend_on_platform_order(hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
-    monkeypatch.setattr(sat, "PLATFORMS", [Platform.BINARY_SENSOR, Platform.SENSOR, Platform.NUMBER, Platform.CLIMATE])
+async def test_setup_does_not_depend_on_platform_order(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setattr(
+        sat,
+        "PLATFORMS",
+        [Platform.BINARY_SENSOR, Platform.SENSOR, Platform.NUMBER, Platform.CLIMATE],
+    )
 
     entry = MockConfigEntry(domain=DOMAIN, data=DEFAULT_USER_DATA, unique_id="fake")
     entry.add_to_hass(hass)
@@ -111,9 +142,18 @@ async def test_setup_does_not_depend_on_platform_order(hass: HomeAssistant, monk
     assert hass.states.get("binary_sensor.mock_title_central_heating_synchro") is not None
 
 
-async def test_first_setup_with_window_sensors_tracks_the_window(hass: HomeAssistant, caplog: pytest.LogCaptureFixture) -> None:
+async def test_first_setup_with_window_sensors_tracks_the_window(
+    hass: HomeAssistant, caplog: pytest.LogCaptureFixture
+) -> None:
     hass.states.async_set("binary_sensor.window", "off")
-    entry = MockConfigEntry(domain=DOMAIN, data=DEFAULT_USER_DATA, options={CONF_WINDOW_SENSORS: ["binary_sensor.window"], CONF_WINDOW_MINIMUM_OPEN_TIME: "00:00:00"})
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data=DEFAULT_USER_DATA,
+        options={
+            CONF_WINDOW_SENSORS: ["binary_sensor.window"],
+            CONF_WINDOW_MINIMUM_OPEN_TIME: "00:00:00",
+        },
+    )
     entry.add_to_hass(hass)
 
     assert await hass.config_entries.async_setup(entry.entry_id)
@@ -131,7 +171,12 @@ def mqtt_entry(hass: HomeAssistant) -> MockConfigEntry:
     entry = MockConfigEntry(
         domain=DOMAIN,
         unique_id="otgw",
-        data={**DEFAULT_USER_DATA, CONF_MODE: MODE_MQTT_OPENTHERM, CONF_DEVICE: "otgw", CONF_MQTT_TOPIC: "OTGW"},
+        data={
+            **DEFAULT_USER_DATA,
+            CONF_MODE: MODE_MQTT_OPENTHERM,
+            CONF_DEVICE: "otgw",
+            CONF_MQTT_TOPIC: "OTGW",
+        },
     )
     entry.add_to_hass(hass)
 
@@ -159,9 +204,15 @@ async def test_unload_stops_mqtt_updates(hass: HomeAssistant, mqtt_mock: MqttMoc
 
 @pytest.mark.usefixtures("instant_mqtt_command_delay")
 @pytest.mark.parametrize("target", ["climate", "platforms"])
-async def test_failed_setup_stops_mqtt_updates(hass: HomeAssistant, mqtt_mock: MqttMockHAClient, target: str) -> None:
+async def test_failed_setup_stops_mqtt_updates(
+    hass: HomeAssistant, mqtt_mock: MqttMockHAClient, target: str
+) -> None:
     entry = mqtt_entry(hass)
-    failure = (sat, "SatClimate") if target == "climate" else (hass.config_entries, "async_forward_entry_setups")
+    failure = (
+        (sat, "SatClimate")
+        if target == "climate"
+        else (hass.config_entries, "async_forward_entry_setups")
+    )
     resolve = SatDataUpdateCoordinatorFactory.resolve
     coordinators = []
 
@@ -169,7 +220,10 @@ async def test_failed_setup_stops_mqtt_updates(hass: HomeAssistant, mqtt_mock: M
         coordinators.append(resolve(**kwargs))
         return coordinators[-1]
 
-    with patch.object(SatDataUpdateCoordinatorFactory, "resolve", staticmethod(capture)), patch.object(*failure, side_effect=RuntimeError("setup")):
+    with (
+        patch.object(SatDataUpdateCoordinatorFactory, "resolve", staticmethod(capture)),
+        patch.object(*failure, side_effect=RuntimeError("setup")),
+    ):
         await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
 
@@ -179,7 +233,9 @@ async def test_failed_setup_stops_mqtt_updates(hass: HomeAssistant, mqtt_mock: M
     assert not coordinators[0].flame_active
 
 
-async def test_setup_retries_while_mqtt_is_unavailable(hass: HomeAssistant, caplog: pytest.LogCaptureFixture) -> None:
+async def test_setup_retries_while_mqtt_is_unavailable(
+    hass: HomeAssistant, caplog: pytest.LogCaptureFixture
+) -> None:
     entry = mqtt_entry(hass)
 
     await hass.config_entries.async_setup(entry.entry_id)
@@ -190,7 +246,9 @@ async def test_setup_retries_while_mqtt_is_unavailable(hass: HomeAssistant, capl
     assert errors(caplog) == []
 
 
-async def test_dhcp_discovery_keeps_mqtt_entry(hass: HomeAssistant, mqtt_mock: MqttMockHAClient, caplog: pytest.LogCaptureFixture) -> None:
+async def test_dhcp_discovery_keeps_mqtt_entry(
+    hass: HomeAssistant, mqtt_mock: MqttMockHAClient, caplog: pytest.LogCaptureFixture
+) -> None:
     entry = mqtt_entry(hass)
 
     assert await hass.config_entries.async_setup(entry.entry_id)
@@ -212,7 +270,9 @@ async def test_dhcp_discovery_keeps_mqtt_entry(hass: HomeAssistant, mqtt_mock: M
 
 
 @pytest.mark.parametrize("entity_id", ["climate.mock_title", ["climate.mock_title"]])
-async def test_reset_integral_targets_reloaded_climate(hass: HomeAssistant, sat_entry: MockConfigEntry, entity_id: str | list[str]) -> None:
+async def test_reset_integral_targets_reloaded_climate(
+    hass: HomeAssistant, sat_entry: MockConfigEntry, entity_id: str | list[str]
+) -> None:
     assert await hass.config_entries.async_reload(sat_entry.entry_id)
     await hass.async_block_till_done()
 
@@ -220,7 +280,9 @@ async def test_reset_integral_targets_reloaded_climate(hass: HomeAssistant, sat_
     assert climate.entity_id == "climate.mock_title"
 
     with patch.object(climate.pid, "reset") as reset:
-        await hass.services.async_call(DOMAIN, "reset_integral", {"entity_id": entity_id}, blocking=True)
+        await hass.services.async_call(
+            DOMAIN, "reset_integral", {"entity_id": entity_id}, blocking=True
+        )
 
     reset.assert_called_once()
 
@@ -236,7 +298,9 @@ async def start_heating(hass: HomeAssistant, entry: MockConfigEntry):
     return climate
 
 
-async def test_direct_control_loop_cancels_the_scheduled_run(hass: HomeAssistant, sat_entry: MockConfigEntry) -> None:
+async def test_direct_control_loop_cancels_the_scheduled_run(
+    hass: HomeAssistant, sat_entry: MockConfigEntry
+) -> None:
     climate = await start_heating(hass, sat_entry)
 
     with patch.object(sat_entry.runtime_data.coordinator, "async_control_heating_loop") as control:
@@ -249,7 +313,9 @@ async def test_direct_control_loop_cancels_the_scheduled_run(hass: HomeAssistant
     assert await hass.config_entries.async_unload(sat_entry.entry_id)
 
 
-async def test_forced_schedule_runs_the_control_loop_right_away(hass: HomeAssistant, sat_entry: MockConfigEntry) -> None:
+async def test_forced_schedule_runs_the_control_loop_right_away(
+    hass: HomeAssistant, sat_entry: MockConfigEntry
+) -> None:
     climate = await start_heating(hass, sat_entry)
     await hass.async_block_till_done()
 
@@ -261,7 +327,9 @@ async def test_forced_schedule_runs_the_control_loop_right_away(hass: HomeAssist
     assert await hass.config_entries.async_unload(sat_entry.entry_id)
 
 
-async def test_periodic_tick_runs_the_control_loop(hass: HomeAssistant, sat_entry: MockConfigEntry) -> None:
+async def test_periodic_tick_runs_the_control_loop(
+    hass: HomeAssistant, sat_entry: MockConfigEntry
+) -> None:
     await start_heating(hass, sat_entry)
 
     with patch.object(sat_entry.runtime_data.coordinator, "async_control_heating_loop") as control:
@@ -277,10 +345,23 @@ async def test_periodic_tick_runs_the_control_loop(hass: HomeAssistant, sat_entr
 async def test_unload_stops_esphome_updates(hass: HomeAssistant) -> None:
     esphome_entry = MockConfigEntry(domain="esphome")
     esphome_entry.add_to_hass(hass)
-    device = dr.async_get(hass).async_get_or_create(config_entry_id=esphome_entry.entry_id, connections={(dr.CONNECTION_NETWORK_MAC, "aa:bb:cc:dd:ee:ff")})
-    boiler = er.async_get(hass).async_get_or_create("sensor", "esphome", "AA:BB:CC:DD:EE:FF-sensor-t_boiler", config_entry=esphome_entry, device_id=device.id)
+    device = dr.async_get(hass).async_get_or_create(
+        config_entry_id=esphome_entry.entry_id,
+        connections={(dr.CONNECTION_NETWORK_MAC, "aa:bb:cc:dd:ee:ff")},
+    )
+    boiler = er.async_get(hass).async_get_or_create(
+        "sensor",
+        "esphome",
+        "AA:BB:CC:DD:EE:FF-sensor-t_boiler",
+        config_entry=esphome_entry,
+        device_id=device.id,
+    )
 
-    entry = MockConfigEntry(domain=DOMAIN, data={**DEFAULT_USER_DATA, CONF_MODE: MODE_ESPHOME, CONF_DEVICE: device.id}, options={CONF_SIMULATION: True})
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={**DEFAULT_USER_DATA, CONF_MODE: MODE_ESPHOME, CONF_DEVICE: device.id},
+        options={CONF_SIMULATION: True},
+    )
     entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()

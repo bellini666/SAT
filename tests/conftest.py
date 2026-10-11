@@ -1,4 +1,5 @@
 """Fixtures for testing."""
+
 import asyncio
 from types import SimpleNamespace
 
@@ -32,7 +33,14 @@ async def instant_mqtt_command_delay(hass: HomeAssistant, monkeypatch: pytest.Mo
 
 
 @pytest.fixture
-async def entry(hass: HomeAssistant, domains: list, data: dict, options: dict, config: dict, caplog: LogCaptureFixture) -> MockConfigEntry:
+async def entry(
+    hass: HomeAssistant,
+    domains: list,
+    data: dict,
+    options: dict,
+    config: dict,
+    caplog: LogCaptureFixture,
+) -> MockConfigEntry:
     """Setup any given integration."""
     for domain, count in domains:
         with assert_setup_component(count, domain):

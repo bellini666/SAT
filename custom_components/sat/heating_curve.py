@@ -26,20 +26,31 @@ class HeatingCurve:
     def update(self, target_temperature: float, outside_temperature: float) -> None:
         """Calculate the heating curve based on the outside temperature."""
         heating_curve_value = self.calculate(target_temperature, outside_temperature)
-        self._last_heating_curve_value = round(self.base_offset + ((self._coefficient / 4) * heating_curve_value), 1)
+        self._last_heating_curve_value = round(
+            self.base_offset + ((self._coefficient / 4) * heating_curve_value), 1
+        )
 
-    def calculate_coefficient(self, setpoint: float, target_temperature: float, outside_temperature: float) -> float:
+    def calculate_coefficient(
+        self, setpoint: float, target_temperature: float, outside_temperature: float
+    ) -> float:
         """Convert a setpoint to a coefficient value"""
         heating_curve_value = self.calculate(target_temperature, outside_temperature)
         return round(4 * (setpoint - self.base_offset) / heating_curve_value, 1)
 
     def autotune(self, setpoint: float, target_temperature: float, outside_temperature: float):
         """Calculate an optimal coefficient value."""
-        if setpoint <= MINIMUM_SETPOINT or self.calculate(target_temperature, outside_temperature) <= 0:
+        if (
+            setpoint <= MINIMUM_SETPOINT
+            or self.calculate(target_temperature, outside_temperature) <= 0
+        ):
             return
 
         coefficient = self.calculate_coefficient(setpoint, target_temperature, outside_temperature)
-        self._coefficient_derivative = round(coefficient - self._optimal_coefficient, 1) if self._optimal_coefficient is not None else 0.0
+        self._coefficient_derivative = (
+            round(coefficient - self._optimal_coefficient, 1)
+            if self._optimal_coefficient is not None
+            else 0.0
+        )
 
         # Fuzzy logic for when the derivative is positive
         if self._coefficient_derivative > 0:
@@ -75,7 +86,11 @@ class HeatingCurve:
         """Calculate the heating curve value based on the current outside temperature"""
         # The parabola bottoms out near 26.7 °C and rises again, so outside temperatures above the target count as the target
         outside_temperature = min(outside_temperature, target_temperature)
-        return 4 * (target_temperature - 20) + 0.03 * (outside_temperature - 20) ** 2 - 0.4 * (outside_temperature - 20)
+        return (
+            4 * (target_temperature - 20)
+            + 0.03 * (outside_temperature - 20) ** 2
+            - 0.4 * (outside_temperature - 20)
+        )
 
     @property
     def base_offset(self) -> float:

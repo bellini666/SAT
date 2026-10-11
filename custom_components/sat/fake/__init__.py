@@ -12,11 +12,11 @@ _LOGGER: logging.Logger = logging.getLogger(__name__)
 
 class SatFakeConfig:
     def __init__(
-            self,
-            supports_setpoint_management: bool = False,
-            supports_maximum_setpoint_management: bool = False,
-            supports_hot_water_setpoint_management: bool = False,
-            supports_relative_modulation_management: bool = False
+        self,
+        supports_setpoint_management: bool = False,
+        supports_maximum_setpoint_management: bool = False,
+        supports_hot_water_setpoint_management: bool = False,
+        supports_relative_modulation_management: bool = False,
     ):
         self.supports_setpoint_management = supports_setpoint_management
         self.supports_maximum_setpoint_management = supports_maximum_setpoint_management
@@ -37,7 +37,12 @@ class SatFakeCoordinator(SatDataUpdateCoordinator):
     def member_id(self) -> int | None:
         return -1
 
-    def __init__(self, hass: HomeAssistant, config_data: Mapping[str, Any], options: Mapping[str, Any] | None = None) -> None:
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        config_data: Mapping[str, Any],
+        options: Mapping[str, Any] | None = None,
+    ) -> None:
         self.config = SatFakeConfig(True)
 
         self._setpoint = None
