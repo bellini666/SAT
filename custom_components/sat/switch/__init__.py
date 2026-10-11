@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any, override
 from homeassistant.components.input_boolean import DOMAIN as INPUT_BOOLEAN_DOMAIN
 from homeassistant.components.switch import DOMAIN as SWITCH_DOMAIN
 from homeassistant.const import ATTR_ENTITY_ID, SERVICE_TURN_OFF, SERVICE_TURN_ON, STATE_ON
-from homeassistant.helpers import entity_registry
+from homeassistant.core import split_entity_id
 
 from ..coordinator import DeviceState, SatDataUpdateCoordinator
 
@@ -13,7 +13,6 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
     from homeassistant.core import HomeAssistant
-    from homeassistant.helpers.entity_registry import RegistryEntry
 
 DOMAIN_SERVICE = {SWITCH_DOMAIN: SWITCH_DOMAIN, INPUT_BOOLEAN_DOMAIN: INPUT_BOOLEAN_DOMAIN}
 
@@ -29,12 +28,12 @@ class SatSwitchCoordinator(SatDataUpdateCoordinator):
         """Initialize."""
         super().__init__(hass, config_data, options)
 
-        self._entity: RegistryEntry = entity_registry.async_get(hass).async_get(entity_id)
+        self._entity_id: str = entity_id
 
     @override
     @property
     def device_id(self) -> str:
-        return self._entity.name
+        return self._entity_id
 
     @override
     @property
@@ -54,7 +53,7 @@ class SatSwitchCoordinator(SatDataUpdateCoordinator):
     @override
     @property
     def device_active(self) -> bool:
-        if (state := self.hass.states.get(self._entity.id)) is None:
+        if (state := self.hass.states.get(self._entity_id)) is None:
             return False
 
         return state.state == STATE_ON
@@ -67,14 +66,14 @@ class SatSwitchCoordinator(SatDataUpdateCoordinator):
     @override
     async def async_set_heater_state(self, state: DeviceState) -> None:
         if not self._simulation:
-            domain_service = DOMAIN_SERVICE.get(self._entity.domain)
+            domain_service = DOMAIN_SERVICE.get(split_entity_id(self._entity_id)[0])
             state_service = SERVICE_TURN_ON if state == DeviceState.ON else SERVICE_TURN_OFF
 
             if domain_service is not None:
                 await self.hass.services.async_call(
                     domain_service,
                     state_service,
-                    {ATTR_ENTITY_ID: self._entity.entity_id},
+                    {ATTR_ENTITY_ID: self._entity_id},
                     blocking=True,
                 )
 
