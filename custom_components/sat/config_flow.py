@@ -107,7 +107,11 @@ from .const import (
     OPTIONS_DEFAULTS,
 )
 from .coordinator_factory import SatDataUpdateCoordinatorFactory
-from .helpers import calculate_default_maximum_setpoint, convert_time_str_to_seconds
+from .helpers import (
+    calculate_default_maximum_setpoint,
+    convert_time_str_to_seconds,
+    snake_case,
+)
 from .manufacturer import MANUFACTURERS, ManufacturerFactory
 from .overshoot_protection import PLATEAU_WINDOW, CalibrationError, create_overshoot_protection
 from .pid import AUTOMATIC_GAINS_VERSION_3
@@ -374,7 +378,7 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         if _user_input is not None:
             self.data.update(_user_input)
             self.data[CONF_MODE] = MODE_SIMULATOR
-            self.data[CONF_DEVICE] = "%s_%s"
+            self.data[CONF_DEVICE] = f"{MODE_SIMULATOR}_{snake_case(self.data[CONF_NAME])}"
 
             return await self.async_step_sensors()
 
