@@ -31,6 +31,9 @@ class FlameState:
     duty_ratio_last_15m: float
     median_on_duration_seconds_4h: Optional[float]
 
+    last_cut_short_peak_flow: Optional[float]
+    last_cut_short_setpoint: Optional[float]
+
 
 class Flame:
     """Tracks boiler flame on/off, maintains rolling statistics, and classifies health."""
@@ -41,6 +44,8 @@ class Flame:
 
     STUCK_OFF_SECONDS: float = 300.0
     STUCK_ON_WITHOUT_DEMAND_SECONDS: float = 120.0
+    # A Remeha cuts out about 5 °C above the control setpoint
+    IGNITION_OVERSHOOT_MARGIN: float = 4.0
     EXPECTED_MODULATING_DUTY_RATIO_WHEN_HEATING: float = 0.60
 
     # Windows
@@ -84,6 +89,10 @@ class Flame:
         self._flame_off_monotonic: Optional[float] = None
         self._demand_since_monotonic: Optional[float] = None
         self._pwm_planned_on_seconds: Optional[float] = None
+        self._burn_peak_flow: Optional[float] = None
+        self._burn_setpoint: Optional[float] = None
+        self._last_cut_short_peak_flow: Optional[float] = None
+        self._last_cut_short_setpoint: Optional[float] = None
 
         # Stored states
         self._last_boiler_state: Optional[BoilerState] = None
@@ -141,6 +150,14 @@ class Flame:
         return self._last_cycle_duration_seconds
 
     @property
+    def last_cut_short_peak_flow(self) -> Optional[float]:
+        return self._last_cut_short_peak_flow
+
+    @property
+    def last_cut_short_setpoint(self) -> Optional[float]:
+        return self._last_cut_short_setpoint
+
+    @property
     def cycles_last_hour(self) -> float:
         return self._cycles_per_hour(monotonic())
 
@@ -186,6 +203,8 @@ class Flame:
             self._pwm_planned_on_seconds = pwm.duty_cycle[0] if pwm and pwm.status == PWMStatus.ON and pwm.duty_cycle else None
             self._flame_on_monotonic = now
             self._flame_off_monotonic = None
+            self._burn_peak_flow = boiler_state.flow_temperature
+            self._burn_setpoint = boiler_state.setpoint
             self._last_update_monotonic = now
             self._recompute_health(now)
 
@@ -196,6 +215,9 @@ class Flame:
         # ON -> ON
         if currently_active and self._flame_on_monotonic is not None:
             self._latest_on_time_seconds = now - self._flame_on_monotonic
+            self._burn_setpoint = boiler_state.setpoint
+            if boiler_state.flow_temperature is not None:
+                self._burn_peak_flow = max(self._burn_peak_flow or boiler_state.flow_temperature, boiler_state.flow_temperature)
 
             self._last_update_monotonic = now
             self._recompute_health(now)
@@ -222,8 +244,17 @@ class Flame:
             # A burn that ends while PWM is still ON was ended by the boiler, not by PWM
             if self._pwm_planned_on_seconds is not None:
                 pwm = self._last_pulse_width_modulation_state
-                self._pwm_burns_cut_short.append(pwm.status == PWMStatus.ON and duration < self._pwm_planned_on_seconds)
+                cut_short = pwm.status == PWMStatus.ON and duration < self._pwm_planned_on_seconds
+                self._pwm_burns_cut_short.append(cut_short)
                 self._pwm_planned_on_seconds = None
+
+                if cut_short and self._burn_peak_flow is not None and self._burn_setpoint is not None and self._burn_peak_flow > self._burn_setpoint + self.IGNITION_OVERSHOOT_MARGIN:
+                    self._last_cut_short_peak_flow = self._burn_peak_flow
+                    self._last_cut_short_setpoint = self._burn_setpoint
+                    _LOGGER.warning(
+                        "The boiler stopped a PWM burn after %.0fs with the flow at %.1f°C against a %.1f°C setpoint; raise the overshoot protection value",
+                        duration, self._burn_peak_flow, self._burn_setpoint,
+                    )
 
             self._has_completed_first_cycle = True
             self._last_update_monotonic = now

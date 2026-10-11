@@ -2,6 +2,8 @@
 
 from datetime import timedelta
 
+import logging
+
 import pytest
 from freezegun.api import FrozenDateTimeFactory
 
@@ -14,7 +16,7 @@ PWM_ON = PWMState(enabled=True, status=PWMStatus.ON, duty_cycle=(900, 300))
 PWM_OFF = PWMState(enabled=True, status=PWMStatus.OFF, duty_cycle=(900, 300))
 
 
-def boiler_state(flame_active: bool, demand: bool = True, hot_water: bool = False) -> BoilerState:
+def boiler_state(flame_active: bool, demand: bool = True, hot_water: bool = False, setpoint: float = 50.0, flow: float = 50.0) -> BoilerState:
     if hot_water:
         status = BoilerStatus.HOT_WATER
     elif not demand:
@@ -28,8 +30,8 @@ def boiler_state(flame_active: bool, demand: bool = True, hot_water: bool = Fals
         status=status,
         flame_active=flame_active,
         hot_water_active=hot_water,
-        setpoint=50.0,
-        flow_temperature=50.0,
+        setpoint=setpoint,
+        flow_temperature=flow,
         return_temperature=40.0,
         relative_modulation_level=30.0,
     )
@@ -177,3 +179,32 @@ def test_full_duty_burns_are_healthy(freezer: FrozenDateTimeFactory) -> None:
     flame.update(boiler_state(True), full)
 
     assert flame.health_status == FlameStatus.HEALTHY
+
+
+def ignition_spike(flame: Flame, freezer: FrozenDateTimeFactory, pwm_off_first: bool) -> None:
+    flame.update(boiler_state(False, setpoint=40.0, flow=35.0), PWM_ON)
+    for flow in (35.0, 41.0, 46.5, 44.0):
+        flame.update(boiler_state(True, setpoint=40.0, flow=flow), PWM_ON)
+        freezer.tick(timedelta(seconds=10))
+
+    flame.update(boiler_state(False, setpoint=40.0, flow=43.0), PWM_OFF if pwm_off_first else PWM_ON)
+
+
+def test_a_burn_cut_by_an_ignition_spike_warns(freezer: FrozenDateTimeFactory, caplog: pytest.LogCaptureFixture) -> None:
+    flame = Flame()
+
+    with caplog.at_level(logging.WARNING):
+        ignition_spike(flame, freezer, pwm_off_first=False)
+
+    assert "raise the overshoot protection value" in caplog.text
+    assert (flame.last_cut_short_peak_flow, flame.last_cut_short_setpoint) == (46.5, 40.0)
+
+
+def test_a_burn_pwm_ends_does_not_warn(freezer: FrozenDateTimeFactory, caplog: pytest.LogCaptureFixture) -> None:
+    flame = Flame()
+
+    with caplog.at_level(logging.WARNING):
+        ignition_spike(flame, freezer, pwm_off_first=True)
+
+    assert "overshoot protection" not in caplog.text
+    assert flame.last_cut_short_peak_flow is None
