@@ -23,6 +23,7 @@ from custom_components.sat.const import (
     HEATING_SYSTEM_RADIATORS,
     MINIMUM_SETPOINT,
     BoilerStatus,
+    FlameStatus,
     PWMStatus,
 )
 from custom_components.sat.coordinator import DeviceState
@@ -230,4 +231,36 @@ async def test_cycle_limit_survives_resets_and_holds_off(hass: HomeAssistant) ->
 
     assert climate.pwm.status == PWMStatus.OFF
     assert climate.setpoint == MINIMUM_SETPOINT
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_burns_pwm_ends_itself_are_not_cut_short(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+    entry, climate, coordinator = await setup_climate(hass, {CONF_FORCE_PULSE_WIDTH_MODULATION: True})
+    await coordinator.async_set_boiler_temperature(57)
+    await climate.async_set_target_temperature(21.0)
+    await climate.async_set_hvac_mode(HVACMode.HEAT)
+
+    for _ in range(3):
+        await climate.async_control_heating_loop()
+        assert climate.pwm.status == PWMStatus.ON
+
+        # The burner lights about a minute after PWM switches ON
+        freezer.tick(timedelta(seconds=60))
+        for _ in range(120):
+            freezer.tick(timedelta(seconds=30))
+            await climate.async_control_heating_loop()
+            coordinator.async_update_listeners()
+            if climate.pwm.status == PWMStatus.OFF:
+                break
+
+        assert climate.pwm.status == PWMStatus.OFF
+
+        freezer.tick(timedelta(hours=1))
+
+    await climate.async_control_heating_loop()
+    freezer.tick(timedelta(seconds=30))
+    await climate.async_control_heating_loop()
+    assert climate.pwm.status == PWMStatus.ON
+
+    assert coordinator.flame.health_status != FlameStatus.PWM_SHORT
     assert await hass.config_entries.async_unload(entry.entry_id)

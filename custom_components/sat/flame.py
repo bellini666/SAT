@@ -83,6 +83,7 @@ class Flame:
         self._flame_on_monotonic: Optional[float] = None
         self._flame_off_monotonic: Optional[float] = None
         self._demand_since_monotonic: Optional[float] = None
+        self._pwm_planned_on_seconds: Optional[float] = None
 
         # Stored states
         self._last_boiler_state: Optional[BoilerState] = None
@@ -93,6 +94,7 @@ class Flame:
         self._cycle_end_times_window: Deque[float] = deque()
         self._on_deltas_window: Deque[Tuple[float, float]] = deque()
         self._on_durations_window: Deque[Tuple[float, float]] = deque()
+        self._pwm_burns_cut_short: Deque[bool] = deque(maxlen=3)
 
         # Health
         self._health_status: str = FlameStatus.INSUFFICIENT_DATA
@@ -180,6 +182,8 @@ class Flame:
 
         # OFF -> ON
         if currently_active and not previously_active:
+            pwm = self._last_pulse_width_modulation_state
+            self._pwm_planned_on_seconds = pwm.duty_cycle[0] if pwm and pwm.status == PWMStatus.ON and pwm.duty_cycle else None
             self._flame_on_monotonic = now
             self._flame_off_monotonic = None
             self._last_update_monotonic = now
@@ -214,6 +218,12 @@ class Flame:
             self._prune_median_window(now)
             self._cycle_end_times_window.append(now)
             self._on_durations_window.append((now, duration))
+
+            # A burn that ends while PWM is still ON was ended by the boiler, not by PWM
+            if self._pwm_planned_on_seconds is not None:
+                pwm = self._last_pulse_width_modulation_state
+                self._pwm_burns_cut_short.append(pwm.status == PWMStatus.ON and duration < self._pwm_planned_on_seconds)
+                self._pwm_planned_on_seconds = None
 
             self._has_completed_first_cycle = True
             self._last_update_monotonic = now
@@ -308,7 +318,7 @@ class Flame:
                 self._health_status = FlameStatus.SHORT_CYCLING
                 return
 
-            if median_on_seconds is not None and median_on_seconds < self.MEDIAN_TOLERANCE * self._last_pulse_width_modulation_state.duty_cycle[0]:
+            if sum(self._pwm_burns_cut_short) >= 2:
                 self._health_status = FlameStatus.PWM_SHORT
                 return
 

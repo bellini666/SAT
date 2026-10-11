@@ -458,6 +458,9 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
 
         await self.async_shutdown()
 
+    def update_flame(self, pwm_state: PWMState) -> None:
+        self._flame.update(boiler_state=self.boiler, pwm_state=pwm_state)
+
     async def async_control_heating_loop(self, climate: Optional[SatClimate] = None, pwm_state: Optional[PWMState] = None, _time=None) -> None:
         """Control the heating loop for the device."""
         # Update Flame State

@@ -6,8 +6,12 @@ import pytest
 from freezegun.api import FrozenDateTimeFactory
 
 from custom_components.sat.boiler import BoilerState
-from custom_components.sat.const import BoilerStatus, FlameStatus
+from custom_components.sat.const import BoilerStatus, FlameStatus, PWMStatus
 from custom_components.sat.flame import Flame
+from custom_components.sat.pwm import PWMState
+
+PWM_ON = PWMState(enabled=True, status=PWMStatus.ON, duty_cycle=(900, 300))
+PWM_OFF = PWMState(enabled=True, status=PWMStatus.OFF, duty_cycle=(900, 300))
 
 
 def boiler_state(flame_active: bool, demand: bool = True, hot_water: bool = False) -> BoilerState:
@@ -109,3 +113,67 @@ def test_stuck_off_clears_when_the_flame_lights(freezer: FrozenDateTimeFactory) 
     flame.update(boiler_state(True))
 
     assert flame.health_status != FlameStatus.STUCK_OFF
+
+
+def run_pwm_cycle(flame: Flame, freezer: FrozenDateTimeFactory, on_seconds: int, pwm_on: PWMState = PWM_ON, cut: bool = False) -> None:
+    flame.update(boiler_state(True), pwm_on)
+    for _ in range(on_seconds // 10):
+        freezer.tick(timedelta(seconds=10))
+        flame.update(boiler_state(True), pwm_on)
+
+    if not cut:
+        flame.update(boiler_state(True), PWM_OFF)
+
+    flame.update(boiler_state(False), PWM_OFF if not cut else pwm_on)
+    freezer.tick(timedelta(seconds=300))
+    flame.update(boiler_state(False, demand=False), PWM_OFF)
+
+
+def start_pwm_burn(flame: Flame) -> None:
+    flame.update(boiler_state(False), PWM_ON)
+    flame.update(boiler_state(True), PWM_ON)
+
+
+def test_older_cut_burns_do_not_flag_full_pwm_burns(freezer: FrozenDateTimeFactory) -> None:
+    flame = Flame()
+    for _ in range(3):
+        run_pwm_cycle(flame, freezer, 30, cut=True)
+    for _ in range(2):
+        run_pwm_cycle(flame, freezer, 900)
+
+    start_pwm_burn(flame)
+
+    assert flame.health_status == FlameStatus.HEALTHY
+
+
+def test_burns_the_boiler_cuts_short_are_pwm_short(freezer: FrozenDateTimeFactory) -> None:
+    flame = Flame()
+    run_pwm_cycle(flame, freezer, 900)
+    run_pwm_cycle(flame, freezer, 30, cut=True)
+    run_pwm_cycle(flame, freezer, 30, cut=True)
+
+    start_pwm_burn(flame)
+
+    assert flame.health_status == FlameStatus.PWM_SHORT
+
+
+def test_a_burn_pwm_ends_early_is_not_cut_short(freezer: FrozenDateTimeFactory) -> None:
+    flame = Flame()
+    for _ in range(3):
+        run_pwm_cycle(flame, freezer, 200)
+
+    start_pwm_burn(flame)
+
+    assert flame.health_status == FlameStatus.HEALTHY
+
+
+def test_full_duty_burns_are_healthy(freezer: FrozenDateTimeFactory) -> None:
+    flame = Flame()
+    full = PWMState(enabled=True, status=PWMStatus.ON, duty_cycle=(1800, 0))
+    for _ in range(3):
+        run_pwm_cycle(flame, freezer, 1800, pwm_on=full, cut=True)
+
+    flame.update(boiler_state(False), full)
+    flame.update(boiler_state(True), full)
+
+    assert flame.health_status == FlameStatus.HEALTHY
