@@ -12,7 +12,22 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.sat.climate import SatClimate
 from custom_components.sat.config_flow import SatFlowHandler
-from custom_components.sat.const import *
+from custom_components.sat.const import (
+    CONF_FORCE_PULSE_WIDTH_MODULATION,
+    CONF_HEATING_CURVE_COEFFICIENT,
+    CONF_HEATING_SYSTEM,
+    CONF_MAXIMUM_SETPOINT,
+    CONF_MINIMUM_SETPOINT,
+    CONF_MODE,
+    CONF_OUTSIDE_SENSOR_ENTITY_ID,
+    CONF_RADIATORS,
+    CONF_ROOMS,
+    CONF_THERMOSTAT,
+    DOMAIN,
+    HEATING_SYSTEM_RADIATORS,
+    HEATING_SYSTEM_UNDERFLOOR,
+    MODE_FAKE,
+)
 from custom_components.sat.errors import Error
 from custom_components.sat.fake import SatFakeCoordinator
 from tests.const import DEFAULT_USER_DATA

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from time import monotonic
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.core import HomeAssistant
 

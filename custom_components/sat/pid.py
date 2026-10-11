@@ -3,7 +3,10 @@ from time import monotonic
 
 from homeassistant.core import State
 
-from .const import *
+from .const import (
+    DEADBAND,
+    HEATING_SYSTEM_UNDERFLOOR,
+)
 from .errors import Error
 from .helpers import seconds_since
 

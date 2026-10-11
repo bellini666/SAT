@@ -1,15 +1,31 @@
 from __future__ import annotations
 
-import asyncio
 import logging
 from collections.abc import Mapping
-from typing import Any, Optional
+from typing import Any
 
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
 from pyotgw import OpenThermGateway
 from pyotgw import vars as gw_vars
-from pyotgw.vars import *
+from pyotgw.vars import (
+    BOILER,
+    DATA_CH_WATER_TEMP,
+    DATA_CONTROL_SETPOINT,
+    DATA_DHW_SETPOINT,
+    DATA_MASTER_CH_ENABLED,
+    DATA_REL_MOD_LEVEL,
+    DATA_RETURN_WATER_TEMP,
+    DATA_SLAVE_DHW_ACTIVE,
+    DATA_SLAVE_DHW_MAX_SETP,
+    DATA_SLAVE_DHW_MIN_SETP,
+    DATA_SLAVE_FLAME_ON,
+    DATA_SLAVE_MAX_CAPACITY,
+    DATA_SLAVE_MAX_RELATIVE_MOD,
+    DATA_SLAVE_MEMBERID,
+    DATA_SLAVE_MIN_MOD_LEVEL,
+    DEFAULT_STATUS,
+)
 from serial import SerialException
 
 from ..coordinator import DeviceState, SatDataUpdateCoordinator

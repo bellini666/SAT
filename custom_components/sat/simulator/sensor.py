@@ -3,7 +3,9 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import async_generate_entity_id
 
-from ..const import *
+from ..const import (
+    CONF_NAME,
+)
 from ..entity import SatEntity
 from ..simulator import SatSimulatorCoordinator
 

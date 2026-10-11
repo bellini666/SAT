@@ -2,7 +2,10 @@ import logging
 from collections import deque
 from statistics import mean
 
-from .const import *
+from .const import (
+    HEATING_SYSTEM_UNDERFLOOR,
+    MINIMUM_SETPOINT,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
