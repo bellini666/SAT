@@ -448,6 +448,9 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
 
         await self.async_shutdown()
 
+    async def async_initialize_flame(self, entry_id: str) -> None:
+        await self._flame.async_initialize(self.hass, entry_id)
+
     def update_flame(self, pwm_state: PWMState) -> None:
         self._flame.update(boiler_state=self.boiler, pwm_state=pwm_state)
 

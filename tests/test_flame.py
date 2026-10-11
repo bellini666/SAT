@@ -2,17 +2,21 @@
 
 import logging
 from datetime import timedelta
-from typing import TYPE_CHECKING
+from time import time
+from typing import TYPE_CHECKING, Any
 
 import pytest
+from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed
 
 from custom_components.sat.boiler import BoilerState
-from custom_components.sat.const import BoilerStatus, FlameStatus, PWMStatus
+from custom_components.sat.const import DOMAIN, BoilerStatus, FlameStatus, PWMStatus
 from custom_components.sat.flame import Flame
 from custom_components.sat.pwm import PWMState
+from tests.const import DEFAULT_USER_DATA
 
 if TYPE_CHECKING:
     from freezegun.api import FrozenDateTimeFactory
+    from homeassistant.core import HomeAssistant
 
 PWM_ON = PWMState(enabled=True, status=PWMStatus.ON, duty_cycle=(900, 300))
 PWM_OFF = PWMState(enabled=True, status=PWMStatus.OFF, duty_cycle=(900, 300))
@@ -276,3 +280,110 @@ def test_an_ignition_spike_warns_only_when_the_boiler_cuts_the_burn(
     else:
         assert "raise the overshoot protection value" in caplog.text
         assert (flame.last_cut_short_peak_flow, flame.last_cut_short_setpoint) == (46.5, 40.0)
+
+
+def statistics(flame: Flame) -> tuple[Any, ...]:
+    return (
+        flame.average_on_time_seconds,
+        flame.last_cycle_duration_seconds,
+        flame.sample_count_4h,
+        flame.cycles_last_hour,
+        flame.duty_ratio_last_15m,
+        flame.median_on_duration_seconds_4h,
+        flame.last_cut_short_peak_flow,
+        flame.last_cut_short_setpoint,
+    )
+
+
+async def test_cycle_statistics_survive_a_reload(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    flame = Flame(smoothing_alpha=0.5)
+    await flame.async_initialize(hass, "sat")
+    run_cycle(flame, freezer, 300)
+    run_cycle(flame, freezer, 100)
+    ignition_spike(flame, freezer, pwm_off_first=False)
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+
+    restored = Flame(smoothing_alpha=0.5)
+    await restored.async_initialize(hass, "sat")
+
+    assert statistics(restored) == statistics(flame)
+    assert restored.sample_count_4h == 3
+
+    freezer.tick(timedelta(hours=1, minutes=1))
+
+    assert restored.cycles_last_hour == 0
+    assert restored.sample_count_4h == 3
+
+    ignition_spike(restored, freezer, pwm_off_first=False)
+
+    assert restored.health_status == FlameStatus.PWM_SHORT
+
+
+async def test_initializing_again_does_not_count_the_stored_cycles_twice(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    flame = Flame()
+    await flame.async_initialize(hass, "sat")
+    run_cycle(flame, freezer, 300)
+    run_cycle(flame, freezer, 300)
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+
+    await flame.async_initialize(hass, "sat")
+
+    assert (flame.cycles_last_hour, flame.sample_count_4h) == (2.0, 2)
+
+
+async def test_the_entry_restores_its_cycle_statistics(
+    hass: HomeAssistant, hass_storage: dict[str, Any]
+) -> None:
+    now = time()
+    hass_storage[f"{DOMAIN}.sat.flame"] = {
+        "version": 1,
+        "key": f"{DOMAIN}.sat.flame",
+        "data": {
+            "average_on_time_seconds": 250.0,
+            "last_cycle_duration_seconds": 200.0,
+            "last_cut_short_peak_flow": None,
+            "last_cut_short_setpoint": None,
+            "cycle_end_times": [now - 5400, now - 600],
+            "on_durations": [[now - 5400, 300.0], [now - 600, 200.0]],
+            "on_deltas": [],
+            "pwm_burns_cut_short": [],
+        },
+    }
+    entry = MockConfigEntry(domain=DOMAIN, entry_id="sat", data=DEFAULT_USER_DATA)
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    flame = entry.runtime_data.coordinator.flame
+
+    assert (flame.average_on_time_seconds, flame.sample_count_4h, flame.cycles_last_hour) == (
+        250.0,
+        2,
+        1.0,
+    )
+    assert flame.median_on_duration_seconds_4h == 250.0
+
+
+async def test_removing_the_entry_deletes_its_cycle_statistics(
+    hass: HomeAssistant, hass_storage: dict[str, Any]
+) -> None:
+    hass_storage[f"{DOMAIN}.sat.flame"] = {
+        "version": 1,
+        "key": f"{DOMAIN}.sat.flame",
+        "data": {"average_on_time_seconds": 250.0},
+    }
+    entry = MockConfigEntry(domain=DOMAIN, entry_id="sat", data=DEFAULT_USER_DATA)
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    await hass.config_entries.async_remove(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert f"{DOMAIN}.sat.flame" not in hass_storage

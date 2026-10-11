@@ -4,18 +4,26 @@ import logging
 from collections import deque
 from dataclasses import dataclass
 from statistics import median
-from time import monotonic
-from typing import TYPE_CHECKING
+from time import monotonic, time
+from typing import TYPE_CHECKING, Any
 
-from .const import CONTROL_LOOP_STALL_TIME, BoilerStatus, FlameStatus, PWMStatus
+from homeassistant.helpers.storage import Store
+
+from .const import CONTROL_LOOP_STALL_TIME, DOMAIN, BoilerStatus, FlameStatus, PWMStatus
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
+
+    from homeassistant.core import HomeAssistant
 
     from .boiler import BoilerState
     from .pwm import PWMState
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def flame_store(hass: HomeAssistant, entry_id: str) -> Store[dict[str, Any]]:
+    return Store(hass, 1, f"{DOMAIN}.{entry_id}.flame")
 
 
 @dataclass(frozen=True, slots=True)
@@ -84,6 +92,7 @@ class Flame:
             raise ValueError(msg)
 
         self._smoothing_alpha: float = smoothing_alpha
+        self._store: Store[dict[str, Any]] | None = None
 
         # Timing internals
         self._latest_on_time_seconds: float = 0.0
@@ -114,6 +123,62 @@ class Flame:
 
         # Health
         self._health_status: FlameStatus = FlameStatus.INSUFFICIENT_DATA
+
+    async def async_initialize(self, hass: HomeAssistant, entry_id: str) -> None:
+        # The climate is re-added without a reload when its entity id changes,
+        # and the windows already hold everything stored
+        if self._store is not None:
+            return
+
+        self._store = flame_store(hass, entry_id)
+
+        if (data := await self._store.async_load()) is None:
+            return
+
+        # Stored as wall-clock times: monotonic time restarts with the process
+        offset = monotonic() - time()
+
+        self._average_on_time_seconds = data.get("average_on_time_seconds")
+        self._last_cycle_duration_seconds = data.get("last_cycle_duration_seconds")
+        self._last_cut_short_peak_flow = data.get("last_cut_short_peak_flow")
+        self._last_cut_short_setpoint = data.get("last_cut_short_setpoint")
+        self._has_completed_first_cycle = self._average_on_time_seconds is not None
+
+        def stored(key: str) -> list[tuple[float, Any]]:
+            return [(ended + offset, value) for ended, value in data.get(key, [])]
+
+        # Anything recorded since setup goes after the stored entries,
+        # so a full bounded window drops the oldest
+        self._cycle_end_times_window = deque(
+            [
+                *(ended + offset for ended in data.get("cycle_end_times", [])),
+                *self._cycle_end_times_window,
+            ]
+        )
+        self._on_durations_window = deque([*stored("on_durations"), *self._on_durations_window])
+        self._on_deltas_window = deque([*stored("on_deltas"), *self._on_deltas_window])
+        self._pwm_burns_cut_short = deque(
+            [*stored("pwm_burns_cut_short"), *self._pwm_burns_cut_short],
+            maxlen=self._pwm_burns_cut_short.maxlen,
+        )
+
+        _LOGGER.debug("Loaded %d flame cycles from storage.", len(self._on_durations_window))
+
+    def _data_to_save(self) -> dict[str, Any]:
+        offset = time() - monotonic()
+
+        return {
+            "average_on_time_seconds": self._average_on_time_seconds,
+            "last_cycle_duration_seconds": self._last_cycle_duration_seconds,
+            "last_cut_short_peak_flow": self._last_cut_short_peak_flow,
+            "last_cut_short_setpoint": self._last_cut_short_setpoint,
+            "cycle_end_times": [ended + offset for ended in self._cycle_end_times_window],
+            "on_durations": [(ended + offset, value) for ended, value in self._on_durations_window],
+            "on_deltas": [(ended + offset, value) for ended, value in self._on_deltas_window],
+            "pwm_burns_cut_short": [
+                (ended + offset, value) for ended, value in self._pwm_burns_cut_short
+            ],
+        }
 
     @property
     def health_status(self) -> FlameStatus:
@@ -283,6 +348,9 @@ class Flame:
 
             self._has_completed_first_cycle = True
             self._last_update_monotonic = now
+
+            if self._store:
+                self._store.async_delay_save(self._data_to_save)
 
             _LOGGER.debug(
                 "Flame transition ON->OFF: duration=%.1fs, cycles_last_hour=%.1f, samples_4h=%d",
