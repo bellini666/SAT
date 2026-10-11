@@ -156,3 +156,38 @@ async def test_v12_copies_the_pid_gains_to_options(hass: HomeAssistant) -> None:
         CONF_DERIVATIVE: "5000",
     }
     assert entry.runtime_data.climate.pid.kp == 40.0
+
+
+async def test_v1_moves_heating_system_settings(hass: HomeAssistant) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=1,
+        data={**DEFAULT_USER_DATA, "minimum_setpoint": 45},
+        options={"heating_system": "radiator_high_temperatures", "sync_with_thermostat": True},
+    )
+    entry.add_to_hass(hass)
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entry.version == SatFlowHandler.VERSION
+    assert entry.options["maximum_setpoint"] == 75
+    assert entry.options["cycles_per_hour"] == 3
+    assert entry.options["push_setpoint_to_thermostat"] is True
+
+
+async def test_v3_moves_the_window_sensor_to_options(hass: HomeAssistant) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=3,
+        data={**DEFAULT_USER_DATA, "minimum_setpoint": 45},
+        options={"window_sensor": "binary_sensor.window"},
+    )
+    entry.add_to_hass(hass)
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entry.version == SatFlowHandler.VERSION
+    assert entry.options["window_sensors"] == ["binary_sensor.window"]
+    assert "window_sensor" not in entry.options
