@@ -1469,7 +1469,9 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         # Reset the preset mode if `PRESET_NONE` is given
         if preset_mode == PRESET_NONE:
             self._attr_preset_mode = PRESET_NONE
-            if self._pre_custom_temperature is not None:
+            if self._pre_custom_temperature is None:
+                self.async_write_ha_state()
+            else:
                 await self.async_set_target_temperature(self._pre_custom_temperature)
 
         else:

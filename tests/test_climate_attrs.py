@@ -3,7 +3,14 @@
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
-from homeassistant.components.climate import ATTR_HVAC_ACTION, HVACAction, HVACMode
+from homeassistant.components.climate import (
+    ATTR_HVAC_ACTION,
+    ATTR_PRESET_MODE,
+    PRESET_AWAY,
+    PRESET_NONE,
+    HVACAction,
+    HVACMode,
+)
 from homeassistant.const import ATTR_TEMPERATURE, STATE_UNAVAILABLE
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed
 
@@ -156,3 +163,18 @@ async def test_state_write_after_unload_schedules_no_stale_publish(hass: HomeAss
     climate.async_write_ha_state()
 
     assert climate._sensor_stale_unsub is None
+
+
+async def test_clearing_a_restored_preset_publishes_it(hass: HomeAssistant) -> None:
+    entry = await setup_climate(hass)
+    climate = entry.runtime_data.climate
+    climate._attr_preset_mode = PRESET_AWAY
+    climate._pre_custom_temperature = None
+    climate.async_write_ha_state()
+
+    await climate.async_set_preset_mode(PRESET_NONE)
+
+    state = hass.states.get(climate.entity_id)
+    assert state is not None
+    assert state.attributes[ATTR_PRESET_MODE] == PRESET_NONE
+    assert await hass.config_entries.async_unload(entry.entry_id)
