@@ -60,7 +60,7 @@ class SatEspHomeCoordinator(SatDataUpdateCoordinator, SatEntityCoordinator):
 
         registry = device_registry.async_get(hass)
         if (device := registry.async_get(device_id, include_child_devices=False)) is None:
-            message = f"ESPHome device {device_id} is not in the device registry"
+            message = f"ESPHome device {device_id} is not a main device in the device registry"
             raise ConfigEntryError(message)
 
         self._device: DeviceEntry = device
