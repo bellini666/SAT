@@ -7,10 +7,9 @@ import contextlib
 import logging
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
-from time import time
 from typing import TYPE_CHECKING, Any, override
 
-from homeassistant.components import notify, sensor, weather
+from homeassistant.components import sensor, weather
 from homeassistant.components.climate import (
     ATTR_HVAC_MODE,
     ATTR_PRESET_MODE,
@@ -156,22 +155,6 @@ class SatClimateExtraStoredData(ExtraStoredData):
         )
 
 
-class SatWarmingUp:
-    def __init__(
-        self,
-        error: float,
-        boiler_temperature: float | None = None,
-        started: int | None = None,
-    ) -> None:
-        self.error = error
-        self.boiler_temperature = boiler_temperature
-        self.started = started if started is not None else int(time())
-
-    @property
-    def elapsed(self) -> int:
-        return int(time()) - self.started
-
-
 class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
     _enable_turn_on_off_backwards_compatibility = False
 
@@ -305,12 +288,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         )
 
         # Create a PWM controller with given configuration options
-        self.pwm = create_pwm_controller(
-            self.heating_curve,
-            config_entry.data,
-            config_options,
-            supports_relative_modulation_management=coordinator.supports_relative_modulation_management,
-        )
+        self.pwm = create_pwm_controller(self.heating_curve, config_entry.data, config_options)
 
         if self._simulation:
             _LOGGER.warning("Simulation mode!")
@@ -1529,13 +1507,6 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
 
         # Control the heating based on the new temperature setpoint
         self.schedule_control_heating_loop(force=True)
-
-    async def async_send_notification(
-        self, title: str, message: str, service: str = notify.SERVICE_PERSISTENT_NOTIFICATION
-    ) -> None:
-        """Send a notification to the user."""
-        data = {"title": title, "message": message}
-        await self.hass.services.async_call(notify.DOMAIN, service, data)
 
     def _get_entity_state_float(self, entity_id: str) -> float | None:
         """Return state if available and valid."""

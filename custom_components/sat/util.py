@@ -91,8 +91,6 @@ def create_pwm_controller(
     heating_curve: HeatingCurve,
     config_data: Mapping[str, Any],
     config_options: Mapping[str, Any],
-    *,
-    supports_relative_modulation_management: bool,
 ) -> PWM:
     """Create and return a PWM controller instance with the given configuration options."""
     # Extract the configuration options
@@ -111,6 +109,5 @@ def create_pwm_controller(
         heating_curve=heating_curve,
         cycles=cycles,
         automatic_duty_cycle=automatic_duty_cycle,
-        supports_relative_modulation_management=supports_relative_modulation_management,
         force=force,
     )

@@ -41,19 +41,6 @@ def convert_time_str_to_seconds(time_str: str) -> int:
     return round((date_time.hour * 3600) + (date_time.minute * 60) + date_time.second, 0)
 
 
-def calculate_derivative_per_hour(temperature_error: float, time_taken_seconds: float) -> float:
-    """Calculate the derivative per hour based on the temperature error and time taken."""
-    # Convert time taken from seconds to hours
-    time_taken_hours = time_taken_seconds / 3600
-
-    # Avoid division-by-zero error
-    if time_taken_hours == 0:
-        return 0
-
-    # Calculate the derivative per hour by dividing temperature error by time taken
-    return round(temperature_error / time_taken_hours, 2)
-
-
 def calculate_default_maximum_setpoint(heating_system: str) -> int:
     """Determine the default maximum temperature for a given heating system."""
     if heating_system == HEATING_SYSTEM_UNDERFLOOR:
@@ -79,12 +66,6 @@ def float_value(value: float | str | None) -> float | None:
         return result if math.isfinite(result) else None
     except TypeError, ValueError:
         return None
-
-
-def to_float(value: float | str | None, default: float = 0.0) -> float:
-    """Convert to float, returning default if the conversion fails or the result is None."""
-    result = float_value(value)
-    return float(result) if result is not None else float(default)
 
 
 def int_value(value: float | str | None) -> int | None:

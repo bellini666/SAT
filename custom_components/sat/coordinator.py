@@ -258,10 +258,6 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
         return self.device_active
 
     @property
-    def heater_on_since(self) -> float | None:
-        return self._device_on_since
-
-    @property
     def hot_water_active(self) -> bool:
         return False
 
