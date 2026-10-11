@@ -151,7 +151,7 @@ async def test_healthy_while_the_first_boiler_data_arrives(hass: HomeAssistant, 
 
     freezer.tick(timedelta(minutes=3))
     await climate.async_control_heating_loop()
-    entry.runtime_data.coordinator.async_update_listeners()
+    async_fire_time_changed(hass)
     await hass.async_block_till_done()
 
     assert hass.states.get(ENTITY_ID).attributes["problems"] == ["boiler_data_missing"]

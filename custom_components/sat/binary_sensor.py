@@ -203,6 +203,13 @@ class SatHeatingControlSensor(SatClimateEntity, BinarySensorEntity):
 class SatBoilerHealthSensor(SatEntity, BinarySensorEntity):
     _attr_translation_key = "boiler_health"
 
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        self.async_on_remove(async_track_time_interval(self.hass, self._async_refresh, timedelta(seconds=30)))
+
+    @callback
+    def _async_refresh(self, _now: datetime) -> None:
+        self.async_write_ha_state()
 
     @property
     def device_class(self) -> str:
