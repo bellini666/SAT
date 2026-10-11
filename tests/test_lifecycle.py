@@ -175,6 +175,35 @@ async def test_first_setup_with_window_sensors_tracks_the_window(
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
+async def test_closing_the_window_cancels_every_pending_activity_preset(
+    hass: HomeAssistant,
+) -> None:
+    hass.states.async_set("binary_sensor.window", "off")
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data=DEFAULT_USER_DATA,
+        options={
+            CONF_WINDOW_SENSORS: ["binary_sensor.window"],
+            CONF_WINDOW_MINIMUM_OPEN_TIME: "00:00:01",
+        },
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    # Yielding instead of async_block_till_done keeps each minimum-open-time wait pending
+    for state in ("on", "unavailable", "on", "off"):
+        hass.states.async_set("binary_sensor.window", state)
+        for _ in range(5):
+            await asyncio.sleep(0)
+
+    await asyncio.sleep(1.1)
+    await hass.async_block_till_done()
+
+    assert entry.runtime_data.climate.preset_mode != PRESET_ACTIVITY
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
 def mqtt_entry(hass: HomeAssistant) -> MockConfigEntry:
     entry = MockConfigEntry(
         domain=DOMAIN,

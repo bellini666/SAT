@@ -993,7 +993,9 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         _LOGGER.debug("Window Sensor Changed to %s.", new_state.state)
 
         if new_state.state == STATE_ON:
-            if self.preset_mode == PRESET_ACTIVITY:
+            if self.preset_mode == PRESET_ACTIVITY or (
+                self._window_sensor_handle is not None and not self._window_sensor_handle.done()
+            ):
                 return
 
             try:
