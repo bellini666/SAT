@@ -341,6 +341,8 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
 
         self.async_on_remove(async_at_started(self.hass, self._async_started))
 
+        await self.minimum_setpoint.async_initialize(self.hass, self._config_entry.entry_id)
+
         # Initialize the area system
         await self.areas.async_added_to_hass(self.hass)
 
