@@ -369,7 +369,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         else:
             self._attr_hvac_action = HVACAction.HEATING
 
-        self._attr_extra_state_attributes = self._compute_extra_state_attributes()
+        self._attr_extra_state_attributes = self.compute_extra_state_attributes()
         super()._async_write_ha_state()
 
         for listener in list(self._state_listeners):
@@ -577,7 +577,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             self._pre_custom_temperature,
         )
 
-    def _compute_extra_state_attributes(self) -> dict[str, Any]:
+    def compute_extra_state_attributes(self) -> dict[str, Any]:
         return {
             "error": self.max_error.value,
             "error_pid": self.pid.last_error,

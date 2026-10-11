@@ -33,7 +33,7 @@ async def async_get_config_entry_diagnostics(
             "setpoint": climate.setpoint,
             "control_problems": climate.control_problems,
             "errors": [asdict(error) for error in climate.errors],
-            "attributes": climate.extra_state_attributes,
+            "attributes": climate.compute_extra_state_attributes(),
         },
         "coordinator": {
             "device_type": coordinator.device_type,
