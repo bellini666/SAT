@@ -58,6 +58,8 @@ class Flame:
     STUCK_ON_WITHOUT_DEMAND_SECONDS: float = 120.0
     # A Remeha cuts out about 5 °C above the control setpoint
     IGNITION_OVERSHOOT_MARGIN: float = 4.0
+    # The cut-out ends the burn 6 to 11 s after the peak; listeners are notified every 5 s
+    IGNITION_CUT_OUT_SECONDS: float = 30.0
     EXPECTED_MODULATING_DUTY_RATIO_WHEN_HEATING: float = 0.60
 
     # Windows
@@ -105,6 +107,8 @@ class Flame:
         self._demand_since_monotonic: float | None = None
         self._pwm_planned_on_seconds: float | None = None
         self._burn_peak_flow: float | None = None
+        self._burn_peak_monotonic: float | None = None
+        self._burn_hot_water: bool = False
         self._burn_setpoint: float | None = None
         self._last_cut_short_peak_flow: float | None = None
         self._last_cut_short_setpoint: float | None = None
@@ -277,6 +281,8 @@ class Flame:
             self._flame_on_monotonic = now
             self._flame_off_monotonic = None
             self._burn_peak_flow = boiler_state.flow_temperature
+            self._burn_peak_monotonic = now
+            self._burn_hot_water = boiler_state.hot_water_active
             self._burn_setpoint = boiler_state.setpoint
             self._last_update_monotonic = now
             self._recompute_health(now)
@@ -290,12 +296,14 @@ class Flame:
             self._latest_on_time_seconds = now - self._flame_on_monotonic
             self._burn_setpoint = boiler_state.setpoint
             if boiler_state.hot_water_active:
+                self._burn_hot_water = True
                 self._pwm_planned_on_seconds = None
-            if boiler_state.flow_temperature is not None:
-                self._burn_peak_flow = max(
-                    self._burn_peak_flow or boiler_state.flow_temperature,
-                    boiler_state.flow_temperature,
-                )
+            if boiler_state.flow_temperature is not None and (
+                self._burn_peak_flow is None
+                or boiler_state.flow_temperature >= self._burn_peak_flow
+            ):
+                self._burn_peak_flow = boiler_state.flow_temperature
+                self._burn_peak_monotonic = now
 
             self._last_update_monotonic = now
             self._recompute_health(now)
@@ -309,18 +317,20 @@ class Flame:
 
             self._flame_on_monotonic = None
             self._flame_off_monotonic = now
-            self._last_cycle_duration_seconds = duration
-            self._average_on_time_seconds = (
-                duration
-                if self._average_on_time_seconds is None
-                else (1.0 - self._smoothing_alpha) * self._average_on_time_seconds
-                + self._smoothing_alpha * duration
-            )
-
             self._prune_cycles_window(now)
             self._prune_median_window(now)
-            self._cycle_end_times_window.append(now)
-            self._on_durations_window.append((now, duration))
+
+            # Hot water keep-warm burns last seconds by design and say nothing about heating cycles
+            if not self._burn_hot_water:
+                self._last_cycle_duration_seconds = duration
+                self._average_on_time_seconds = (
+                    duration
+                    if self._average_on_time_seconds is None
+                    else (1.0 - self._smoothing_alpha) * self._average_on_time_seconds
+                    + self._smoothing_alpha * duration
+                )
+                self._cycle_end_times_window.append(now)
+                self._on_durations_window.append((now, duration))
 
             # A burn that ends while PWM is still ON was ended by the boiler, not by PWM
             pwm = self._fresh_pulse_width_modulation_state(now)
@@ -333,6 +343,8 @@ class Flame:
                     and self._burn_peak_flow is not None
                     and self._burn_setpoint is not None
                     and self._burn_peak_flow > self._burn_setpoint + self.IGNITION_OVERSHOOT_MARGIN
+                    and self._burn_peak_monotonic is not None
+                    and now - self._burn_peak_monotonic <= self.IGNITION_CUT_OUT_SECONDS
                 ):
                     self._last_cut_short_peak_flow = self._burn_peak_flow
                     self._last_cut_short_setpoint = self._burn_setpoint
