@@ -1262,9 +1262,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
                 if valves_open:
                     _LOGGER.info("Valves opened, resuming the heating cycle.")
                 else:
-                    _LOGGER.warning(
-                        "No valves are open, holding the boiler at the minimum setpoint."
-                    )
+                    _LOGGER.info("No valves are open, holding the boiler at the minimum setpoint.")
 
                 self._valves_open = valves_open
 
