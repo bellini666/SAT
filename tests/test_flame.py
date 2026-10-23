@@ -314,6 +314,24 @@ def test_a_cut_out_seen_with_the_flow_after_it_still_warns(
     assert (flame.last_cut_short_peak_flow, flame.last_cut_short_setpoint) == (46.3, 40.0)
 
 
+def test_a_hot_water_request_that_ends_before_the_flame_is_seen_is_a_hot_water_burn(
+    freezer: FrozenDateTimeFactory, caplog: pytest.LogCaptureFixture
+) -> None:
+    flame = Flame()
+    run_cycle(flame, freezer, 300)
+
+    with caplog.at_level(logging.WARNING):
+        flame.update(boiler_state(False, hot_water=True, setpoint=10.0, flow=38.1))
+        freezer.tick(timedelta(seconds=6))
+        for flow in (44.4, 48.1, 52.7, 56.4, 60.5, 63.5, 66.1):
+            flame.update(boiler_state(True, setpoint=45.0, flow=flow), PWM_ON)
+            freezer.tick(timedelta(seconds=5))
+        flame.update(boiler_state(False, setpoint=45.0, flow=66.8), PWM_ON)
+
+    assert "overshoot protection" not in caplog.text
+    assert (flame.sample_count_4h, flame.last_cycle_duration_seconds) == (1, 300.0)
+
+
 @pytest.mark.parametrize("hot_water_from_ignition", [True, False], ids=["keep_warm", "mid_burn"])
 def test_hot_water_burns_are_left_out_of_the_cycle_statistics(
     freezer: FrozenDateTimeFactory, hot_water_from_ignition: bool

@@ -60,6 +60,8 @@ class Flame:
     IGNITION_OVERSHOOT_MARGIN: float = 4.0
     # The cut-out ends the burn 6 to 11 s after the peak; listeners are notified every 5 s
     IGNITION_CUT_OUT_SECONDS: float = 30.0
+    # A hot water request can start and end inside one 5 s listener batch before the flame shows
+    HOT_WATER_LEAD_SECONDS: float = 30.0
     EXPECTED_MODULATING_DUTY_RATIO_WHEN_HEATING: float = 0.60
 
     # Windows
@@ -109,6 +111,7 @@ class Flame:
         self._burn_peak_flow: float | None = None
         self._burn_peak_monotonic: float | None = None
         self._burn_hot_water: bool = False
+        self._hot_water_seen_monotonic: float | None = None
         self._burn_setpoint: float | None = None
         self._last_cut_short_peak_flow: float | None = None
         self._last_cut_short_setpoint: float | None = None
@@ -262,6 +265,8 @@ class Flame:
         if pwm_state is not None:
             self._last_pulse_width_modulation_state = pwm_state
             self._pwm_state_updated_monotonic = now
+        if boiler_state.hot_water_active:
+            self._hot_water_seen_monotonic = now
 
         if previously_active and elapsed > 0.0:
             self._on_deltas_window.append((now, elapsed))
@@ -271,18 +276,22 @@ class Flame:
         # OFF -> ON
         if currently_active and not previously_active:
             pwm = self._fresh_pulse_width_modulation_state(now)
+            hot_water = (
+                self._hot_water_seen_monotonic is not None
+                and now - self._hot_water_seen_monotonic <= self.HOT_WATER_LEAD_SECONDS
+            )
             pwm_burn = (
                 pwm is not None
                 and pwm.status == PWMStatus.ON
                 and pwm.duty_cycle is not None
-                and not boiler_state.hot_water_active
+                and not hot_water
             )
             self._pwm_planned_on_seconds = pwm.duty_cycle[0] if pwm_burn else None
             self._flame_on_monotonic = now
             self._flame_off_monotonic = None
             self._burn_peak_flow = boiler_state.flow_temperature
             self._burn_peak_monotonic = now
-            self._burn_hot_water = boiler_state.hot_water_active
+            self._burn_hot_water = hot_water
             self._burn_setpoint = boiler_state.setpoint
             self._last_update_monotonic = now
             self._recompute_health(now)
