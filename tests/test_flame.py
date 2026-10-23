@@ -332,6 +332,21 @@ def test_a_hot_water_request_that_ends_before_the_flame_is_seen_is_a_hot_water_b
     assert (flame.sample_count_4h, flame.last_cycle_duration_seconds) == (1, 300.0)
 
 
+def test_a_heating_burn_right_after_a_hot_water_burn_is_judged_as_heating(
+    freezer: FrozenDateTimeFactory, caplog: pytest.LogCaptureFixture
+) -> None:
+    flame = Flame()
+    flame.update(boiler_state(True, hot_water=True))
+    freezer.tick(timedelta(seconds=15))
+    flame.update(boiler_state(False, hot_water=True))
+    freezer.tick(timedelta(seconds=20))
+
+    with caplog.at_level(logging.WARNING):
+        ignition_spike(flame, freezer, pwm_off_first=False)
+
+    assert "raise the overshoot protection value" in caplog.text
+
+
 @pytest.mark.parametrize("hot_water_from_ignition", [True, False], ids=["keep_warm", "mid_burn"])
 def test_hot_water_burns_are_left_out_of_the_cycle_statistics(
     freezer: FrozenDateTimeFactory, hot_water_from_ignition: bool

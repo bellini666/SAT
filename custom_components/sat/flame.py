@@ -60,7 +60,7 @@ class Flame:
     IGNITION_OVERSHOOT_MARGIN: float = 4.0
     # The cut-out ends the burn 6 to 11 s after the peak; listeners are notified every 5 s
     IGNITION_CUT_OUT_SECONDS: float = 30.0
-    # A hot water request can start and end inside one 5 s listener batch before the flame shows
+    # A hot water request can end before the listener batch that first shows the flame
     HOT_WATER_LEAD_SECONDS: float = 30.0
     EXPECTED_MODULATING_DUTY_RATIO_WHEN_HEATING: float = 0.60
 
@@ -279,6 +279,10 @@ class Flame:
             hot_water = (
                 self._hot_water_seen_monotonic is not None
                 and now - self._hot_water_seen_monotonic <= self.HOT_WATER_LEAD_SECONDS
+                and (
+                    self._flame_off_monotonic is None
+                    or self._hot_water_seen_monotonic > self._flame_off_monotonic
+                )
             )
             pwm_burn = (
                 pwm is not None
