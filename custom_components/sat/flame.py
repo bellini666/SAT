@@ -43,6 +43,7 @@ class FlameState:
 
     last_cut_short_peak_flow: float | None
     last_cut_short_setpoint: float | None
+    cut_short_burn_ends: tuple[float, ...]
 
 
 class Flame:
@@ -228,6 +229,10 @@ class Flame:
     @property
     def last_cut_short_setpoint(self) -> float | None:
         return self._last_cut_short_setpoint
+
+    @property
+    def cut_short_burn_ends(self) -> tuple[float, ...]:
+        return tuple(ended for ended, cut_short in self._pwm_burns_cut_short if cut_short)
 
     @property
     def cycles_last_hour(self) -> float:

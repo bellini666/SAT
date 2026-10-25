@@ -210,6 +210,7 @@ async def test_a_flow_settled_below_the_setpoint_does_not_enable_pwm(hass: HomeA
 async def test_closed_valves_hold_the_minimum_setpoint(
     hass: HomeAssistant, caplog: pytest.LogCaptureFixture
 ) -> None:
+    caplog.set_level(logging.INFO)
     hass.states.async_set(
         "climate.radiator",
         HVACMode.HEAT,
@@ -247,7 +248,7 @@ async def test_closed_valves_hold_the_minimum_setpoint(
             [
                 record
                 for record in caplog.records
-                if record.levelno >= logging.WARNING and "valves" in record.getMessage()
+                if record.levelno == logging.INFO and "No valves are open" in record.getMessage()
             ]
         )
         == 1
@@ -377,4 +378,44 @@ async def test_burns_pwm_ends_itself_are_not_cut_short(
     assert climate.pwm.status == PWMStatus.ON
 
     assert coordinator.flame.health_status != FlameStatus.PWM_SHORT
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+@pytest.mark.parametrize(
+    ("burns", "status"),
+    [((30,), PWMStatus.ON), ((30, 30), PWMStatus.OFF)],
+    ids=["one_cut", "restarted_burn_cut_too"],
+)
+async def test_a_restarted_burn_the_boiler_cuts_short_ends_the_duty_cycle(
+    hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
+    burns: tuple[int, ...],
+    status: PWMStatus,
+) -> None:
+    entry, climate, coordinator = await setup_climate(
+        hass, {CONF_FORCE_PULSE_WIDTH_MODULATION: True}
+    )
+    assert climate.pwm is not None
+    await coordinator.async_set_boiler_temperature(57)
+    await climate.async_set_target_temperature(21.0)
+    await climate.async_set_hvac_mode(HVACMode.HEAT)
+    await climate.async_control_heating_loop()
+    assert climate.pwm.status == PWMStatus.ON
+    assert climate.pwm.duty_cycle is not None
+    assert climate.pwm.duty_cycle[0] > sum(burns) + 90 * len(burns)
+
+    # The fake boiler lights with the heater, before PWM switches ON
+    await coordinator.async_set_heater_state(DeviceState.OFF)
+    coordinator.async_update_listeners()
+
+    for seconds in burns:
+        await coordinator.async_set_heater_state(DeviceState.ON)
+        coordinator.async_update_listeners()
+        freezer.tick(timedelta(seconds=seconds))
+        await coordinator.async_set_heater_state(DeviceState.OFF)
+        coordinator.async_update_listeners()
+        freezer.tick(timedelta(seconds=90))
+        await climate.async_control_heating_loop()
+
+    assert climate.pwm.status == status
     assert await hass.config_entries.async_unload(entry.entry_id)

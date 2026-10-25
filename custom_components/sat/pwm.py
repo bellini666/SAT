@@ -21,6 +21,8 @@ _LOGGER = logging.getLogger(__name__)
 SECONDS_PER_HOUR = 3600
 FLAME_SETTLE_SECONDS = 6
 SHORT_FLAME_CYCLE_SECONDS = 60
+# A restarted burn cut short as well means the system cannot take the heat this cycle
+MAXIMUM_CUT_SHORT_BURNS = 2
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -211,6 +213,18 @@ class PWM:
         ):
             _LOGGER.info("Setpoint stabilization detected, disabling Pulse Width Modulation.")
             self.disable()
+            return
+
+        if (
+            self._status == PWMStatus.ON
+            and sum(ended >= self._last_update for ended in flame.cut_short_burn_ends)
+            >= MAXIMUM_CUT_SHORT_BURNS
+        ):
+            self._status = PWMStatus.OFF
+            self._last_update = monotonic()
+            _LOGGER.info(
+                "The boiler cut short two burns in this duty cycle. Switching to OFF state."
+            )
             return
 
         # State transitions for PWM

@@ -231,6 +231,7 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
             median_on_duration_seconds_4h=self._flame.median_on_duration_seconds_4h,
             last_cut_short_peak_flow=self._flame.last_cut_short_peak_flow,
             last_cut_short_setpoint=self._flame.last_cut_short_setpoint,
+            cut_short_burn_ends=self._flame.cut_short_burn_ends,
         )
 
     @property
