@@ -419,3 +419,42 @@ async def test_a_restarted_burn_the_boiler_cuts_short_ends_the_duty_cycle(
 
     assert climate.pwm.status == status
     assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_an_early_off_phase_lasts_until_the_planned_cycle_ends(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    entry, climate, coordinator = await setup_climate(
+        hass, {CONF_FORCE_PULSE_WIDTH_MODULATION: True}
+    )
+    assert climate.pwm is not None
+    await coordinator.async_set_boiler_temperature(30)
+    await climate.async_set_target_temperature(25.0)
+    await climate.async_set_hvac_mode(HVACMode.HEAT)
+    await climate.async_control_heating_loop()
+    assert climate.pwm.duty_cycle is not None
+    on_time, off_time = climate.pwm.duty_cycle
+    assert off_time == 0
+
+    # The fake boiler lights with the heater, before PWM switches ON
+    await coordinator.async_set_heater_state(DeviceState.OFF)
+    coordinator.async_update_listeners()
+
+    for _ in range(2):
+        await coordinator.async_set_heater_state(DeviceState.ON)
+        coordinator.async_update_listeners()
+        freezer.tick(timedelta(seconds=30))
+        await coordinator.async_set_heater_state(DeviceState.OFF)
+        coordinator.async_update_listeners()
+        freezer.tick(timedelta(seconds=90))
+        await climate.async_control_heating_loop()
+    assert climate.pwm.status == PWMStatus.OFF
+
+    freezer.tick(timedelta(seconds=30))
+    await climate.async_control_heating_loop()
+    assert climate.pwm.status == PWMStatus.OFF
+
+    freezer.tick(timedelta(seconds=on_time))
+    await climate.async_control_heating_loop()
+    assert climate.pwm.status == PWMStatus.ON
+    assert await hass.config_entries.async_unload(entry.entry_id)

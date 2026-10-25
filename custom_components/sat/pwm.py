@@ -7,6 +7,7 @@ from time import monotonic
 from typing import TYPE_CHECKING
 
 from .const import HEATER_STARTUP_TIMEFRAME, MINIMUM_SETPOINT, BoilerStatus, PWMStatus
+from .flame import Flame
 from .setpoint_adjuster import SetpointAdjuster
 
 if TYPE_CHECKING:
@@ -21,8 +22,6 @@ _LOGGER = logging.getLogger(__name__)
 SECONDS_PER_HOUR = 3600
 FLAME_SETTLE_SECONDS = 6
 SHORT_FLAME_CYCLE_SECONDS = 60
-# A restarted burn cut short as well means the system cannot take the heat this cycle
-MAXIMUM_CUT_SHORT_BURNS = 2
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -218,10 +217,11 @@ class PWM:
         if (
             self._status == PWMStatus.ON
             and sum(ended >= self._last_update for ended in flame.cut_short_burn_ends)
-            >= MAXIMUM_CUT_SHORT_BURNS
+            >= Flame.PWM_SHORT_BURNS_THRESHOLD
         ):
             self._status = PWMStatus.OFF
-            self._last_update = monotonic()
+            # The off time counts from the planned end of the on time, so the cycle keeps its length
+            self._last_update += self._duty_cycle[0]
             _LOGGER.info(
                 "The boiler cut short two burns in this duty cycle. Switching to OFF state."
             )
