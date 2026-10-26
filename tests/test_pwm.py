@@ -486,3 +486,33 @@ async def test_pwm_stays_enabled_until_the_setpoint_clears_the_minimum_by_a_marg
     await settle_at(coordinator.minimum_setpoint + 3)
     assert not climate.pulse_width_modulation_enabled
     assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_hot_water_flow_does_not_shape_the_duty_cycle(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    entry, climate, coordinator = await setup_climate(
+        hass, {CONF_FORCE_PULSE_WIDTH_MODULATION: True}
+    )
+    await coordinator.async_set_boiler_temperature(57)
+    await climate.async_set_target_temperature(21.0)
+    await climate.async_set_hvac_mode(HVACMode.HEAT)
+    await climate.async_control_heating_loop()
+    assert climate.pwm.status == PWMStatus.ON
+    requested = climate.requested_setpoint
+
+    freezer.tick(timedelta(seconds=181))
+    await climate.pwm.update(
+        boiler=replace(coordinator.boiler, hot_water_active=True, flow_temperature=65.0),
+        flame=coordinator.flame,
+        requested_setpoint=requested,
+    )
+    duty_cycle = climate.pwm.duty_cycle
+
+    await climate.pwm.update(
+        boiler=coordinator.boiler, flame=coordinator.flame, requested_setpoint=requested
+    )
+
+    assert climate.pwm.status == PWMStatus.ON
+    assert climate.pwm.duty_cycle == duty_cycle
+    assert await hass.config_entries.async_unload(entry.entry_id)
