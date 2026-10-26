@@ -88,6 +88,7 @@ from .const import (
     MINIMUM_RELATIVE_MODULATION,
     MINIMUM_SETPOINT,
     OPTIONS_DEFAULTS,
+    PWM_HYSTERESIS,
     BoilerStatus,
     PWMStatus,
 )
@@ -749,7 +750,8 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             return False
 
         if not self._dynamic_minimum_setpoint:
-            return self._coordinator.minimum_setpoint > self._calculated_setpoint
+            hysteresis = PWM_HYSTERESIS if self.pwm.status != PWMStatus.IDLE else 0.0
+            return self._coordinator.minimum_setpoint + hysteresis > self._calculated_setpoint
 
         if self._minimum_setpoint_version == DYNAMIC_MINIMUM_SETPOINT_VERSION_1:
             return self.minimum_setpoint_value > self._calculated_setpoint

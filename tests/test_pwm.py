@@ -4,6 +4,7 @@ import logging
 from dataclasses import replace
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any, Literal, TypeIs
+from unittest.mock import PropertyMock, patch
 
 import pytest
 from homeassistant.components.climate import HVACMode
@@ -456,4 +457,32 @@ async def test_an_early_off_phase_lasts_until_the_planned_cycle_ends(
     freezer.tick(timedelta(seconds=on_time))
     await climate.async_control_heating_loop()
     assert climate.pwm.status == PWMStatus.ON
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_pwm_stays_enabled_until_the_setpoint_clears_the_minimum_by_a_margin(
+    hass: HomeAssistant,
+) -> None:
+    entry, climate, coordinator = await setup_climate(hass, {})
+    await coordinator.async_set_boiler_temperature(57)
+    await climate.async_set_target_temperature(21.0)
+    await climate.async_set_hvac_mode(HVACMode.HEAT)
+
+    async def settle_at(requested: float) -> None:
+        with patch.object(
+            SatClimate, "requested_setpoint", new_callable=PropertyMock, return_value=requested
+        ):
+            for _ in range(30):
+                await climate.async_control_heating_loop()
+
+    await settle_at(coordinator.minimum_setpoint - 1)
+    assert climate.pulse_width_modulation_enabled
+    assert climate.pwm.status == PWMStatus.ON
+
+    await settle_at(coordinator.minimum_setpoint + 1)
+    assert climate.pulse_width_modulation_enabled
+    assert climate.pwm.status == PWMStatus.ON
+
+    await settle_at(coordinator.minimum_setpoint + 3)
+    assert not climate.pulse_width_modulation_enabled
     assert await hass.config_entries.async_unload(entry.entry_id)

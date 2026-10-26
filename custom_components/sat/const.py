@@ -21,6 +21,8 @@ HEATER_STARTUP_TIMEFRAME = 180
 
 COLD_SETPOINT = 28.2
 MINIMUM_SETPOINT = 10
+# One 0.1 °C sensor step moves the setpoint about 2 °C with automatic gains
+PWM_HYSTERESIS = 2.0
 
 # Four missed 30 second control intervals
 CONTROL_LOOP_STALL_TIME = timedelta(minutes=2)
