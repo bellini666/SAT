@@ -204,6 +204,48 @@ async def test_closing_the_window_cancels_every_pending_activity_preset(
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
+async def test_windows_that_cannot_be_read_neither_open_nor_close(
+    hass: HomeAssistant,
+) -> None:
+    hass.states.async_set("binary_sensor.window", "off")
+    hass.states.async_set("binary_sensor.door", "unavailable")
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data=DEFAULT_USER_DATA,
+        options={
+            CONF_WINDOW_SENSORS: ["binary_sensor.window", "binary_sensor.door"],
+            CONF_WINDOW_MINIMUM_OPEN_TIME: "00:00:00",
+        },
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    climate = entry.runtime_data.climate
+
+    hass.states.async_set("binary_sensor.window", "on")
+    await hass.async_block_till_done()
+    state = hass.states.get("binary_sensor.mock_title_window")
+    assert state is not None
+    assert state.state == "on"
+    assert state.attributes["device_class"] == "window"
+    assert climate.preset_mode == PRESET_ACTIVITY
+
+    hass.states.async_set("binary_sensor.window", "unavailable")
+    await hass.async_block_till_done()
+    state = hass.states.get("binary_sensor.mock_title_window")
+    assert state is not None
+    assert state.state == "unknown"
+    assert climate.preset_mode == PRESET_ACTIVITY
+
+    hass.states.async_set("binary_sensor.window", "off")
+    await hass.async_block_till_done()
+    state = hass.states.get("binary_sensor.mock_title_window")
+    assert state is not None
+    assert state.state == "off"
+    assert climate.preset_mode != PRESET_ACTIVITY
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
 def mqtt_entry(hass: HomeAssistant) -> MockConfigEntry:
     entry = MockConfigEntry(
         domain=DOMAIN,
