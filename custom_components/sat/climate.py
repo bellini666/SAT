@@ -157,7 +157,6 @@ class SatClimateExtraStoredData(ExtraStoredData):
 
 
 class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
-    _enable_turn_on_off_backwards_compatibility = False
     # These change on nearly every write and would give each recorder row its own attributes
     _unrecorded_attributes = frozenset(
         {
@@ -230,18 +229,12 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         self._attr_hvac_modes = [HVACMode.OFF, HVACMode.HEAT]
         self._attr_preset_modes = [PRESET_NONE, *self._presets.keys()]
 
-        # Add features based on compatibility
         self._attr_supported_features = (
-            ClimateEntityFeature.TARGET_TEMPERATURE | ClimateEntityFeature.PRESET_MODE
+            ClimateEntityFeature.TARGET_TEMPERATURE
+            | ClimateEntityFeature.PRESET_MODE
+            | ClimateEntityFeature.TURN_ON
+            | ClimateEntityFeature.TURN_OFF
         )
-
-        # Conditionally add TURN_ON if it exists
-        if hasattr(ClimateEntityFeature, "TURN_ON"):
-            self._attr_supported_features |= ClimateEntityFeature.TURN_ON
-
-        # Conditionally add TURN_OFF if it exists
-        if hasattr(ClimateEntityFeature, "TURN_OFF"):
-            self._attr_supported_features |= ClimateEntityFeature.TURN_OFF
 
         self._control_heating_loop_unsub: Callable[[], None] | None = None
         self._sensor_stale_unsub: Callable[[], None] | None = None
@@ -1032,7 +1025,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
 
         # Update the PID controller with the maximum error
         if not reset:
-            _LOGGER.info(
+            _LOGGER.debug(
                 "Updating error to %s from %s (Reset: False)", max_error.value, max_error.entity_id
             )
 
@@ -1052,7 +1045,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
                     self.pid.update(max_error, self.heating_curve.value)
 
         elif max_error.value != self.pid.last_error:
-            _LOGGER.info(
+            _LOGGER.debug(
                 "Updating error to %s from %s (Reset: True)", max_error.value, max_error.entity_id
             )
 
@@ -1068,7 +1061,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         if not self.pulse_width_modulation_enabled or pwm_state.status == PWMStatus.IDLE:
             # Normal cycle without PWM
             self._setpoint = calculated_setpoint
-            _LOGGER.info(
+            _LOGGER.debug(
                 "Pulse Width Modulation is disabled or in IDLE state. Running normal heating cycle."
             )
             _LOGGER.debug("Calculated setpoint for normal cycle: %.1f°C", calculated_setpoint)
@@ -1082,7 +1075,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
                 )
         else:
             # PWM is enabled and actively controlling the cycle
-            _LOGGER.info("Running PWM cycle with state: %s", pwm_state.status)
+            _LOGGER.debug("Running PWM cycle with state: %s", pwm_state.status)
 
             if pwm_state.status == PWMStatus.ON:
                 self._setpoint = self.minimum_setpoint_value
@@ -1094,7 +1087,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         # Apply the setpoint using the coordinator
         self._setpoint = min(self._setpoint, self._coordinator.maximum_setpoint)
         await self._coordinator.async_set_control_setpoint(self._setpoint)
-        _LOGGER.info("Control setpoint has been updated to: %.1f°C", self._setpoint)
+        _LOGGER.debug("Control setpoint has been updated to: %.1f°C", self._setpoint)
 
     async def _async_control_relative_modulation(self) -> None:
         """Control the relative modulation value based on the conditions."""
@@ -1360,11 +1353,11 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
                 return
 
             if self._coordinator.device_active:
-                _LOGGER.info("Heater is already active. No action taken.")
+                _LOGGER.debug("Heater is already active. No action taken.")
                 return
 
         elif not self._coordinator.device_active:
-            _LOGGER.info("Heater is already off. No action taken.")
+            _LOGGER.debug("Heater is already off. No action taken.")
             return
 
         await self._coordinator.async_set_heater_state(state)

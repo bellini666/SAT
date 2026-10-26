@@ -527,7 +527,7 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
     async def async_set_control_setpoint(self, value: float) -> None:
         """Control the boiler setpoint temperature for the device."""
         if self.supports_setpoint_management:
-            _LOGGER.info("Set control boiler setpoint to %d°C", value)
+            _LOGGER.debug("Set control boiler setpoint to %d°C", value)
 
     async def async_set_control_hot_water_setpoint(self, value: float) -> None:
         """Control the DHW setpoint temperature for the device."""
@@ -542,7 +542,7 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
     async def async_set_control_max_relative_modulation(self, value: int) -> None:
         """Control the maximum relative modulation for the device."""
         if self.supports_relative_modulation_management:
-            _LOGGER.info("Set maximum relative modulation to %d%%", value)
+            _LOGGER.debug("Set maximum relative modulation to %d%%", value)
 
         self._control_max_relative_modulation = value
 
