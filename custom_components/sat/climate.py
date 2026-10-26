@@ -158,6 +158,23 @@ class SatClimateExtraStoredData(ExtraStoredData):
 
 class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
     _enable_turn_on_off_backwards_compatibility = False
+    # These change on nearly every write and would give each recorder row its own attributes
+    _unrecorded_attributes = frozenset(
+        {
+            "boiler_flame_timing",
+            "boiler_temperature_cold",
+            "boiler_temperature_derivative",
+            "current_kd",
+            "current_ki",
+            "current_kp",
+            "derivative",
+            "derivative_raw",
+            "error",
+            "integral",
+            "proportional",
+            "pulse_width_modulation_duty_cycle",
+        }
+    )
 
     def __init__(
         self, coordinator: SatDataUpdateCoordinator, config_entry: ConfigEntry, unit: str
