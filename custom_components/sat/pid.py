@@ -107,6 +107,11 @@ class PID:
                 or seconds_since(self._last_derivative_time) >= self._sample_time_limit
             ):
                 self.update_derivative(error)
+            elif step := abs(self._last_error - self._previous_error):
+                # Sensors report on change, so the error can't be moving faster than its last step
+                # over the time since that step
+                limit = step / max(seconds_since(self._last_updated), 1.0)
+                self._raw_derivative = max(-limit, min(limit, self._raw_derivative))
 
             return
 

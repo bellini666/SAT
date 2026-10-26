@@ -91,3 +91,15 @@ def test_a_restored_pid_does_not_spread_the_downtime_change_over_one_sample(
     pid.update(Error(SENSOR, 0.0), heating_curve_value=40.0)
 
     assert pid.derivative == 0.0
+
+
+def test_a_held_derivative_fades_as_the_error_stays_put(freezer: FrozenDateTimeFactory) -> None:
+    pid = create_pid(kd=1000.0)
+    for error in (1.0, 0.9, 0.8):
+        freezer.tick(timedelta(seconds=60))
+        pid.update(Error(SENSOR, error), heating_curve_value=40.0)
+
+    freezer.tick(timedelta(seconds=2400))
+    pid.update(Error(SENSOR, 0.8), heating_curve_value=40.0)
+
+    assert abs(pid.derivative) <= 1000.0 * 0.1 / 2400 + 1e-3
