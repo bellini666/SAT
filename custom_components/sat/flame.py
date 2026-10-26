@@ -319,10 +319,13 @@ class Flame:
         if currently_active and self._flame_on_monotonic is not None:
             self._latest_on_time_seconds = now - self._flame_on_monotonic
             self._burn_setpoint = boiler_state.setpoint
-            if boiler_state.setpoint is not None:
-                self._burn_highest_setpoint = max(
-                    self._burn_highest_setpoint or boiler_state.setpoint, boiler_state.setpoint
-                )
+            if boiler_state.setpoint is not None and (
+                self._burn_highest_setpoint is None
+                or boiler_state.setpoint > self._burn_highest_setpoint
+            ):
+                self._burn_highest_setpoint = boiler_state.setpoint
+            if self._burn_ignition_flow is None:
+                self._burn_ignition_flow = boiler_state.flow_temperature
             if boiler_state.hot_water_active:
                 self._burn_hot_water = True
                 self._pwm_planned_on_seconds = None
@@ -345,13 +348,14 @@ class Flame:
 
             self._flame_on_monotonic = None
             self._flame_off_monotonic = now
-            # The setpoint drops to the minimum before the flame goes out, and a burn lit on an
-            # exchanger still hot from hot water starts at its peak, so neither is a hot water run
+            # The setpoint drops to the minimum before the flame goes out, and an exchanger still
+            # hot from hot water starts near its peak, so both limits need the burn's own history
             if (
                 self._burn_peak_flow is not None
                 and self._burn_ignition_flow is not None
                 and self._burn_highest_setpoint is not None
-                and self._burn_peak_flow > self._burn_ignition_flow
+                and self._burn_peak_flow - self._burn_ignition_flow
+                > self.UNFLAGGED_HOT_WATER_MARGIN
                 and self._burn_peak_flow
                 > self._burn_highest_setpoint + self.UNFLAGGED_HOT_WATER_MARGIN
             ):
