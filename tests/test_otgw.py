@@ -708,3 +708,21 @@ async def test_measurement_sensors_keep_statistics(
     assert (entity.device_class or entity.original_device_class) == device_class
     assert entity.unit_of_measurement == unit
     assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_busy_gateway_data_is_saved_while_running(
+    hass: HomeAssistant,
+    mqtt_mock: MqttMockHAClient,
+    freezer: FrozenDateTimeFactory,
+    hass_storage: dict[str, Any],
+) -> None:
+    entry = await setup_heating(hass, mqtt_mock)
+
+    for second in range(0, 180, 5):
+        async_fire_mqtt_message(hass, "OTGW/value/otgw/Tboiler", f"{40 + second / 100:.2f}")
+        freezer.tick(timedelta(seconds=5))
+        async_fire_time_changed(hass)
+        await hass.async_block_till_done()
+
+    assert STORAGE_KEY in hass_storage
+    assert await hass.config_entries.async_unload(entry.entry_id)
