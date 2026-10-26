@@ -51,9 +51,8 @@ async def setup_climate(
             **DEFAULT_USER_DATA,
             CONF_HEATING_SYSTEM: HEATING_SYSTEM_RADIATORS,
             CONF_MINIMUM_SETPOINT: 57,
-            CONF_MAXIMUM_SETPOINT: 75,
         },
-        options={CONF_HEATING_CURVE_COEFFICIENT: 1.8, **options},
+        options={CONF_HEATING_CURVE_COEFFICIENT: 1.8, CONF_MAXIMUM_SETPOINT: 75, **options},
     )
     entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(entry.entry_id)

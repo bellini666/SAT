@@ -47,11 +47,11 @@ if TYPE_CHECKING:
                     CONF_MODE: MODE_FAKE,
                     CONF_HEATING_SYSTEM: HEATING_SYSTEM_RADIATORS,
                     CONF_MINIMUM_SETPOINT: 57,
-                    CONF_MAXIMUM_SETPOINT: 75,
                 },
                 {
                     CONF_HEATING_CURVE_COEFFICIENT: 1.8,
                     CONF_FORCE_PULSE_WIDTH_MODULATION: True,
+                    CONF_MAXIMUM_SETPOINT: 75,
                 },
                 {
                     TEMPLATE_DOMAIN: [

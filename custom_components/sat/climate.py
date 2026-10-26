@@ -1074,9 +1074,8 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
                 _LOGGER.debug("Setting setpoint to absolute minimum: %.1f°C", MINIMUM_SETPOINT)
 
         # Apply the setpoint using the coordinator
-        await self._coordinator.async_set_control_setpoint(
-            min(self._setpoint, self._coordinator.maximum_setpoint)
-        )
+        self._setpoint = min(self._setpoint, self._coordinator.maximum_setpoint)
+        await self._coordinator.async_set_control_setpoint(self._setpoint)
         _LOGGER.info("Control setpoint has been updated to: %.1f°C", self._setpoint)
 
     async def _async_control_relative_modulation(self) -> None:
