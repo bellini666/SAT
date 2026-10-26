@@ -352,14 +352,14 @@ def test_a_burn_far_above_its_setpoint_is_an_unflagged_hot_water_burn(
 @pytest.mark.parametrize(
     "readings",
     [
-        ((45.0, 46.0), (45.0, 48.0), (45.0, 48.0), (10.0, 48.0)),
-        ((45.0, 65.0), (45.0, 55.0), (45.0, 47.0), (45.0, 48.0)),
+        ((45.0, 35.0), (45.0, 48.0), (45.0, 48.0), (10.0, 48.0)),
+        ((30.0, 30.0), (45.0, 40.0), (45.0, 52.0), (45.0, 50.0)),
         ((45.0, 65.0), (45.0, 65.3), (45.0, 55.0), (45.0, 48.0)),
     ],
     ids=[
         "setpoint_dropped_before_the_flame",
+        "setpoint_raised_during_the_burn",
         "ignited_on_a_hot_exchanger",
-        "ticked_up_on_a_hot_exchanger",
     ],
 )
 def test_a_heating_burn_stays_in_the_cycle_statistics(
