@@ -114,6 +114,11 @@ class SatEspHomeCoordinator(SatDataUpdateCoordinator, SatEntityCoordinator):
 
     @override
     @property
+    def flame_reported(self) -> bool:
+        return self.get(binary_sensor.DOMAIN, DATA_FLAME_ACTIVE) is not None
+
+    @override
+    @property
     def hot_water_active(self) -> bool:
         return self.get(binary_sensor.DOMAIN, DATA_DHW_ACTIVE) == DeviceState.ON
 

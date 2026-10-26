@@ -111,7 +111,7 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
         if (manufacturer := config_data.get(CONF_MANUFACTURER)) is not None:
             self._manufacturer = ManufacturerFactory.resolve_by_name(manufacturer)
 
-        self.async_add_listener(lambda: self._flame.update(boiler_state=self.boiler))
+        self.async_add_listener(self.update_flame)
 
     @property
     @abstractmethod
@@ -130,6 +130,11 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
     @property
     def online(self) -> bool:
         """Return whether the device reports itself as reachable."""
+        return True
+
+    @property
+    def flame_reported(self) -> bool:
+        """Return whether the flame state is a live reading."""
         return True
 
     @property
@@ -452,15 +457,20 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
     async def async_initialize_flame(self, entry_id: str) -> None:
         await self._flame.async_initialize(self.hass, entry_id)
 
-    def update_flame(self, pwm_state: PWMState) -> None:
-        self._flame.update(boiler_state=self.boiler, pwm_state=pwm_state)
+    @callback
+    def update_flame(self, pwm_state: PWMState | None = None) -> None:
+        # An outage or a reconnect makes the flame read off until the gateway reports it again.
+        # shortcut: a burn that ends during an outage is recorded with the outage included,
+        # upgrade if outages turn out to be long
+        if self.online and self.flame_reported:
+            self._flame.update(boiler_state=self.boiler, pwm_state=pwm_state)
 
     async def async_control_heating_loop(
         self, pwm_state: PWMState | None = None, _time: datetime | None = None
     ) -> None:
         """Control the heating loop for the device."""
         # Update Flame State
-        self._flame.update(boiler_state=self.boiler, pwm_state=pwm_state)
+        self.update_flame(pwm_state)
 
         # Update Device State
         if not self.device_active:

@@ -456,6 +456,38 @@ async def test_offline_gateway_pauses_control(
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
+async def test_a_gateway_outage_does_not_end_a_burn(
+    hass: HomeAssistant, mqtt_mock: MqttMockHAClient, freezer: FrozenDateTimeFactory
+) -> None:
+    entry = await setup_heating(hass, mqtt_mock)
+    coordinator = entry.runtime_data.coordinator
+
+    async_fire_mqtt_message(hass, "OTGW/value/otgw/flame", "ON")
+    freezer.tick(timedelta(seconds=6))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+    assert coordinator.flame.is_active
+
+    async_fire_mqtt_message(hass, AVAILABILITY_TOPIC, "offline")
+    await hass.async_block_till_done()
+    async_fire_mqtt_message(hass, AVAILABILITY_TOPIC, "online")
+    await hass.async_block_till_done()
+    async_fire_mqtt_message(hass, "OTGW/value/otgw/Tboiler", "45.0")
+    freezer.tick(timedelta(seconds=6))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+    await entry.runtime_data.climate.async_control_heating_loop()
+    async_fire_mqtt_message(hass, "OTGW/value/otgw/flame", "ON")
+    freezer.tick(timedelta(seconds=6))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+
+    assert coordinator.flame.is_active
+    assert coordinator.flame.last_cycle_duration_seconds is None
+    assert coordinator.flame.cut_short_burn_ends == ()
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
 @pytest.mark.parametrize("retain", [False, True], ids=["reboot", "replay"])
 async def test_gateway_reboot_restores_the_overrides(
     hass: HomeAssistant, mqtt_mock: MqttMockHAClient, freezer: FrozenDateTimeFactory, retain: bool
