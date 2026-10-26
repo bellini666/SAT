@@ -27,6 +27,12 @@ STORAGE_VERSION = 1
 STORAGE_SAVE_DELAY = 60
 
 
+def mqtt_store(
+    hass: HomeAssistant, coordinator_class: type[SatMqttCoordinator], device_id: str
+) -> Store[dict[str, Any]]:
+    return Store(hass, STORAGE_VERSION, snake_case(f"{coordinator_class.__name__}_{device_id}"))
+
+
 class SatMqttCoordinator(SatDataUpdateCoordinator):
     """Base class to manage fetching data using MQTT."""
 
@@ -45,9 +51,7 @@ class SatMqttCoordinator(SatDataUpdateCoordinator):
         self._messages: deque[MqttMessage] = deque(maxlen=50)
         self._stale_keys: set[str] = set()
         self._save_pending: bool = False
-        self._store: Store[dict[str, Any]] = Store(
-            hass, STORAGE_VERSION, snake_case(f"{self.__class__.__name__}_{device_id}")
-        )
+        self._store: Store[dict[str, Any]] = mqtt_store(hass, type(self), device_id)
 
     @override
     @property

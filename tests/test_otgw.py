@@ -726,3 +726,16 @@ async def test_busy_gateway_data_is_saved_while_running(
 
     assert STORAGE_KEY in hass_storage
     assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_removing_the_entry_removes_the_gateway_data(
+    hass: HomeAssistant, mqtt_mock: MqttMockHAClient, hass_storage: dict[str, Any]
+) -> None:
+    entry = await setup_heating(hass, mqtt_mock)
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    assert STORAGE_KEY in hass_storage
+
+    await hass.config_entries.async_remove(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert STORAGE_KEY not in hass_storage
