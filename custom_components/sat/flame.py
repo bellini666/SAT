@@ -114,6 +114,8 @@ class Flame:
         self._burn_peak_flow: float | None = None
         self._burn_peak_monotonic: float | None = None
         self._burn_hot_water: bool = False
+        self._burn_ignition_flow: float | None = None
+        self._burn_highest_setpoint: float | None = None
         self._hot_water_seen_monotonic: float | None = None
         self._burn_setpoint: float | None = None
         self._last_cut_short_peak_flow: float | None = None
@@ -303,6 +305,8 @@ class Flame:
             self._burn_peak_flow = boiler_state.flow_temperature
             self._burn_peak_monotonic = now
             self._burn_hot_water = hot_water
+            self._burn_ignition_flow = boiler_state.flow_temperature
+            self._burn_highest_setpoint = boiler_state.setpoint
             self._burn_setpoint = boiler_state.setpoint
             self._last_update_monotonic = now
             self._recompute_health(now)
@@ -315,6 +319,10 @@ class Flame:
         if currently_active and self._flame_on_monotonic is not None:
             self._latest_on_time_seconds = now - self._flame_on_monotonic
             self._burn_setpoint = boiler_state.setpoint
+            if boiler_state.setpoint is not None:
+                self._burn_highest_setpoint = max(
+                    self._burn_highest_setpoint or boiler_state.setpoint, boiler_state.setpoint
+                )
             if boiler_state.hot_water_active:
                 self._burn_hot_water = True
                 self._pwm_planned_on_seconds = None
@@ -337,10 +345,15 @@ class Flame:
 
             self._flame_on_monotonic = None
             self._flame_off_monotonic = now
+            # The setpoint drops to the minimum before the flame goes out, and a burn lit on an
+            # exchanger still hot from hot water starts at its peak, so neither is a hot water run
             if (
                 self._burn_peak_flow is not None
-                and self._burn_setpoint is not None
-                and self._burn_peak_flow > self._burn_setpoint + self.UNFLAGGED_HOT_WATER_MARGIN
+                and self._burn_ignition_flow is not None
+                and self._burn_highest_setpoint is not None
+                and self._burn_peak_flow > self._burn_ignition_flow
+                and self._burn_peak_flow
+                > self._burn_highest_setpoint + self.UNFLAGGED_HOT_WATER_MARGIN
             ):
                 self._burn_hot_water = True
                 self._pwm_planned_on_seconds = None

@@ -349,6 +349,28 @@ def test_a_burn_far_above_its_setpoint_is_an_unflagged_hot_water_burn(
     assert (flame.sample_count_4h, flame.cut_short_burn_ends) == (1, ())
 
 
+@pytest.mark.parametrize(
+    "readings",
+    [
+        ((45.0, 46.0), (45.0, 48.0), (45.0, 48.0), (10.0, 48.0)),
+        ((45.0, 65.0), (45.0, 55.0), (45.0, 47.0), (45.0, 48.0)),
+    ],
+    ids=["setpoint_dropped_before_the_flame", "ignited_on_a_hot_exchanger"],
+)
+def test_a_heating_burn_stays_in_the_cycle_statistics(
+    freezer: FrozenDateTimeFactory, readings: tuple[tuple[float, float], ...]
+) -> None:
+    flame = Flame()
+
+    flame.update(boiler_state(False, setpoint=45.0, flow=40.0), PWM_ON)
+    for setpoint, flow in readings:
+        flame.update(boiler_state(True, setpoint=setpoint, flow=flow), PWM_ON)
+        freezer.tick(timedelta(seconds=300))
+    flame.update(boiler_state(False, setpoint=10.0, flow=47.0), PWM_OFF)
+
+    assert flame.sample_count_4h == 1
+
+
 def test_a_heating_burn_right_after_a_hot_water_burn_is_judged_as_heating(
     freezer: FrozenDateTimeFactory, caplog: pytest.LogCaptureFixture
 ) -> None:
