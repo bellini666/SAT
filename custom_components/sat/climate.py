@@ -1039,7 +1039,6 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
 
             self.pid.update_reset(error=max_error, heating_curve_value=self.heating_curve.value)
             self._calculated_setpoint = None
-            self.pwm.reset()
 
         self.async_write_ha_state()
 
