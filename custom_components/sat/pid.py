@@ -80,7 +80,7 @@ class PID:
 
         self._time_elapsed: float = 0.0
         self._last_updated: float = now
-        self._last_derivative_time: float = now
+        self._last_derivative_time: float | None = now
         self._last_interval_updated: float = now
 
         self._last_error: float = 0.0
@@ -103,6 +103,7 @@ class PID:
         if error.value == self._last_error:
             if not self.derivative_enabled and (
                 self._sample_time_limit is None
+                or self._last_derivative_time is None
                 or seconds_since(self._last_derivative_time) >= self._sample_time_limit
             ):
                 self.update_derivative(error)
@@ -192,6 +193,10 @@ class PID:
         :param alpha2: Second low-pass filter parameter (0..1).
         """
         now = monotonic()
+        if self._last_derivative_time is None:
+            self._last_derivative_time = now
+            return
+
         time_diff = now - self._last_derivative_time
         if time_diff <= 0:
             return
@@ -220,17 +225,16 @@ class PID:
         if (last_integral := state.attributes.get("integral")) is not None:
             self._integral = float(last_integral)
 
-        if (last_raw_derivative := state.attributes.get("derivative_raw")) is not None:
-            self._raw_derivative = float(last_raw_derivative)
-
         if (last_heating_curve := state.attributes.get("heating_curve")) is not None:
             self._last_heating_curve_value = float(last_heating_curve)
 
         # After restore, reset timing anchors "now"
         now = monotonic()
         self._last_updated = now
-        self._last_derivative_time = now
         self._last_interval_updated = now
+
+        # The restored error and slope are from before the downtime, so the slope starts after it
+        self._last_derivative_time = None
 
     def _get_aggression_value(self) -> float:
         if self._version == AUTOMATIC_GAINS_VERSION_1:
