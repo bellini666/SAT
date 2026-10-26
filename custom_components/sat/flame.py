@@ -63,6 +63,8 @@ class Flame:
     IGNITION_CUT_OUT_SECONDS: float = 30.0
     # A hot water request can end before the listener batch that first shows the flame
     HOT_WATER_LEAD_SECONDS: float = 30.0
+    # A heating burn cuts out 5 to 7 °C above its setpoint; a Remeha preheat runs ~20 °C above
+    UNFLAGGED_HOT_WATER_MARGIN: float = 10.0
     EXPECTED_MODULATING_DUTY_RATIO_WHEN_HEATING: float = 0.60
 
     # Windows
@@ -335,6 +337,14 @@ class Flame:
 
             self._flame_on_monotonic = None
             self._flame_off_monotonic = now
+            if (
+                self._burn_peak_flow is not None
+                and self._burn_setpoint is not None
+                and self._burn_peak_flow > self._burn_setpoint + self.UNFLAGGED_HOT_WATER_MARGIN
+            ):
+                self._burn_hot_water = True
+                self._pwm_planned_on_seconds = None
+
             self._prune_cycles_window(now)
             self._prune_median_window(now)
 
