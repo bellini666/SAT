@@ -115,6 +115,43 @@ def test_demand_without_flame_is_stuck_off(freezer: FrozenDateTimeFactory, cycle
     assert flame.health_status == FlameStatus.STUCK_OFF
 
 
+@pytest.mark.parametrize("cycles", [0, 3], ids=["thin_history", "full_history"])
+def test_a_flame_without_demand_is_stuck_on_from_the_end_of_demand(
+    freezer: FrozenDateTimeFactory, cycles: int
+) -> None:
+    flame = Flame()
+    for _ in range(cycles):
+        run_cycle(flame, freezer, 300)
+
+    flame.update(boiler_state(True, hot_water=True))
+    for _ in range(81):
+        freezer.tick(timedelta(seconds=10))
+        flame.update(boiler_state(True, hot_water=True))
+
+    freezer.tick(timedelta(seconds=10))
+    flame.update(boiler_state(True, demand=False))
+    assert flame.health_status == FlameStatus.IDLE_OK
+
+    freezer.tick(timedelta(seconds=130))
+    flame.update(boiler_state(True, demand=False))
+    assert flame.health_status == FlameStatus.STUCK_ON
+
+
+@pytest.mark.parametrize("cycles", [0, 3], ids=["thin_history", "full_history"])
+def test_a_burn_without_demand_after_a_long_burn_is_not_stuck_on_at_ignition(
+    freezer: FrozenDateTimeFactory, cycles: int
+) -> None:
+    flame = Flame()
+    for _ in range(cycles):
+        run_cycle(flame, freezer, 300)
+    run_cycle(flame, freezer, 900)
+    idle(flame, freezer, 600)
+
+    flame.update(boiler_state(True, demand=False))
+
+    assert flame.health_status == FlameStatus.IDLE_OK
+
+
 def test_stuck_off_clears_when_the_flame_lights(freezer: FrozenDateTimeFactory) -> None:
     flame = Flame()
     run_cycle(flame, freezer, 300)

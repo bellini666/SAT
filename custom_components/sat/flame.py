@@ -110,6 +110,7 @@ class Flame:
         self._flame_on_monotonic: float | None = None
         self._flame_off_monotonic: float | None = None
         self._demand_since_monotonic: float | None = None
+        self._demand_ended_monotonic: float | None = None
         self._pwm_planned_on_seconds: float | None = None
         self._burn_peak_flow: float | None = None
         self._burn_peak_monotonic: float | None = None
@@ -438,13 +439,16 @@ class Flame:
         heating_demand = bool(state.is_active) or (state.status in self._HEATING_STATUSES)
 
         if not heating_demand and not domestic_hot_water_active:
+            if self._demand_since_monotonic is not None:
+                self._demand_ended_monotonic = now
             self._demand_since_monotonic = None
         elif self._demand_since_monotonic is None:
             self._demand_since_monotonic = now
 
-        # The flame can only be late since the demand started, not since it last went out
+        # The flame can only be late since the demand started, not since it last went out, and
+        # only stuck on since the demand ended, not since it lit
         last_on_seconds = (
-            self._latest_on_time_seconds
+            (now - max(self._flame_on_monotonic, self._demand_ended_monotonic or 0.0))
             if (state.flame_active and self._flame_on_monotonic is not None)
             else 0.0
         )
