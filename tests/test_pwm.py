@@ -4,6 +4,7 @@ import logging
 from dataclasses import replace
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any, Literal, TypeIs
+from unittest.mock import PropertyMock, patch
 
 import pytest
 from homeassistant.components.climate import HVACMode
@@ -51,9 +52,8 @@ async def setup_climate(
             **DEFAULT_USER_DATA,
             CONF_HEATING_SYSTEM: HEATING_SYSTEM_RADIATORS,
             CONF_MINIMUM_SETPOINT: 57,
-            CONF_MAXIMUM_SETPOINT: 75,
         },
-        options={CONF_HEATING_CURVE_COEFFICIENT: 1.8, **options},
+        options={CONF_HEATING_CURVE_COEFFICIENT: 1.8, CONF_MAXIMUM_SETPOINT: 75, **options},
     )
     entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(entry.entry_id)
@@ -457,4 +457,62 @@ async def test_an_early_off_phase_lasts_until_the_planned_cycle_ends(
     freezer.tick(timedelta(seconds=on_time))
     await climate.async_control_heating_loop()
     assert climate.pwm.status == PWMStatus.ON
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_pwm_stays_enabled_until_the_setpoint_clears_the_minimum_by_a_margin(
+    hass: HomeAssistant,
+) -> None:
+    entry, climate, coordinator = await setup_climate(hass, {})
+    await coordinator.async_set_boiler_temperature(57)
+    await climate.async_set_target_temperature(21.0)
+    await climate.async_set_hvac_mode(HVACMode.HEAT)
+
+    async def settle_at(requested: float) -> None:
+        with patch.object(
+            SatClimate, "requested_setpoint", new_callable=PropertyMock, return_value=requested
+        ):
+            for _ in range(30):
+                await climate.async_control_heating_loop()
+
+    await settle_at(coordinator.minimum_setpoint - 1)
+    assert climate.pulse_width_modulation_enabled
+    assert climate.pwm.status == PWMStatus.ON
+
+    await settle_at(coordinator.minimum_setpoint + 1)
+    assert climate.pulse_width_modulation_enabled
+    assert climate.pwm.status == PWMStatus.ON
+
+    await settle_at(coordinator.minimum_setpoint + 3)
+    assert not climate.pulse_width_modulation_enabled
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_hot_water_flow_does_not_shape_the_duty_cycle(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    entry, climate, coordinator = await setup_climate(
+        hass, {CONF_FORCE_PULSE_WIDTH_MODULATION: True}
+    )
+    await coordinator.async_set_boiler_temperature(57)
+    await climate.async_set_target_temperature(21.0)
+    await climate.async_set_hvac_mode(HVACMode.HEAT)
+    await climate.async_control_heating_loop()
+    assert climate.pwm.status == PWMStatus.ON
+    requested = climate.requested_setpoint
+
+    freezer.tick(timedelta(seconds=181))
+    await climate.pwm.update(
+        boiler=replace(coordinator.boiler, hot_water_active=True, flow_temperature=65.0),
+        flame=coordinator.flame,
+        requested_setpoint=requested,
+    )
+    duty_cycle = climate.pwm.duty_cycle
+
+    await climate.pwm.update(
+        boiler=coordinator.boiler, flame=coordinator.flame, requested_setpoint=requested
+    )
+
+    assert climate.pwm.status == PWMStatus.ON
+    assert climate.pwm.duty_cycle == duty_cycle
     assert await hass.config_entries.async_unload(entry.entry_id)

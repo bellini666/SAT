@@ -151,8 +151,9 @@ class PWM:
             requested_setpoint, self._last_boiler_temperature, boiler
         )
 
-        # Update boiler temperature if heater has just started up
-        if self._status == PWMStatus.ON:
+        # Update boiler temperature if heater has just started up; hot water heats the flow far
+        # past what the radiators see
+        if self._status == PWMStatus.ON and not boiler.hot_water_active:
             if elapsed <= HEATER_STARTUP_TIMEFRAME:
                 self._last_boiler_temperature = (
                     self._alpha * boiler.flow_temperature
@@ -241,7 +242,8 @@ class PWM:
             self._current_cycle += 1
             self._status = PWMStatus.ON
             self._last_update = monotonic()
-            self._last_boiler_temperature = boiler.flow_temperature
+            if not boiler.hot_water_active:
+                self._last_boiler_temperature = boiler.flow_temperature
             _LOGGER.info(
                 "Starting new duty cycle (ON state). Current CYCLES count: %d", self._current_cycle
             )

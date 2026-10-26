@@ -28,13 +28,15 @@ def boiler_state(
     hot_water: bool = False,
     setpoint: float = 50.0,
     flow: float = 50.0,
+    status: BoilerStatus | None = None,
 ) -> BoilerState:
-    if hot_water:
-        status = BoilerStatus.HOT_WATER
-    elif not demand:
-        status = BoilerStatus.IDLE
-    else:
-        status = BoilerStatus.AT_SETPOINT if flame_active else BoilerStatus.WAITING_FOR_FLAME
+    if status is None:
+        if hot_water:
+            status = BoilerStatus.HOT_WATER
+        elif not demand:
+            status = BoilerStatus.IDLE
+        else:
+            status = BoilerStatus.AT_SETPOINT if flame_active else BoilerStatus.WAITING_FOR_FLAME
 
     return BoilerState(
         is_active=demand,
@@ -111,6 +113,96 @@ def test_demand_without_flame_is_stuck_off(freezer: FrozenDateTimeFactory, cycle
 
     idle(flame, freezer, 3600)
     wait_for_flame(flame, freezer, 360)
+
+    assert flame.health_status == FlameStatus.STUCK_OFF
+
+
+@pytest.mark.parametrize("cycles", [0, 3], ids=["thin_history", "full_history"])
+def test_a_flame_without_demand_is_stuck_on_from_the_end_of_demand(
+    freezer: FrozenDateTimeFactory, cycles: int
+) -> None:
+    flame = Flame()
+    for _ in range(cycles):
+        run_cycle(flame, freezer, 300)
+
+    flame.update(boiler_state(True, hot_water=True))
+    for _ in range(81):
+        freezer.tick(timedelta(seconds=10))
+        flame.update(boiler_state(True, hot_water=True))
+
+    freezer.tick(timedelta(seconds=10))
+    flame.update(boiler_state(True, demand=False))
+    assert flame.health_status == FlameStatus.IDLE_OK
+
+    freezer.tick(timedelta(seconds=130))
+    flame.update(boiler_state(True, demand=False))
+    assert flame.health_status == FlameStatus.STUCK_ON
+
+
+@pytest.mark.parametrize("cycles", [0, 3], ids=["thin_history", "full_history"])
+def test_a_burn_without_demand_after_a_long_burn_is_not_stuck_on_at_ignition(
+    freezer: FrozenDateTimeFactory, cycles: int
+) -> None:
+    flame = Flame()
+    for _ in range(cycles):
+        run_cycle(flame, freezer, 300)
+    run_cycle(flame, freezer, 900)
+    idle(flame, freezer, 600)
+
+    flame.update(boiler_state(True, demand=False))
+
+    assert flame.health_status == FlameStatus.IDLE_OK
+
+
+@pytest.mark.parametrize("cycles", [0, 3], ids=["thin_history", "full_history"])
+def test_a_boiler_waiting_to_relight_after_a_burn_is_not_stuck_off(
+    freezer: FrozenDateTimeFactory, cycles: int
+) -> None:
+    """Replay a Remeha relight that keeps the CH mode bit on while it waits.
+
+    The flame went out at 04:38:10, the flow dropped below the setpoint at 04:41:33 and the
+    burner lit again at 04:44:13.
+    """
+    flame = Flame()
+    for _ in range(cycles):
+        run_cycle(flame, freezer, 300)
+
+    flame.update(boiler_state(True, setpoint=45.0, flow=52.7))
+    for _ in range(20):
+        freezer.tick(timedelta(seconds=10))
+        flame.update(
+            boiler_state(False, setpoint=45.0, flow=48.0, status=BoilerStatus.ANTI_CYCLING)
+        )
+        assert flame.health_status != FlameStatus.STUCK_OFF
+
+    for _ in range(16):
+        freezer.tick(timedelta(seconds=10))
+        flame.update(boiler_state(False, setpoint=45.0, flow=41.0))
+        assert flame.health_status != FlameStatus.STUCK_OFF
+
+    flame.update(boiler_state(True, setpoint=45.0, flow=39.7))
+    assert flame.health_status != FlameStatus.STUCK_OFF
+
+
+@pytest.mark.parametrize("cycles", [0, 3], ids=["thin_history", "full_history"])
+def test_a_burner_that_never_lights_across_short_pwm_phases_is_stuck_off(
+    freezer: FrozenDateTimeFactory, cycles: int
+) -> None:
+    flame = Flame()
+    for _ in range(cycles):
+        run_cycle(flame, freezer, 300)
+
+    for _ in range(4):
+        # The boiler reports the OFF phase setpoint until the new one is echoed back
+        flame.update(boiler_state(False, status=BoilerStatus.IDLE), pwm_state=PWM_ON)
+        for _ in range(13):
+            freezer.tick(timedelta(seconds=10))
+            flame.update(boiler_state(False), pwm_state=PWM_ON)
+        for _ in range(12):
+            freezer.tick(timedelta(seconds=10))
+            flame.update(boiler_state(False, demand=False), pwm_state=PWM_OFF)
+
+    flame.update(boiler_state(False), pwm_state=PWM_ON)
 
     assert flame.health_status == FlameStatus.STUCK_OFF
 

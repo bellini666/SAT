@@ -30,11 +30,16 @@ from .const import (
     CONF_MODE,
     CONF_NAME,
     DOMAIN,
+    MODE_MQTT_EMS,
+    MODE_MQTT_OPENTHERM,
     SETUP_FAILED_ISSUE_DELAY,
 )
 from .coordinator_factory import SatDataUpdateCoordinatorFactory
 from .flame import flame_store
 from .minimum_setpoint import minimum_setpoint_store
+from .mqtt import mqtt_store
+from .mqtt.ems import SatEmsMqttCoordinator
+from .mqtt.opentherm import SatOpenThermMqttCoordinator
 from .services import async_setup_services
 
 if TYPE_CHECKING:
@@ -145,6 +150,13 @@ async def async_remove_entry(hass: HomeAssistant, entry: SatConfigEntry) -> None
     ir.async_delete_issue(hass, DOMAIN, f"setup_failed_{entry.entry_id}")
     await minimum_setpoint_store(hass, entry.entry_id).async_remove()
     await flame_store(hass, entry.entry_id).async_remove()
+
+    mqtt_coordinators = {
+        MODE_MQTT_EMS: SatEmsMqttCoordinator,
+        MODE_MQTT_OPENTHERM: SatOpenThermMqttCoordinator,
+    }
+    if (coordinator_class := mqtt_coordinators.get(entry.data.get(CONF_MODE))) is not None:
+        await mqtt_store(hass, coordinator_class, entry.data[CONF_DEVICE]).async_remove()
 
 
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

@@ -110,6 +110,9 @@ class Flame:
         self._flame_on_monotonic: float | None = None
         self._flame_off_monotonic: float | None = None
         self._demand_since_monotonic: float | None = None
+        self._demand_ended_monotonic: float | None = None
+        self._waiting_for_flame_since_monotonic: float | None = None
+        self._waited_for_flame_seconds: float = 0.0
         self._pwm_planned_on_seconds: float | None = None
         self._burn_peak_flow: float | None = None
         self._burn_peak_monotonic: float | None = None
@@ -438,19 +441,49 @@ class Flame:
         heating_demand = bool(state.is_active) or (state.status in self._HEATING_STATUSES)
 
         if not heating_demand and not domestic_hot_water_active:
+            if self._demand_since_monotonic is not None:
+                self._demand_ended_monotonic = now
             self._demand_since_monotonic = None
         elif self._demand_since_monotonic is None:
             self._demand_since_monotonic = now
 
-        # The flame can only be late since the demand started, not since it last went out
+        # A Remeha keeps its CH mode bit on while it waits to relight, and relights only once the
+        # flow has cooled below the setpoint, so the wait for the flame starts there
+        if state.flame_active:
+            self._waiting_for_flame_since_monotonic = None
+            self._waited_for_flame_seconds = 0.0
+        elif heating_demand and state.status == BoilerStatus.WAITING_FOR_FLAME:
+            if self._waiting_for_flame_since_monotonic is None:
+                self._waiting_for_flame_since_monotonic = now
+        elif state.status not in self._TRANSIENT_STATUSES:
+            # The boiler reports the OFF phase setpoint until a new ON phase setpoint is echoed
+            # back, so IDLE pauses the wait for as long as PWM runs
+            if (
+                state.status == BoilerStatus.IDLE
+                and (pwm := self._fresh_pulse_width_modulation_state(now)) is not None
+                and pwm.status in (PWMStatus.ON, PWMStatus.OFF)
+            ):
+                if self._waiting_for_flame_since_monotonic is not None:
+                    self._waited_for_flame_seconds += now - self._waiting_for_flame_since_monotonic
+            else:
+                self._waited_for_flame_seconds = 0.0
+            self._waiting_for_flame_since_monotonic = None
+
+        # The flame can only be late since the demand started, not since it last went out, and
+        # only stuck on since the demand ended, not since it lit
         last_on_seconds = (
-            self._latest_on_time_seconds
+            (now - max(self._flame_on_monotonic, self._demand_ended_monotonic or 0.0))
             if (state.flame_active and self._flame_on_monotonic is not None)
             else 0.0
         )
         last_off_seconds = (
             (now - max(self._flame_off_monotonic, self._demand_since_monotonic or 0.0))
             if (not state.flame_active and self._flame_off_monotonic is not None)
+            else 0.0
+        )
+        waiting_for_flame_seconds = self._waited_for_flame_seconds + (
+            (now - self._waiting_for_flame_since_monotonic)
+            if self._waiting_for_flame_since_monotonic is not None
             else 0.0
         )
 
@@ -472,14 +505,14 @@ class Flame:
 
                 return
 
-            timeout = (
-                self.MAX_DOMESTIC_HOT_WATER_IDLE_OFF_SECONDS
+            off_seconds, timeout = (
+                (last_off_seconds, self.MAX_DOMESTIC_HOT_WATER_IDLE_OFF_SECONDS)
                 if domestic_hot_water_active
-                else self.STUCK_OFF_SECONDS
+                else (waiting_for_flame_seconds, self.STUCK_OFF_SECONDS)
             )
             if (
                 (not state.flame_active)
-                and last_off_seconds > timeout
+                and off_seconds > timeout
                 and state.status not in self._TRANSIENT_STATUSES
             ):
                 self._health_status = FlameStatus.STUCK_OFF
@@ -514,7 +547,7 @@ class Flame:
         # Space heating demand
         if (
             (not state.flame_active)
-            and last_off_seconds > self.STUCK_OFF_SECONDS
+            and waiting_for_flame_seconds > self.STUCK_OFF_SECONDS
             and state.status not in self._TRANSIENT_STATUSES
         ):
             self._health_status = FlameStatus.STUCK_OFF

@@ -25,6 +25,7 @@ from custom_components.sat.const import (
     HEATING_SYSTEM_RADIATORS,
     HEATING_SYSTEM_UNDERFLOOR,
     MODE_FAKE,
+    PWMStatus,
 )
 from custom_components.sat.errors import Error
 from tests.const import DEFAULT_USER_DATA
@@ -47,11 +48,11 @@ if TYPE_CHECKING:
                     CONF_MODE: MODE_FAKE,
                     CONF_HEATING_SYSTEM: HEATING_SYSTEM_RADIATORS,
                     CONF_MINIMUM_SETPOINT: 57,
-                    CONF_MAXIMUM_SETPOINT: 75,
                 },
                 {
                     CONF_HEATING_CURVE_COEFFICIENT: 1.8,
                     CONF_FORCE_PULSE_WIDTH_MODULATION: True,
+                    CONF_MAXIMUM_SETPOINT: 75,
                 },
                 {
                     TEMPLATE_DOMAIN: [
@@ -398,4 +399,38 @@ async def test_a_non_numeric_outside_sensor_falls_back_to_the_next_entity(
     )
 
     assert entry.runtime_data.climate.current_outside_temperature == 4.0
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_a_room_target_change_keeps_the_pwm_phase(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    hass.states.async_set(ROOM, HVACMode.HEAT, {"temperature": 21.0, "current_temperature": 20.7})
+    entry = await setup_rooms(
+        hass,
+        {CONF_HEATING_SYSTEM: HEATING_SYSTEM_RADIATORS, CONF_MINIMUM_SETPOINT: 57},
+        {
+            CONF_HEATING_CURVE_COEFFICIENT: 1.8,
+            CONF_FORCE_PULSE_WIDTH_MODULATION: True,
+            CONF_MAXIMUM_SETPOINT: 75,
+        },
+    )
+    climate = entry.runtime_data.climate
+    await entry.runtime_data.coordinator.async_set_boiler_temperature(57)
+    await climate.async_set_target_temperature(21.0)
+    await climate.async_set_hvac_mode(HVACMode.HEAT)
+    await climate.async_control_heating_loop()
+    assert climate.pwm.status == PWMStatus.ON
+    assert climate.pwm.duty_cycle is not None
+
+    freezer.tick(timedelta(seconds=climate.pwm.duty_cycle[0] + 1))
+    await climate.async_control_heating_loop()
+    assert climate.pwm.status == PWMStatus.OFF
+
+    hass.states.async_set(ROOM, HVACMode.HEAT, {"temperature": 21.2, "current_temperature": 20.7})
+    await hass.async_block_till_done()
+    await climate.async_control_heating_loop()
+
+    assert climate.max_error.entity_id == ROOM
+    assert climate.pwm.status == PWMStatus.OFF
     assert await hass.config_entries.async_unload(entry.entry_id)

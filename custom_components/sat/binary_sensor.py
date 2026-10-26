@@ -7,10 +7,10 @@ from typing import TYPE_CHECKING, override
 
 from homeassistant.components.binary_sensor import BinarySensorDeviceClass, BinarySensorEntity
 from homeassistant.components.climate import HVACAction, HVACMode
-from homeassistant.components.group.binary_sensor import BinarySensorGroup
-from homeassistant.const import ATTR_ENTITY_ID
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.const import ATTR_ENTITY_ID, STATE_ON, STATE_UNAVAILABLE, STATE_UNKNOWN
+from homeassistant.core import Event, EventStateChangedData, HomeAssistant, callback
 from homeassistant.helpers.event import async_track_state_change_event, async_track_time_interval
+from homeassistant.helpers.start import async_at_start
 
 from .const import (
     CONF_WINDOW_SENSORS,
@@ -292,18 +292,19 @@ class SatFlameHealthSensor(SatEntity, BinarySensorEntity):
         )
 
 
-class SatWindowSensor(SatClimateEntity, BinarySensorGroup):
+class SatWindowSensor(SatClimateEntity, BinarySensorEntity):
     _attr_translation_key = "window"
+    _attr_device_class = BinarySensorDeviceClass.WINDOW
+    _unrecorded_attributes = frozenset({ATTR_ENTITY_ID})
 
     def __init__(
         self, coordinator: SatDataUpdateCoordinator, config_entry: ConfigEntry, climate: SatClimate
     ) -> None:
         super().__init__(coordinator, config_entry, climate)
 
-        self.mode = any
-        self._entity_ids = self._config_entry.options[CONF_WINDOW_SENSORS]
+        self._entity_ids: list[str] = self._config_entry.options[CONF_WINDOW_SENSORS]
+        self._following_members = False
         self._attr_unique_id = f"{config_entry.entry_id}-window-sensor"
-        self._device_class = BinarySensorDeviceClass.WINDOW
         self._attr_extra_state_attributes = {ATTR_ENTITY_ID: self._entity_ids}
 
     @override
@@ -314,6 +315,32 @@ class SatWindowSensor(SatClimateEntity, BinarySensorGroup):
                 self.hass, [self.entity_id], self._climate.async_window_sensor_changed
             )
         )
+
+        @callback
+        def _async_member_changed(_event: Event[EventStateChangedData]) -> None:
+            self._async_climate_updated()
+
+        @callback
+        def _async_start(_hass: HomeAssistant) -> None:
+            self.async_on_remove(
+                async_track_state_change_event(self.hass, self._entity_ids, _async_member_changed)
+            )
+            self._following_members = True
+            self._async_climate_updated()
+
+        # The climate reacts to this sensor, so the members are only followed once it is running
+        self.async_on_remove(async_at_start(self.hass, _async_start))
+
+    @override
+    def _update_attrs(self) -> None:
+        states = [
+            state.state
+            for entity_id in self._entity_ids
+            if (state := self.hass.states.get(entity_id)) is not None
+            and state.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN)
+        ]
+
+        self._attr_is_on = (STATE_ON in states) if self._following_members and states else None
 
 
 class SatBoilerFaultSensor(SatEntity, BinarySensorEntity):

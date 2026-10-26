@@ -298,3 +298,24 @@ async def test_central_heating_synchro_follows_the_boiler_between_climate_writes
     assert state is not None
     assert state.state == STATE_OFF
     assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_the_control_setpoint_stays_within_the_maximum_setpoint(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    entry = await setup_heating(hass)
+    climate = entry.runtime_data.climate
+    coordinator = entry.runtime_data.coordinator
+
+    hass.states.async_set("sensor.test_inside_sensor", "12.0")
+    hass.states.async_set("sensor.test_outside_sensor", "-20.0")
+    await hass.async_block_till_done()
+    await climate.async_control_heating_loop()
+    freezer.tick(timedelta(seconds=61))
+    await climate.async_control_heating_loop()
+
+    assert climate.setpoint == coordinator.maximum_setpoint
+    state = hass.states.get("binary_sensor.mock_title_control_setpoint_synchro")
+    assert state is not None
+    assert state.state == STATE_OFF
+    assert await hass.config_entries.async_unload(entry.entry_id)

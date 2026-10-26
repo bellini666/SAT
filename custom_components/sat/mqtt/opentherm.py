@@ -98,6 +98,11 @@ class SatOpenThermMqttCoordinator(SatMqttCoordinator):
 
     @override
     @property
+    def flame_reported(self) -> bool:
+        return self._live_value(DATA_FLAME_ACTIVE) is not None
+
+    @override
+    @property
     def hot_water_active(self) -> bool:
         return self._live_value(DATA_DHW_ENABLE) == STATE_ON
 

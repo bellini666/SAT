@@ -27,6 +27,12 @@ STORAGE_VERSION = 1
 STORAGE_SAVE_DELAY = 60
 
 
+def mqtt_store(
+    hass: HomeAssistant, coordinator_class: type[SatMqttCoordinator], device_id: str
+) -> Store[dict[str, Any]]:
+    return Store(hass, STORAGE_VERSION, snake_case(f"{coordinator_class.__name__}_{device_id}"))
+
+
 class SatMqttCoordinator(SatDataUpdateCoordinator):
     """Base class to manage fetching data using MQTT."""
 
@@ -44,9 +50,8 @@ class SatMqttCoordinator(SatDataUpdateCoordinator):
         self._subscriptions: list[Callable[[], None]] = []
         self._messages: deque[MqttMessage] = deque(maxlen=50)
         self._stale_keys: set[str] = set()
-        self._store: Store[dict[str, Any]] = Store(
-            hass, STORAGE_VERSION, snake_case(f"{self.__class__.__name__}_{device_id}")
-        )
+        self._save_pending: bool = False
+        self._store: Store[dict[str, Any]] = mqtt_store(hass, type(self), device_id)
 
     @override
     @property
@@ -98,6 +103,10 @@ class SatMqttCoordinator(SatDataUpdateCoordinator):
             self._stale_keys = set(restored)
             self.async_set_updated_data(restored)
 
+    def _data_to_save(self) -> dict[str, Any]:
+        self._save_pending = False
+        return dict(self.data)
+
     async def _save_data(self) -> None:
         """Save the data to persistent storage."""
         await self._store.async_save(self.data)
@@ -138,7 +147,10 @@ class SatMqttCoordinator(SatDataUpdateCoordinator):
             except Exception:
                 _LOGGER.exception("Failed to process message for key '%s'", key)
 
-            self._store.async_delay_save(lambda: dict(self.data), STORAGE_SAVE_DELAY)
+            # Each delayed save call pushes the write back, so a busy gateway would never save
+            if not self._save_pending:
+                self._save_pending = True
+                self._store.async_delay_save(self._data_to_save, STORAGE_SAVE_DELAY)
 
         return message_handler
 

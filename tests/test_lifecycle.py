@@ -204,6 +204,48 @@ async def test_closing_the_window_cancels_every_pending_activity_preset(
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
+async def test_windows_that_cannot_be_read_neither_open_nor_close(
+    hass: HomeAssistant,
+) -> None:
+    hass.states.async_set("binary_sensor.window", "off")
+    hass.states.async_set("binary_sensor.door", "unavailable")
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data=DEFAULT_USER_DATA,
+        options={
+            CONF_WINDOW_SENSORS: ["binary_sensor.window", "binary_sensor.door"],
+            CONF_WINDOW_MINIMUM_OPEN_TIME: "00:00:00",
+        },
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    climate = entry.runtime_data.climate
+
+    hass.states.async_set("binary_sensor.window", "on")
+    await hass.async_block_till_done()
+    state = hass.states.get("binary_sensor.mock_title_window")
+    assert state is not None
+    assert state.state == "on"
+    assert state.attributes["device_class"] == "window"
+    assert climate.preset_mode == PRESET_ACTIVITY
+
+    hass.states.async_set("binary_sensor.window", "unavailable")
+    await hass.async_block_till_done()
+    state = hass.states.get("binary_sensor.mock_title_window")
+    assert state is not None
+    assert state.state == "unknown"
+    assert climate.preset_mode == PRESET_ACTIVITY
+
+    hass.states.async_set("binary_sensor.window", "off")
+    await hass.async_block_till_done()
+    state = hass.states.get("binary_sensor.mock_title_window")
+    assert state is not None
+    assert state.state == "off"
+    assert climate.preset_mode != PRESET_ACTIVITY
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
 def mqtt_entry(hass: HomeAssistant) -> MockConfigEntry:
     entry = MockConfigEntry(
         domain=DOMAIN,
@@ -383,6 +425,41 @@ async def test_periodic_tick_runs_the_control_loop(
 
     assert control.await_count == 1
     assert await hass.config_entries.async_unload(sat_entry.entry_id)
+
+
+async def test_an_unavailable_esphome_flame_does_not_end_a_burn(hass: HomeAssistant) -> None:
+    esphome_entry = MockConfigEntry(domain="esphome")
+    esphome_entry.add_to_hass(hass)
+    device = dr.async_get(hass).async_get_or_create(
+        config_entry_id=esphome_entry.entry_id,
+        connections={(dr.CONNECTION_NETWORK_MAC, "aa:bb:cc:dd:ee:ff")},
+    )
+    flame = er.async_get(hass).async_get_or_create(
+        "binary_sensor",
+        "esphome",
+        "AA:BB:CC:DD:EE:FF-binary_sensor-flame_on",
+        config_entry=esphome_entry,
+        device_id=device.id,
+    )
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={**DEFAULT_USER_DATA, CONF_MODE: MODE_ESPHOME, CONF_DEVICE: device.id},
+        options={CONF_SIMULATION: True},
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    coordinator = entry.runtime_data.coordinator
+
+    hass.states.async_set(flame.entity_id, "on")
+    coordinator.update_flame()
+    assert coordinator.flame.is_active
+
+    hass.states.async_set(flame.entity_id, "unavailable")
+    coordinator.update_flame()
+
+    assert coordinator.flame.last_cycle_duration_seconds is None
+    assert await hass.config_entries.async_unload(entry.entry_id)
 
 
 async def test_unload_stops_esphome_updates(hass: HomeAssistant) -> None:
