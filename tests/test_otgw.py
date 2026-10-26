@@ -24,6 +24,8 @@ from pytest_homeassistant_custom_component.common import (
 from custom_components.sat.const import (
     CONF_DEVICE,
     CONF_MANUFACTURER,
+    CONF_MAXIMUM_CONSUMPTION,
+    CONF_MINIMUM_CONSUMPTION,
     CONF_MINIMUM_SETPOINT,
     CONF_MODE,
     CONF_MQTT_TOPIC,
@@ -677,4 +679,32 @@ async def test_a_failed_hot_water_setpoint_publish_is_not_shown(
 
     assert coordinator.hot_water_setpoint == 60.0
     mqtt_mock.async_publish.side_effect = None
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+@pytest.mark.parametrize(
+    ("entity_id", "device_class", "unit"),
+    [
+        ("sensor.mock_title_boiler_power", "power", "kW"),
+        ("sensor.mock_title_boiler_gas_consumption", "volume_flow_rate", "m³/h"),
+        ("sensor.mock_title_heating_curve", "temperature", "°C"),
+        ("sensor.mock_title_error_value", "temperature_delta", "°C"),
+    ],
+)
+async def test_measurement_sensors_keep_statistics(
+    hass: HomeAssistant,
+    mqtt_mock: MqttMockHAClient,
+    entity_id: str,
+    device_class: str,
+    unit: str,
+) -> None:
+    entry = await setup_heating(
+        hass, mqtt_mock, {CONF_MINIMUM_CONSUMPTION: 0.2, CONF_MAXIMUM_CONSUMPTION: 2.5}
+    )
+
+    entity = er.async_get(hass).async_get(entity_id)
+    assert entity is not None
+    assert entity.capabilities == {"state_class": "measurement"}
+    assert (entity.device_class or entity.original_device_class) == device_class
+    assert entity.unit_of_measurement == unit
     assert await hass.config_entries.async_unload(entry.entry_id)

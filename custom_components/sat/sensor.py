@@ -3,8 +3,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, override
 
-from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
-from homeassistant.const import UnitOfPower, UnitOfTemperature, UnitOfVolume
+from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
+from homeassistant.const import UnitOfPower, UnitOfTemperature, UnitOfVolumeFlowRate
 
 from .const import (
     CONF_MAXIMUM_CONSUMPTION,
@@ -71,6 +71,7 @@ async def async_setup_entry(
 class SatCurrentPowerSensor(SatEntity, SensorEntity):
     _attr_translation_key = "boiler_power"
     _attr_device_class = SensorDeviceClass.POWER
+    _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_native_unit_of_measurement = UnitOfPower.KILO_WATT
 
     def __init__(self, coordinator: SatDataUpdateCoordinator, config_entry: ConfigEntry) -> None:
@@ -91,8 +92,9 @@ class SatCurrentPowerSensor(SatEntity, SensorEntity):
 
 class SatCurrentConsumptionSensor(SatEntity, SensorEntity):
     _attr_translation_key = "boiler_consumption"
-    _attr_device_class = SensorDeviceClass.GAS
-    _attr_native_unit_of_measurement = UnitOfVolume.CUBIC_METERS
+    _attr_device_class = SensorDeviceClass.VOLUME_FLOW_RATE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = UnitOfVolumeFlowRate.CUBIC_METERS_PER_HOUR
 
     def __init__(self, coordinator: SatDataUpdateCoordinator, config_entry: ConfigEntry) -> None:
         super().__init__(coordinator, config_entry)
@@ -129,6 +131,7 @@ class SatCurrentConsumptionSensor(SatEntity, SensorEntity):
 class SatHeatingCurveSensor(SatClimateEntity, SensorEntity):
     _attr_translation_key = "heating_curve"
     _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
 
     def __init__(
@@ -151,7 +154,8 @@ class SatHeatingCurveSensor(SatClimateEntity, SensorEntity):
 
 class SatErrorValueSensor(SatClimateEntity, SensorEntity):
     _attr_translation_key = "error_value"
-    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _attr_device_class = SensorDeviceClass.TEMPERATURE_DELTA
+    _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
 
     def __init__(
