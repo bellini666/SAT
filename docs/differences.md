@@ -8,13 +8,13 @@ The integration domain is still `sat`, so SAT v2 replaces the original in place.
 
 - SAT hands the boiler back to its thermostat when it's turned off, unloaded, Home Assistant stops, or a required sensor is missing for 10 minutes. It takes over again once things are back.
 - OTGW: SAT pauses while the gateway is offline and sets the boiler up again when it returns.
-- Mode, target and preset survive restarts, and the PID resumes without a jump in the setpoint.
-- Stale or non-numeric sensor values count as missing. With several outside sensors, SAT uses the next one.
+- After a restart, the PID resumes without a jump in the setpoint.
+- A sensor counts as stale from its last report, so a steady value stays fresh. Non-numeric values count as missing, and SAT moves on to the next outside sensor.
 
 ## Steadier heating
 
-- PWM has a 2 °C margin before switching off, and the cycles-per-hour limit holds across resets.
-- Room target changes, hot water runs and closed valves don't disturb the PWM cycle.
+- PWM has a 2 °C margin before switching off (without dynamic minimum setpoint), and the cycles-per-hour limit holds across resets.
+- Room target changes and hot water runs don't disturb the PWM cycle, and closed valves keep PWM enabled.
 - When the boiler keeps cutting burns short, PWM ends the on-phase early.
 - PID fixes: the derivative fades instead of sticking, small changes inside the sample time aren't lost, and underfloor systems get underfloor gains.
 - The heating curve stays flat once it's as warm outside as the target.
@@ -35,7 +35,7 @@ The integration domain is still `sat`, so SAT v2 replaces the original in place.
 
 ## Setup and options
 
-- Options are split into General, Presets and System Configuration menus, with advanced settings collapsed.
+- Advanced settings are a collapsed section of System Configuration, always available.
 - New option: "Mode when nothing can be restored".
 - The manufacturer is preselected, setup retries until MQTT is available, and diagnostics can be downloaded.
 - Removing an entry deletes its stored data.
@@ -43,5 +43,6 @@ The integration domain is still `sat`, so SAT v2 replaces the original in place.
 ## Platform
 
 - Requires Home Assistant 2026.10 or newer and `pyotgw>=2.2.3`.
-- No Sentry error reporting.
-- Typed, linted and tested in CI, with a much larger test suite.
+- Modern tooling: dependencies managed with `uv`, linting and formatting with `ruff` (all rules), and type checking with `ty`.
+- Fully typed code.
+- 223 tests, up from 7, all run in CI along with hassfest and HACS validation.
