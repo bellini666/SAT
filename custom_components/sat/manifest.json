@@ -25,5 +25,5 @@
   "requirements": [
     "pyotgw>=2.2.3"
   ],
-  "version": "4.2.1+fork.1"
+  "version": "5.0.0"
 }

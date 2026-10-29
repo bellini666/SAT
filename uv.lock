@@ -2823,7 +2823,7 @@ wheels = [
 
 [[package]]
 name = "sat"
-version = "4.2.1+fork.1"
+version = "5.0.0"
 source = { virtual = "." }
 dependencies = [
     { name = "pyotgw" },
