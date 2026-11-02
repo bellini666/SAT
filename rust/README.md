@@ -12,4 +12,4 @@ sh rust/build.sh
 uv run --locked pytest
 ```
 
-Commit the rebuilt module with its sources. CI checks that they match before running the integration tests.
+Commit the rebuilt module with its sources.

@@ -2,7 +2,10 @@
 name = "sat"
 version = "5.0.1"
 requires-python = ">=3.14.2"
-dependencies = ["pyotgw>=2.2.3"]
+dependencies = [
+    "pyotgw>=2.2.3",
+    "pywasm==2.2.3",
+]
 
 [dependency-groups]
 dev = [

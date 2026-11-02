@@ -4,6 +4,7 @@ import logging
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
+from . import control
 from .const import MINIMUM_SETPOINT
 
 if TYPE_CHECKING:
@@ -18,6 +19,14 @@ class RelativeModulationState(StrEnum):
     COLD = "cold"
     HOT_WATER = "hot_water"
     PULSE_WIDTH_MODULATION_OFF = "pulse_width_modulation_off"
+
+
+_STATES = (
+    RelativeModulationState.HOT_WATER,
+    RelativeModulationState.COLD,
+    RelativeModulationState.OFF,
+    RelativeModulationState.PULSE_WIDTH_MODULATION_OFF,
+)
 
 
 class RelativeModulation:
@@ -36,16 +45,14 @@ class RelativeModulation:
     @property
     def state(self) -> RelativeModulationState:
         """Determine the current relative modulation state from coordinator and internal data."""
-        if self._coordinator.hot_water_active:
-            return RelativeModulationState.HOT_WATER
-
-        if self._coordinator.setpoint is None or self._coordinator.setpoint <= MINIMUM_SETPOINT:
-            return RelativeModulationState.COLD
-
-        if self._pulse_width_modulation_enabled:
-            return RelativeModulationState.OFF
-
-        return RelativeModulationState.PULSE_WIDTH_MODULATION_OFF
+        code = control.value(
+            "modulation_state",
+            bool(self._coordinator.hot_water_active),
+            control.optional(self._coordinator.setpoint),
+            MINIMUM_SETPOINT,
+            self._pulse_width_modulation_enabled,
+        )
+        return _STATES[int(code)]
 
     @property
     def enabled(self) -> bool:

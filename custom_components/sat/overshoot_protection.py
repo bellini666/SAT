@@ -5,12 +5,14 @@ import logging
 import math
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from enum import IntEnum
 from statistics import fmean, linear_regression
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.util import dt as dt_util
 
+from . import control
 from .const import (
     CONF_CALIBRATION_FLAME_TIMEOUT,
     CONF_CALIBRATION_PLATEAU_TIMEOUT,
@@ -25,6 +27,13 @@ from .manufacturers.geminox import Geminox
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
+
+
+class _PlateauDecision(IntEnum):
+    SETPOINT_REACHED = 1
+    MINIMUM_MODULATION = 2
+    FORMULA = 3
+
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -297,29 +306,35 @@ class OvershootProtection:
 
         # Whole-degree sensors flicker by one step around the plateau
         step = 1 if all(flow.is_integer() for flow in flows) else 0.1
-        if len(window) < MINIMUM_PLATEAU_SAMPLES or max(flows) - min(flows) > max(
-            PLATEAU_TOLERANCE, step + 0.1
-        ):
+        if len(window) < MINIMUM_PLATEAU_SAMPLES:
             return None
 
-        # A drift of one sensor step across the window still counts as flat,
-        # 0.02 °C/min at 0.1 °C resolution
         offsets = [(timestamp - now) / PLATEAU_WINDOW for timestamp, _, _ in window]
-        if abs(linear_regression(offsets, flows).slope) > step:
-            return None
-
         plateau = round(fmean(flows), 1)
         modulation = fmean(modulations)
-
-        if modulation <= floor + MODULATION_TOLERANCE:
-            if plateau >= self.setpoint - SETPOINT_MARGIN:
-                raise CalibrationError(reason="setpoint_reached", value=self.setpoint)
-
+        decision = control.value(
+            "calibration_plateau",
+            max(flows) - min(flows),
+            step,
+            PLATEAU_TOLERANCE,
+            linear_regression(offsets, flows).slope,
+            plateau,
+            modulation,
+            floor,
+            max(modulations) - min(modulations),
+            self.setpoint,
+            SETPOINT_MARGIN,
+            MODULATION_TOLERANCE,
+            MODULATION_STABILITY,
+        )
+        if decision == _PlateauDecision.SETPOINT_REACHED:
+            raise CalibrationError(reason="setpoint_reached", value=self.setpoint)
+        if decision == _PlateauDecision.MINIMUM_MODULATION:
             return CalibrationResult(
                 plateau, "zero_modulation" if max(modulations) == 0 else "minimum_modulation"
             )
-
-        if max(modulations) - min(modulations) > MODULATION_STABILITY:
-            return None
-
-        return CalibrationResult(round((100 - modulation) / 100 * self.setpoint, 1), "formula")
+        if decision == _PlateauDecision.FORMULA:
+            return CalibrationResult(
+                control.value("calibration_formula", self.setpoint, modulation), "formula"
+            )
+        return None

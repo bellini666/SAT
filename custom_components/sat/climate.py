@@ -55,6 +55,7 @@ from homeassistant.helpers.restore_state import ExtraStoredData, RestoreEntity
 from homeassistant.helpers.start import async_at_started
 from homeassistant.util import dt as dt_util
 
+from . import control
 from .area import SENSOR_TEMPERATURE_ID, Areas
 from .const import (
     COLD_SETPOINT,
@@ -703,7 +704,9 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         if self.heating_curve.value is None:
             return MINIMUM_SETPOINT
 
-        return round(max(self.heating_curve.value + self.pid.output, MINIMUM_SETPOINT), 1)
+        return control.value(
+            "requested_setpoint", self.heating_curve.value, self.pid.output, MINIMUM_SETPOINT
+        )
 
     @property
     def valves_open(self) -> bool:
@@ -753,20 +756,20 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
     @property
     def pulse_width_modulation_enabled(self) -> bool:
         """Return True if pulse width modulation is enabled, False otherwise."""
-        if not self._coordinator.supports_setpoint_management or self._force_pulse_width_modulation:
-            return True
-
-        if not self._overshoot_protection or self._calculated_setpoint is None:
-            return False
-
-        if not self._dynamic_minimum_setpoint:
-            hysteresis = PWM_HYSTERESIS if self.pwm.status != PWMStatus.IDLE else 0.0
-            return self._coordinator.minimum_setpoint + hysteresis > self._calculated_setpoint
-
-        if self._minimum_setpoint_version == DYNAMIC_MINIMUM_SETPOINT_VERSION_1:
-            return self.minimum_setpoint_value > self._calculated_setpoint
-
-        return self.pwm.enabled
+        return bool(
+            control.value(
+                "pwm_enabled",
+                not self._coordinator.supports_setpoint_management
+                or self._force_pulse_width_modulation,
+                self._overshoot_protection,
+                control.optional(self._calculated_setpoint),
+                self._dynamic_minimum_setpoint,
+                self._minimum_setpoint_version,
+                self.minimum_setpoint_value,
+                PWM_HYSTERESIS if self.pwm.status != PWMStatus.IDLE else 0.0,
+                self.pwm.enabled,
+            )
+        )
 
     @property
     def control_problems(self) -> list[str]:
@@ -1058,34 +1061,17 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         self, pwm_state: PWMState, calculated_setpoint: float
     ) -> None:
         """Control the setpoint of the heating system based on the current mode and PWM state."""
-        if not self.pulse_width_modulation_enabled or pwm_state.status == PWMStatus.IDLE:
-            # Normal cycle without PWM
-            self._setpoint = calculated_setpoint
-            _LOGGER.debug(
-                "Pulse Width Modulation is disabled or in IDLE state. Running normal heating cycle."
-            )
-            _LOGGER.debug("Calculated setpoint for normal cycle: %.1f°C", calculated_setpoint)
-
-            # Some final checks to see if it's even warm, or if any heat can go anywhere
-            if self._setpoint < COLD_SETPOINT or not self._valves_open:
-                self._setpoint = MINIMUM_SETPOINT
-                _LOGGER.debug(
-                    "Calculated setpoint is too cold. Setting setpoint to minimum: %.1f°C",
-                    MINIMUM_SETPOINT,
-                )
-        else:
-            # PWM is enabled and actively controlling the cycle
-            _LOGGER.debug("Running PWM cycle with state: %s", pwm_state.status)
-
-            if pwm_state.status == PWMStatus.ON:
-                self._setpoint = self.minimum_setpoint_value
-                _LOGGER.debug("Setting setpoint to minimum: %.1f°C", self._setpoint)
-            else:
-                self._setpoint = MINIMUM_SETPOINT
-                _LOGGER.debug("Setting setpoint to absolute minimum: %.1f°C", MINIMUM_SETPOINT)
-
-        # Apply the setpoint using the coordinator
-        self._setpoint = min(self._setpoint, self._coordinator.maximum_setpoint)
+        mode = pwm_state.status if self.pulse_width_modulation_enabled else PWMStatus.IDLE
+        self._setpoint = control.value(
+            "control_setpoint",
+            calculated_setpoint,
+            mode.control_code,
+            self._valves_open,
+            self.minimum_setpoint_value if mode == PWMStatus.ON else MINIMUM_SETPOINT,
+            self._coordinator.maximum_setpoint,
+            COLD_SETPOINT,
+            MINIMUM_SETPOINT,
+        )
         await self._coordinator.async_set_control_setpoint(self._setpoint)
         _LOGGER.debug("Control setpoint has been updated to: %.1f°C", self._setpoint)
 
@@ -1255,10 +1241,11 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
                 self._calculated_setpoint = self._calculate_control_setpoint()
             else:
                 # Apply low filter on the requested setpoint
-                self._calculated_setpoint = round(
-                    self._alpha * self._calculate_control_setpoint()
-                    + (1 - self._alpha) * self._calculated_setpoint,
-                    1,
+                self._calculated_setpoint = control.value(
+                    "filtered_setpoint",
+                    self._calculated_setpoint,
+                    self._calculate_control_setpoint(),
+                    self._alpha,
                 )
 
             # Check for overshoot

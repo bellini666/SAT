@@ -7,8 +7,9 @@ from typing import TYPE_CHECKING
 from homeassistant.helpers.storage import Store
 from homeassistant.util import utcnow
 
+from . import control
 from .const import DOMAIN, PWMStatus
-from .helpers import clamp, to_int
+from .helpers import to_int
 from .state import State, update_state
 
 if TYPE_CHECKING:
@@ -73,7 +74,7 @@ class MinimumSetpoint:
             _LOGGER.debug("Skip calculation: boiler return temperature is not available.")
             return
 
-        if (
+        stable = (
             pwm_state is PWMStatus.IDLE
             and boiler_state.relative_modulation_level is not None
             and boiler_state.flow_temperature is not None
@@ -82,16 +83,17 @@ class MinimumSetpoint:
             and (utcnow() - self._relative_modulation_level.last_changed).total_seconds()
             > MODULATION_STABLE_SECONDS
             and math.isclose(boiler_state.flow_temperature, boiler_state.setpoint, abs_tol=1.0)
-        ):
-            proportion = 1.0 - (boiler_state.relative_modulation_level / 100.0)
-            proportional_candidate = (proportion * boiler_state.flow_temperature) - 3.0
-            new_minimum = clamp(proportional_candidate, 30.0)
-        else:
-            adjustment = (
-                boiler_state.return_temperature - self._base_return_temperature.value
-            ) * self._adjustment_factor
-            minimum_setpoint_candidate = self._configured_minimum_setpoint + adjustment
-            new_minimum = clamp(minimum_setpoint_candidate, 30.0)
+        )
+        new_minimum = control.value(
+            "minimum_setpoint",
+            stable,
+            boiler_state.relative_modulation_level or 0.0,
+            boiler_state.flow_temperature or 0.0,
+            boiler_state.return_temperature,
+            self._base_return_temperature.value,
+            self._configured_minimum_setpoint,
+            self._adjustment_factor,
+        )
 
         self._current_minimum_setpoint = update_state(
             previous=self._current_minimum_setpoint, new_value=new_minimum

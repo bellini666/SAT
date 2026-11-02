@@ -201,6 +201,10 @@ class PWMStatus(StrEnum):
     OFF = "off"
     IDLE = "idle"
 
+    @property
+    def control_code(self) -> int:
+        return {PWMStatus.IDLE: 0, PWMStatus.ON: 1, PWMStatus.OFF: 2}[self]
+
 
 # Dynamic minimum setpoint versions
 DYNAMIC_MINIMUM_SETPOINT_VERSION_1 = 1

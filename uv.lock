@@ -2635,6 +2635,15 @@ wheels = [
 ]
 
 [[package]]
+name = "pywasm"
+version = "2.2.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/20/51/337c1ebcf5a534153c1d65e90bc0bcbfb3713b6f398d790b6ef4beede7f8/pywasm-2.2.3.tar.gz", hash = "sha256:bc5c2aaed73d43fdfab0c6c6dc3a05b4c2de176fbbf94dd258f4f26d135f0ff1", size = 631867, upload-time = "2026-05-13T01:42:52.22Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/73/63/7a6587416281ddcd987b2a19e79406c9ba13b63fd5c7ae34ae35a06f89b1/pywasm-2.2.3-py2.py3-none-any.whl", hash = "sha256:5bc0d4fa7a4404937b1f0fa7ca4622a70ddbef0491869f5aef7b2a1018f37aa0", size = 44605, upload-time = "2026-05-13T01:42:50.052Z" },
+]
+
+[[package]]
 name = "pyyaml"
 version = "6.0.3"
 source = { registry = "https://pypi.org/simple" }
@@ -2827,6 +2836,7 @@ version = "5.0.1"
 source = { virtual = "." }
 dependencies = [
     { name = "pyotgw" },
+    { name = "pywasm" },
 ]
 
 [package.dev-dependencies]
@@ -2842,7 +2852,10 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "pyotgw", specifier = ">=2.2.3" }]
+requires-dist = [
+    { name = "pyotgw", specifier = ">=2.2.3" },
+    { name = "pywasm", specifier = "==2.2.3" },
+]
 
 [package.metadata.requires-dev]
 dev = [

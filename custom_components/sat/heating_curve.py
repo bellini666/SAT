@@ -1,15 +1,11 @@
-import logging
 from collections import deque
 from statistics import mean
 
+from . import control
 from .const import (
     HEATING_SYSTEM_UNDERFLOOR,
     MINIMUM_SETPOINT,
 )
-
-_LOGGER = logging.getLogger(__name__)
-
-SMALL_COEFFICIENT_DERIVATIVE = 0.5
 
 
 class HeatingCurve:
@@ -32,8 +28,8 @@ class HeatingCurve:
     def update(self, target_temperature: float, outside_temperature: float) -> None:
         """Calculate the heating curve based on the outside temperature."""
         heating_curve_value = self.calculate(target_temperature, outside_temperature)
-        self._last_heating_curve_value = round(
-            self.base_offset + ((self._coefficient / 4) * heating_curve_value), 1
+        self._last_heating_curve_value = control.value(
+            "curve_setpoint", self.base_offset, self._coefficient, heating_curve_value
         )
 
     def calculate_coefficient(
@@ -41,7 +37,10 @@ class HeatingCurve:
     ) -> float:
         """Convert a setpoint to a coefficient value."""
         heating_curve_value = self.calculate(target_temperature, outside_temperature)
-        return round(4 * (setpoint - self.base_offset) / heating_curve_value, 1)
+        if heating_curve_value == 0:
+            msg = "float division by zero"
+            raise ZeroDivisionError(msg)
+        return control.value("curve_coefficient", self.base_offset, setpoint, heating_curve_value)
 
     def autotune(
         self, setpoint: float, target_temperature: float, outside_temperature: float
@@ -60,23 +59,7 @@ class HeatingCurve:
             else 0.0
         )
 
-        # Fuzzy logic for when the derivative is positive
-        if self._coefficient_derivative > 0:
-            if self._coefficient_derivative > 1:
-                coefficient -= 0.3
-            elif self._coefficient_derivative < SMALL_COEFFICIENT_DERIVATIVE:
-                coefficient -= 0.1
-            else:
-                coefficient -= 0.2
-
-        # Fuzzy logic for when the derivative is negative
-        elif self._coefficient_derivative < 0:
-            if self._coefficient_derivative < -1:
-                coefficient += 0.3
-            elif self._coefficient_derivative > -SMALL_COEFFICIENT_DERIVATIVE:
-                coefficient += 0.1
-            else:
-                coefficient += 0.2
+        coefficient = control.value("autotune_sample", coefficient, self._coefficient_derivative)
 
         # Store the results
         self._optimal_coefficients.append(coefficient)
@@ -92,14 +75,7 @@ class HeatingCurve:
     @staticmethod
     def calculate(target_temperature: float, outside_temperature: float) -> float:
         """Calculate the heating curve value based on the current outside temperature."""
-        # The parabola bottoms out near 26.7 °C and rises again,
-        # so outside temperatures above the target count as the target
-        outside_temperature = min(outside_temperature, target_temperature)
-        return (
-            4 * (target_temperature - 20)
-            + 0.03 * (outside_temperature - 20) ** 2
-            - 0.4 * (outside_temperature - 20)
-        )
+        return control.value("heating_curve", target_temperature, outside_temperature)
 
     @property
     def base_offset(self) -> float:
