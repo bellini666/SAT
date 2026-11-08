@@ -263,9 +263,18 @@ class SatEspHomeCoordinator(SatDataUpdateCoordinator, SatEntityCoordinator):
 
     @override
     def _get_entity_id(self, domain: str, key: str) -> str | None:
-        unique_id = f"{self._mac_address.upper()}-{domain}-{key}"
-        _LOGGER.debug("Attempting to find the unique_id of %s", unique_id)
-        return self._entity_registry.async_get_entity_id(domain, ESPHOME_DOMAIN, unique_id)
+        mac = self._mac_address.upper()
+
+        # Home Assistant 2026.10 builds ESPHome unique ids as "<mac>/<device index>/<domain>/<key>",
+        # older versions used "<mac>-<domain>-<key>".
+        candidates = (f"{mac}/0/{domain}/{key}", f"{mac}-{domain}-{key}")
+
+        for unique_id in candidates:
+            _LOGGER.debug("Attempting to find the unique_id of %s", unique_id)
+            if entity_id := self._entity_registry.async_get_entity_id(domain, ESPHOME_DOMAIN, unique_id):
+                return entity_id
+
+        return None
 
     async def _send_command(
         self, domain: str, service: str, _key: str, payload: dict[str, str | float | None]
